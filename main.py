@@ -4,9 +4,9 @@ import json
 import requests
 from datetime import datetime
 
-NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip()
-NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '').replace("'", "")
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
 KEYWORDS = {
     "토목": "건설/토목",
@@ -16,22 +16,29 @@ KEYWORDS = {
 }
 
 def get_naver_news(keyword):
-    url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=5&sort=date"
+    # 개발자센터 및 네이버 클라우드 플랫폼(API Hub) 엔드포인트 호환 배열
+    endpoints = [
+        "https://openapi.naver.com/v1/search/news.json",
+        "https://naveropenapi.apigw.ntruss.com/debug/v1/search/news.json"
+    ]
+    
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
         "X-NCP-APIGW-API-KEY-ID": NAVER_CLIENT_ID,
         "X-NCP-APIGW-API-KEY": NAVER_CLIENT_SECRET
     }
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            return res.json().get("items", [])
-        else:
-            print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
-            print(f"[ERROR] 응답 내용: {res.text}")
-    except Exception as e:
-        print(f"[EXCEPTION] 네이버 API 요청 중 예외 발생: {e}")
+
+    for url in endpoints:
+        try:
+            res = requests.get(f"{url}?query={keyword}&display=5&sort=date", headers=headers, timeout=10)
+            if res.status_code == 200:
+                return res.json().get("items", [])
+            else:
+                print(f"[DEBUG] {url} 호출 실패 (상태코드: {res.status_code})")
+        except Exception as e:
+            print(f"[DEBUG] {url} 요청 예외 발생: {e}")
+
     return []
 
 def clean_text(text):
