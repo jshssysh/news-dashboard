@@ -30,17 +30,29 @@ if "대표이슈" not in df.columns:
     st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
     st.stop()
 
-# 상단 핵심 요약 지표
+# 상단 핵심 요약 지표 집계
 total_count = len(df)
 pos_count = len(df[df["논조"] == "긍정"])
 neu_count = len(df[df["논조"] == "중립"])
 neg_count = len(df[df["논조"] == "부정"])
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("총 수집 기사", f"{total_count}건")
-col2.metric("🟢 긍정 기사", f"{pos_count}건")
-col3.metric("⚪ 중립 기사", f"{neu_count}건")
-col4.metric("🔴 부정 기사", f"{neg_count}건")
+# 상단 커스텀 요약 지표 바 (총, 긍정, 중립, 부정)
+st.markdown(f"""
+<div style="display: flex; gap: 12px; justify-content: space-between; margin-top: 10px; margin-bottom: 25px;">
+    <div style="flex: 1; border: 2px solid #6c757d; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #343a40; background-color: #f8f9fa;">
+        총({total_count})
+    </div>
+    <div style="flex: 1; border: 2px solid #28a745; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #28a745; background-color: #f4fff6;">
+        긍정({pos_count})
+    </div>
+    <div style="flex: 1; border: 2px solid #e0a800; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #d39e00; background-color: #fffdf0;">
+        중립({neu_count})
+    </div>
+    <div style="flex: 1; border: 2px solid #dc3545; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #dc3545; background-color: #fff5f5;">
+        부정({neg_count})
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
