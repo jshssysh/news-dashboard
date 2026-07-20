@@ -2,13 +2,13 @@ import os
 import csv
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '').replace("'", "")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
-# 공정위 관련 검색 키워드 및 카테고리 변경
 KEYWORDS = {
     "공정거래위원회": "공정위/정책",
     "공정위 담합": "담합/불공정",
@@ -16,22 +16,47 @@ KEYWORDS = {
     "공정위 기업결합": "M&A/규제"
 }
 
-def get_naver_news(keyword):
-    url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=5&sort=date"
+def get_naver_news_24h(keyword):
+    # 최대 100건을 요청하여 24시간 이내 기사 전수 검사
+    url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=100&sort=date"
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
     }
+    
+    # 현재 시각(KST, UTC+9) 및 24시간 전 임계 시각 계산
+    kst = timezone(timedelta(hours=9))
+    now_kst = datetime.now(kst)
+    time_threshold = now_kst - timedelta(hours=24)
+    
+    valid_items = []
+    
     try:
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
-            return res.json().get("items", [])
+            items = res.json().get("items", [])
+            for item in items:
+                pub_date_str = item.get("pubDate", "")
+                try:
+                    # RFC 822 날짜 문자열 파싱
+                    pub_dt = parsedate_to_datetime(pub_date_str)
+                    
+                    # 24시간 이내 기사만 수집
+                    if pub_dt >= time_threshold:
+                        valid_items.append(item)
+                    else:
+                        # 최신순 정렬이므로 24시간을 넘어간 기사가 나오면 탐색 종료
+                        break
+                except Exception as e:
+                    print(f"[WARN] 날짜 파싱 실패, 기본 포함 처리: {e}")
+                    valid_items.append(item)
         else:
             print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
             print(f"[ERROR] 응답 내용: {res.text}")
     except Exception as e:
         print(f"[EXCEPTION] 네이버 API 요청 중 예외 발생: {e}")
-    return []
+        
+    return valid_items
 
 def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
@@ -57,12 +82,12 @@ def analyze_with_gemini(title, description):
     return title, "중립"
 
 def main():
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     file_name = "news_list.csv"
 
     rows = []
     for keyword, category in KEYWORDS.items():
-        articles = get_naver_news(keyword)
+        articles = get_naver_news_24h(keyword)
         for item in articles:
             title = clean_text(item["title"])
             desc = clean_text(item["description"])
@@ -70,7 +95,7 @@ def main():
             summary, sentiment = analyze_with_gemini(title, desc)
             rows.append([today_str, category, title, summary, sentiment, link])
 
-    print(f"[INFO] 총 수집된 기사 수: {len(rows)}건")
+    print(f"[INFO] 24시간 이내 수집된 기사 수: {len(rows)}건")
 
     with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
