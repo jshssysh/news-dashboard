@@ -129,7 +129,7 @@ for issue_name, group_df in grouped:
     raw_category = group_df["분야"].iloc[0]
     article_count = len(group_df)
 
-    # HTML 특수문자 안전 변환 (검은 화면 방지 핵심 로직)
+    # HTML 특수문자 안전 변환
     safe_issue_name = html.escape(str(issue_name))
     safe_main_press = html.escape(str(raw_main_press))
     safe_main_summary = html.escape(str(raw_main_summary))
@@ -173,12 +173,27 @@ for issue_name, group_df in grouped:
                 else:
                     sub_style = "border: 1.5px solid #e0a800; color: #d39e00;"
                     
-                c1, c2 = st.columns([1.2, 4])
-                with c1:
-                    st.markdown(f"**[{row.get('언론사', '언론사미상')}]**")
-                    st.markdown(f'<span style="{sub_style} border-radius: 5px; padding: 2px 8px; font-size: 12px; font-weight: 700; background-color: transparent;">{sub_sentiment}</span>', unsafe_allow_html=True)
-                with c2:
-                    st.markdown(f"[{row.get('제목', '제목없음')}]({row.get('기사링크', '#')})")
-                    st.caption(f"요약: {row.get('AI요약', '')}")
-                st.markdown("---")
+                safe_sub_press = html.escape(str(row.get('언론사', '언론사미상')))
+                safe_sub_title = html.escape(str(row.get('제목', '제목없음')))
+                safe_sub_summary = html.escape(str(row.get('AI요약', '')))
+                safe_sub_link = html.escape(str(row.get('기사링크', '#')))
+
+                # 한 줄 출력 레이아웃 (논조 -> 언론사 -> 제목 -> 요약 순)
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; line-height: 1.5; flex-wrap: wrap;">
+                    <span style="{sub_style} border-radius: 5px; padding: 1px 6px; font-size: 12px; font-weight: 700; background-color: transparent; white-space: nowrap;">
+                        {sub_sentiment}
+                    </span>
+                    <span style="font-weight: 700; white-space: nowrap;">
+                        [{safe_sub_press}]
+                    </span>
+                    <a href="{safe_sub_link}" target="_blank" style="font-weight: 600; text-decoration: none; color: #1f77b4;">
+                        {safe_sub_title}
+                    </a>
+                    <span style="color: #6c757d; font-size: 13px;">
+                        - {safe_sub_summary}
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("<hr style='margin: 4px 0 8px 0; border: none; border-top: 1px solid #f0f2f6;' />", unsafe_allow_html=True)
         st.divider()
