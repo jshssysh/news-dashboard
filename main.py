@@ -26,6 +26,42 @@ KEYWORDS = {
     "레이크사이드cc": "삼성/이슈"
 }
 
+# 파이썬 자체 URL 도메인 및 네이버 언론사 코드 매핑표
+PRESS_DOMAINS = {
+    "yna.co.kr": "연합뉴스", "chosun.com": "조선일보", "donga.com": "동아일보",
+    "joongang.co.kr": "중앙일보", "hankyung.com": "한국경제", "mk.co.kr": "매일경제",
+    "sedaily.com": "서울경제", "edaily.co.kr": "이데일리", "etnews.com": "전자신문",
+    "mt.co.kr": "머니투데이", "moneytoday.co.kr": "머니투데이", "heraldcorp.com": "헤럴드경제",
+    "fnnews.com": "파이낸셜뉴스", "khan.co.kr": "경향신문", "hani.co.kr": "한겨레",
+    "seoul.co.kr": "서울신문", "sbs.co.kr": "SBS", "kbs.co.kr": "KBS",
+    "mbc.co.kr": "MBC", "ytn.co.kr": "YTN", "jtbc.co.kr": "JTBC",
+    "news1.kr": "뉴스1", "newsis.com": "뉴시스", "biz.chosun.com": "조선비즈",
+    "ajunews.com": "아주경제", "asiatoday.co.kr": "아시아투데이"
+}
+
+NAVER_PRESS_CODES = {
+    "001": "연합뉴스", "002": "프레시안", "003": "국민일보", "005": "국민일보",
+    "008": "머니투데이", "009": "매일경제", "011": "서울경제", "014": "파이낸셜뉴스",
+    "015": "한국경제", "016": "헤럴드경제", "018": "이데일리", "020": "동아일보",
+    "021": "문화일보", "022": "세계일보", "023": "조선일보", "025": "중앙일보",
+    "028": "한겨레", "032": "경향신문", "052": "YTN", "055": "SBS",
+    "056": "KBS", "057": "MBN", "214": "MBC", "421": "뉴스1", "403": "뉴시스"
+}
+
+def extract_press_from_link(link):
+    for domain, name in PRESS_DOMAINS.items():
+        if domain in link:
+            return name
+            
+    if "n.news.naver.com" in link or "news.naver.com" in link:
+        parts = link.split("/")
+        for i, part in enumerate(parts):
+            if part == "article" and i + 1 < len(parts):
+                code = parts[i+1]
+                if code in NAVER_PRESS_CODES:
+                    return NAVER_PRESS_CODES[code]
+    return None
+
 def get_naver_news_24h(keyword):
     url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=100&sort=date"
     headers = {
@@ -63,14 +99,14 @@ def get_naver_news_24h(keyword):
 def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
-def analyze_with_gemini(title, description, link):
+def analyze_with_gemini(title, description, link, known_press):
     if not GEMINI_API_KEY:
-        return "언론사 미상", title, title, "중립"
+        return known_press or "언론사 미상", title, title, "중립"
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    prompt = f"""다음 뉴스 기사의 URL, 제목, 요약 내용을 읽고 4가지 항목을 JSON으로 추출해줘:
-1. press: 언론사명 (기사 URL domain이나 제목에서 추출. 예: 연합뉴스, 한국경제, 조선일보, 매일경제 등)
-2. group_title: 유사한 기사들을 하나로 묶을 수 있는 대표 이슈 제목 (핵심 사건 중심으로 15자 이내 작성)
+    prompt = f"""다음 뉴스 기사를 분석하여 JSON 항목을 작성해줘:
+1. press: 언론사명 (제시된 알려진 언론사명 '{known_press}'를 우선 사용하되, 없으면 URL/제목에서 추출)
+2. group_title: 유사 기사를 묶을 수 있는 대표 이슈 핵심 제목 (사건 중심 15자 이내)
 3. summary: 1문장 핵심 요약
 4. sentiment: 긍정, 중립, 부정 중 하나
 
@@ -91,7 +127,7 @@ def analyze_with_gemini(title, description, link):
             data = res.json()
             text_response = data['candidates'][0]['content']['parts'][0]['text']
             result = json.loads(text_response)
-            press = result.get("press", "언론사 미상")
+            press = result.get("press", known_press or "언론사 미상")
             group_title = result.get("group_title", title)
             summary = result.get("summary", title)
             sentiment = result.get("sentiment", "중립")
@@ -99,7 +135,7 @@ def analyze_with_gemini(title, description, link):
     except Exception as e:
         print(f"Gemini API Error: {e}")
         
-    return "언론사 미상", title, title, "중립"
+    return known_press or "언론사 미상", title, title, "중립"
 
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -120,12 +156,15 @@ def main():
             title = clean_text(item["title"])
             desc = clean_text(item["description"])
             
-            press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link)
+            # 파이썬 도메인/코드 기반 언론사 1차 추출
+            known_press = extract_press_from_link(link)
+            
+            press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
             rows.append([today_str, category, group_title, title, press, summary, sentiment, link])
             
             time.sleep(0.5)
 
-    print(f"[INFO] 최근 24시간 중복 제거 후 최종 수집된 기사 수: {len(rows)}건")
+    print(f"[INFO] 최근 24시간 수집 및 언론사 식별 완료: 총 {len(rows)}건")
 
     with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
