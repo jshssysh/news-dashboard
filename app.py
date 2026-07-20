@@ -1,49 +1,86 @@
-import streamlit as st
-import pandas as pd
 import os
+import csv
+import json
+import requests
+from datetime import datetime
 
-st.set_page_config(page_title="Daily Brief Dashboard", layout="wide")
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip()
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-st.title("📰 Daily Brief 뉴스 트래커")
+KEYWORDS = {
+    "토목": "건설/토목",
+    "부동산": "부동산",
+    "인공지능": "IT/기술",
+    "증시": "경제"
+}
 
-if not os.path.exists("news_list.csv"):
-    st.info("아직 수집된 뉴스 데이터가 없습니다. GitHub Actions를 먼저 수동 실행해주세요.")
-    st.stop()
+def get_naver_news(keyword):
+    url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=5&sort=date"
+    headers = {
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+        "X-NCP-APIGW-API-KEY-ID": NAVER_CLIENT_ID,
+        "X-NCP-APIGW-API-KEY": NAVER_CLIENT_SECRET
+    }
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            return res.json().get("items", [])
+        else:
+            print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
+            print(f"[ERROR] 응답 내용: {res.text}")
+    except Exception as e:
+        print(f"[EXCEPTION] 네이버 API 요청 중 예외 발생: {e}")
+    return []
 
-df = pd.read_csv("news_list.csv")
+def clean_text(text):
+    return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
-col1, col2, col3, col4 = st.columns(4)
-total_count = len(df)
-pos_count = len(df[df['논조'] == '긍정'])
-neu_count = len(df[df['논조'] == '중립'])
-neg_count = len(df[df['논조'] == '부정'])
+def analyze_with_gemini(title, description):
+    if not GEMINI_API_KEY:
+        return title, "중립"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    prompt = f"다음 뉴스 제목과 요약을 읽고, 1문장 핵심 요약과 논조(긍정/중립/부정 중 하나)를 판단해줘.\n제목: {title}\n내용: {description}\n응답형식 JSON: {{\"summary\": \"요약문\", \"sentiment\": \"긍정|중립|부정\"}}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"response_mime_type": "application/json"}
+    }
+    try:
+        res = requests.post(url, json=payload, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            text_response = data['candidates'][0]['content']['parts'][0]['text']
+            result = json.loads(text_response)
+            return result.get("summary", title), result.get("sentiment", "중립")
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+    return title, "중립"
 
-col1.metric("총 수집 기사", f"{total_count}건")
-col2.metric("긍정 논조", f"{pos_count}건")
-col3.metric("중립 논조", f"{neu_count}건")
-col4.metric("부정 논조", f"{neg_count}건")
+def main():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    file_name = "news_list.csv"
 
-st.divider()
+    rows = []
+    for keyword, category in KEYWORDS.items():
+        articles = get_naver_news(keyword)
+        for item in articles:
+            title = clean_text(item["title"])
+            desc = clean_text(item["description"])
+            link = item["originallink"] if item["originallink"] else item["link"]
+            summary, sentiment = analyze_with_gemini(title, desc)
+            rows.append([today_str, category, title, summary, sentiment, link])
 
-categories = ["전체"] + list(df['분야'].unique())
-selected_category = st.selectbox("분야 선택", categories)
-search_query = st.text_input("기사 제목/요약 검색", "")
+    print(f"[INFO] 총 수집된 기사 수: {len(rows)}건")
 
-filtered_df = df.copy()
-if selected_category != "전체":
-    filtered_df = filtered_df[filtered_df['분야'] == selected_category]
+    if len(rows) > 0:
+        # 기존 파일 삭제 후 새 데이터 작성
+        with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["수집일자", "분야", "제목", "AI요약", "논조", "기사링크"])
+            writer.writerows(rows)
+    else:
+        print("[WARN] 수집된 데이터가 없습니다. API 키를 확인해주세요.")
 
-if search_query:
-    filtered_df = filtered_df[
-        filtered_df['제목'].str.contains(search_query, case=False, na=False) |
-        filtered_df['AI요약'].str.contains(search_query, case=False, na=False)
-    ]
-
-st.subheader(f"뉴스 리스트 ({len(filtered_df)}건)")
-
-for idx, row in filtered_df.iterrows():
-    with st.container():
-        st.markdown(f"**[{row['분야']}]** `{row['논조']}` | {row['수집일자']}")
-        st.markdown(f"### [{row['제목']}]({row['기사링크']})")
-        st.write(f"💡 **AI 요약:** {row['AI요약']}")
-        st.divider()
+if __name__ == "__main__":
+    main()
