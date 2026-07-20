@@ -4,9 +4,9 @@ import json
 import requests
 from datetime import datetime
 
-NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
-NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip()
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 KEYWORDS = {
     "토목": "건설/토목",
@@ -19,11 +19,19 @@ def get_naver_news(keyword):
     url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=5&sort=date"
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+        "X-NCP-APIGW-API-KEY-ID": NAVER_CLIENT_ID,
+        "X-NCP-APIGW-API-KEY": NAVER_CLIENT_SECRET
     }
-    res = requests.get(url, headers=headers)
-    if res.status_code == 200:
-        return res.json().get("items", [])
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            return res.json().get("items", [])
+        else:
+            print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
+            print(f"[ERROR] 응답 내용: {res.text}")
+    except Exception as e:
+        print(f"[EXCEPTION] 네이버 API 요청 중 예외 발생: {e}")
     return []
 
 def clean_text(text):
@@ -52,7 +60,6 @@ def analyze_with_gemini(title, description):
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d")
     file_name = "news_list.csv"
-    file_exists = os.path.isfile(file_name)
 
     rows = []
     for keyword, category in KEYWORDS.items():
@@ -64,11 +71,13 @@ def main():
             summary, sentiment = analyze_with_gemini(title, desc)
             rows.append([today_str, category, title, summary, sentiment, link])
 
-    with open(file_name, mode="a", encoding="utf-8-sig", newline="") as f:
+    print(f"[INFO] 총 수집된 기사 수: {len(rows)}건")
+
+    with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["수집일자", "분야", "제목", "AI요약", "논조", "기사링크"])
-        writer.writerows(rows)
+        writer.writerow(["수집일자", "분야", "제목", "AI요약", "논조", "기사링크"])
+        if len(rows) > 0:
+            writer.writerows(rows)
 
 if __name__ == "__main__":
     main()
