@@ -4,6 +4,7 @@ import json
 import time
 import re
 import requests
+import pandas as pd
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
@@ -11,6 +12,7 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '')
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
+# 수집 키워드 및 분야 매핑
 KEYWORDS = {
     "공정거래": "공정위/정책",
     "내부거래": "부당지원",
@@ -19,12 +21,13 @@ KEYWORDS = {
     "상법": "지배구조",
     "지배구조": "지배구조",
     "종합상사": "산업동향",
-    "삼성": "그룹동향",
-    "계열분리": "그룹동향",
+    "삼성": "삼성그룹",
+    "삼성 계열분리": "삼성그룹",
     "일감몰아주기": "부당지원",
-    "웰스토리": "삼성/이슈",
-    "삼우종합건축사사무소": "삼성/이슈",
-    "레이크사이드cc": "삼성/이슈"
+    "웰스토리": "삼성그룹",
+    "삼우종합건축사사무소": "삼성그룹",
+    "레이크사이드cc": "삼성그룹",
+    "삼성물산": "삼성물산"
 }
 
 PRESS_DOMAINS = {
@@ -100,7 +103,6 @@ def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
 def normalize_title(text):
-    # 유사 기사를 그룹화하기 위한 대표이슈 정규화 (특수문자 및 연속 공백 제거)
     text = re.sub(r'[^\w\s]', '', text)
     return " ".join(text.split())
 
@@ -113,14 +115,9 @@ def analyze_with_gemini(title, description, link, known_press):
     prompt = f"""다음 기사를 분석하여 정확한 JSON 객체로 답변해줘.
 
 1. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내의 명사형 조합).
-   - 필수 규칙: 동일한 사건을 다루는 뉴스는 완전히 똑같은 단어로 작성해야 함.
-   - 예시: "제지업계 가격담합", "삼성 웰스토리 부당지원", "공정위 하도급 조사", "상법 개정안 통과"
 2. press: 언론사명 (알려진 언론사명 '{known_press}'를 최우선 사용)
 3. summary: 1문장 핵심 요약
-4. sentiment: 논조 판단 (명확히 구별할 것)
-   - 부정: 제재, 과징금, 고발, 조사, 위반, 담합, 혐의, 소송, 비판, 악재 이슈
-   - 긍정: 과징금 감면, 무혐의, 승소, 상생협력, 실적개선, 지배구조 개선 호재 이슈
-   - 중립: 단순 인사동정, 주총 단순 일정, 연례 행사
+4. sentiment: 논조 판단 (부정, 긍정, 중립 중 하나)
 
 기사 URL: {link}
 제목: {title}
@@ -134,10 +131,10 @@ def analyze_with_gemini(title, description, link, known_press):
         "generationConfig": {"response_mime_type": "application/json"}
     }
     
-    # API 오류 시 최대 3회 재시도 (Retry) 로직
+    # 지수 백오프(Exponential Backoff) 재시도 로직 적용
     for attempt in range(3):
         try:
-            res = requests.post(url, json=payload, timeout=10)
+            res = requests.post(url, json=payload, timeout=15)
             if res.status_code == 200:
                 data = res.json()
                 text_response = data['candidates'][0]['content']['parts'][0]['text']
@@ -153,19 +150,63 @@ def analyze_with_gemini(title, description, link, known_press):
                     
                 return press, group_title, summary, sentiment
             elif res.status_code == 429:
-                print(f"[WARN] Gemini API Rate Limit (429). {attempt+1}회 재시도 대기 중...")
-                time.sleep(2)
+                # 429 발생 시 대기 시간을 10초, 20초, 40초로 늘려 재시도
+                wait_time = 10 * (2 ** attempt)
+                print(f"[WARN] Gemini API Rate Limit (429). {wait_time}초 대기 후 재시도 ({attempt+1}/3)...")
+                time.sleep(wait_time)
             else:
                 print(f"[WARN] Gemini API 응답 오류 (상태코드: {res.status_code}): {res.text}")
         except Exception as e:
-            print(f"[WARN] Gemini API 처리 실패 ({attempt+1}/3): {e}")
-            time.sleep(1)
+            print(f"[WARN] Gemini API 요청 예외 ({attempt+1}/3): {e}")
+            time.sleep(3)
             
     return known_press or "언론사 미상", normalize_title(title), title, "중립"
 
+def verify_and_adjust_category(category, title, description):
+    text_content = (title + " " + description).replace(" ", "")
+    
+    if "삼성물산" in text_content:
+        return "삼성물산"
+        
+    if category == "삼성그룹":
+        samsung_keywords = ["삼성", "웰스토리", "삼우종합건축", "레이크사이드"]
+        if any(kw in text_content for kw in samsung_keywords):
+            return "삼성그룹"
+        else:
+            return "공정위/정책"
+            
+    return category
+
+def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
+    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"]
+    new_df = pd.DataFrame(new_rows, columns=columns)
+    
+    if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+        try:
+            old_df = pd.read_csv(file_name)
+            old_df["분야"] = old_df["분야"].replace({"그룹동향": "삼성그룹", "삼성/이슈": "삼성그룹"})
+            combined_df = pd.concat([old_df, new_df], ignore_index=True)
+        except Exception as e:
+            print(f"[WARN] 기존 CSV 읽기 오류로 신규 생성: {e}")
+            combined_df = new_df
+    else:
+        combined_df = new_df
+
+    combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
+    
+    try:
+        combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce")
+        cutoff_date = datetime.now() - timedelta(days=365)
+        combined_df = combined_df[combined_df["dt"] >= cutoff_date]
+        combined_df = combined_df.drop(columns=["dt"])
+    except Exception as e:
+        print(f"[WARN] 날짜 필터링 중 예외 발생: {e}")
+
+    combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
+    print(f"[INFO] 1년 누계 데이터 업데이트 완료: 총 {len(combined_df)}건 보관 중")
+
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    file_name = "news_list.csv"
 
     rows = []
     seen_links = set()
@@ -182,20 +223,17 @@ def main():
             title = clean_text(item["title"])
             desc = clean_text(item["description"])
             
+            adjusted_category = verify_and_adjust_category(category, title, desc)
             known_press = extract_press_from_link(link)
-            press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
-            rows.append([today_str, category, group_title, title, press, summary, sentiment, link])
             
-            # API 속도 제한 방어를 위한 0.8초 지연
-            time.sleep(0.8)
+            press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
+            rows.append([today_str, adjusted_category, group_title, title, press, summary, sentiment, link])
+            
+            # 15 RPM 한도 준수를 위한 4.2초 안전 대기 지연
+            time.sleep(4.2)
 
-    print(f"[INFO] 최근 24시간 정교화 수집 및 논조 그룹화 완료: 총 {len(rows)}건")
-
-    with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"])
-        if len(rows) > 0:
-            writer.writerows(rows)
+    print(f"[INFO] 금일 당일 신규 수집 완료: 총 {len(rows)}건")
+    save_and_merge_1year_data(rows)
 
 if __name__ == "__main__":
     main()
