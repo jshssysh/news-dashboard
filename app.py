@@ -36,7 +36,7 @@ pos_count = len(df[df["논조"] == "긍정"])
 neu_count = len(df[df["논조"] == "중립"])
 neg_count = len(df[df["논조"] == "부정"])
 
-# 상단 요약 지표 바 (배경색 제거 및 1.2배 굵어진 1.8px 테두리 적용)
+# 상단 요약 지표 바 (배경색 제거 및 1.8px 테두리 적용)
 st.markdown(f"""
 <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
     <div style="border: 1.8px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #343a40; background-color: transparent;">
@@ -109,29 +109,57 @@ for issue_name, group_df in grouped:
     neu = len(group_df[group_df["논조"] == "중립"])
     neg = len(group_df[group_df["논조"] == "부정"])
     
+    # 대표 논조 판단 (동률 시 부정 > 긍정 > 중립 순)
+    if neg >= pos and neg >= neu and neg > 0:
+        dominant_label = "부정"
+        badge_style = "border: 1.8px solid #dc3545; color: #dc3545;"
+    elif pos >= neg and pos >= neu and pos > 0:
+        dominant_label = "긍정"
+        badge_style = "border: 1.8px solid #28a745; color: #28a745;"
+    else:
+        dominant_label = "중립"
+        badge_style = "border: 1.8px solid #e0a800; color: #d39e00;"
+
+    # 논조 분포 테두리 태그 생성 (신호등 이모지 제거)
     sentiment_badges = []
-    if pos > 0: sentiment_badges.append(f"🟢 긍정 {pos}")
-    if neu > 0: sentiment_badges.append(f"⚪ 중립 {neu}")
-    if neg > 0: sentiment_badges.append(f"🔴 부정 {neg}")
-    sentiment_str = " | ".join(sentiment_badges)
+    if pos > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #28a745; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #28a745; background-color: transparent;">긍정 {pos}</span>')
+    if neu > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #e0a800; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #d39e00; background-color: transparent;">중립 {neu}</span>')
+    if neg > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #dc3545; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #dc3545; background-color: transparent;">부정 {neg}</span>')
+    sentiment_html = " ".join(sentiment_badges)
 
     with st.container():
-        st.markdown(f"### 🔥 {issue_name}")
-        st.markdown(f"**분야:** `{category}` | **메인 언론사:** `{main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_str}")
+        # 제목 옆 대표 논조 테두리 배지 (신호등 제거)
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="{badge_style} border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 14px; background-color: transparent; display: inline-block;">
+                {dominant_label}
+            </span>
+            <span style="font-size: 20px; font-weight: 700; color: inherit;">
+                {issue_name}
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"**분야:** `{category}` | **메인 언론사:** `{main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_html}", unsafe_allow_html=True)
         st.info(f"💡 **AI 핵심 요약:** {main_summary}")
         
         with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
             for _, row in group_df.iterrows():
-                sub_icon = {
-                    "긍정": "🟢 긍정",
-                    "중립": "⚪ 중립",
-                    "부정": "🔴 부정"
-                }.get(row.get("논조", "중립"), "⚪ 중립")
-                
-                c1, c2 = st.columns([1, 4])
+                sub_sentiment = row.get("논조", "중립")
+                if sub_sentiment == "긍정":
+                    sub_style = "border: 1.5px solid #28a745; color: #28a745;"
+                elif sub_sentiment == "부정":
+                    sub_style = "border: 1.5px solid #dc3545; color: #dc3545;"
+                else:
+                    sub_style = "border: 1.5px solid #e0a800; color: #d39e00;"
+                    
+                c1, c2 = st.columns([1.2, 4])
                 with c1:
                     st.markdown(f"**[{row.get('언론사', '언론사미상')}]**")
-                    st.caption(f"논조: `{sub_icon}`")
+                    st.markdown(f'<span style="{sub_style} border-radius: 5px; padding: 2px 8px; font-size: 12px; font-weight: 700; background-color: transparent;">{sub_sentiment}</span>', unsafe_allow_html=True)
                 with c2:
                     st.markdown(f"[{row.get('제목', '제목없음')}]({row.get('기사링크', '#')})")
                     st.caption(f"요약: {row.get('AI요약', '')}")
