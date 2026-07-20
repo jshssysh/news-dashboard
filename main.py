@@ -2,6 +2,7 @@ import os
 import csv
 import json
 import time
+import re
 import requests
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -26,7 +27,6 @@ KEYWORDS = {
     "레이크사이드cc": "삼성/이슈"
 }
 
-# 파이썬 자체 URL 도메인 및 네이버 언론사 코드 매핑표
 PRESS_DOMAINS = {
     "yna.co.kr": "연합뉴스", "chosun.com": "조선일보", "donga.com": "동아일보",
     "joongang.co.kr": "중앙일보", "hankyung.com": "한국경제", "mk.co.kr": "매일경제",
@@ -99,43 +99,69 @@ def get_naver_news_24h(keyword):
 def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
+def normalize_title(text):
+    # 유사 기사를 그룹화하기 위한 대표이슈 정규화 (특수문자 및 연속 공백 제거)
+    text = re.sub(r'[^\w\s]', '', text)
+    return " ".join(text.split())
+
 def analyze_with_gemini(title, description, link, known_press):
     if not GEMINI_API_KEY:
-        return known_press or "언론사 미상", title, title, "중립"
+        return known_press or "언론사 미상", normalize_title(title), title, "중립"
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    prompt = f"""다음 뉴스 기사를 분석하여 JSON 항목을 작성해줘:
-1. press: 언론사명 (제시된 알려진 언론사명 '{known_press}'를 우선 사용하되, 없으면 URL/제목에서 추출)
-2. group_title: 유사 기사를 묶을 수 있는 대표 이슈 핵심 제목 (사건 중심 15자 이내)
+    
+    prompt = f"""다음 기사를 분석하여 정확한 JSON 객체로 답변해줘.
+
+1. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내의 명사형 조합).
+   - 필수 규칙: 동일한 사건을 다루는 뉴스는 완전히 똑같은 단어로 작성해야 함.
+   - 예시: "제지업계 가격담합", "삼성 웰스토리 부당지원", "공정위 하도급 조사", "상법 개정안 통과"
+2. press: 언론사명 (알려진 언론사명 '{known_press}'를 최우선 사용)
 3. summary: 1문장 핵심 요약
-4. sentiment: 긍정, 중립, 부정 중 하나
+4. sentiment: 논조 판단 (명확히 구별할 것)
+   - 부정: 제재, 과징금, 고발, 조사, 위반, 담합, 혐의, 소송, 비판, 악재 이슈
+   - 긍정: 과징금 감면, 무혐의, 승소, 상생협력, 실적개선, 지배구조 개선 호재 이슈
+   - 중립: 단순 인사동정, 주총 단순 일정, 연례 행사
 
 기사 URL: {link}
 제목: {title}
 내용: {description}
 
 응답형식 JSON:
-{{"press": "언론사명", "group_title": "대표이슈제목", "summary": "1문장요약", "sentiment": "긍정|중립|부정"}}
+{{"press": "언론사명", "group_title": "표준대표이슈명", "summary": "1문장요약", "sentiment": "긍정|중립|부정"}}
 """
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"response_mime_type": "application/json"}
     }
-    try:
-        res = requests.post(url, json=payload, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            text_response = data['candidates'][0]['content']['parts'][0]['text']
-            result = json.loads(text_response)
-            press = result.get("press", known_press or "언론사 미상")
-            group_title = result.get("group_title", title)
-            summary = result.get("summary", title)
-            sentiment = result.get("sentiment", "중립")
-            return press, group_title, summary, sentiment
-    except Exception as e:
-        print(f"Gemini API Error: {e}")
-        
-    return known_press or "언론사 미상", title, title, "중립"
+    
+    # API 오류 시 최대 3회 재시도 (Retry) 로직
+    for attempt in range(3):
+        try:
+            res = requests.post(url, json=payload, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                text_response = data['candidates'][0]['content']['parts'][0]['text']
+                result = json.loads(text_response)
+                
+                press = result.get("press", known_press or "언론사 미상")
+                group_title = normalize_title(result.get("group_title", title))
+                summary = result.get("summary", title)
+                sentiment = result.get("sentiment", "중립")
+                
+                if sentiment not in ["긍정", "중립", "부정"]:
+                    sentiment = "중립"
+                    
+                return press, group_title, summary, sentiment
+            elif res.status_code == 429:
+                print(f"[WARN] Gemini API Rate Limit (429). {attempt+1}회 재시도 대기 중...")
+                time.sleep(2)
+            else:
+                print(f"[WARN] Gemini API 응답 오류 (상태코드: {res.status_code}): {res.text}")
+        except Exception as e:
+            print(f"[WARN] Gemini API 처리 실패 ({attempt+1}/3): {e}")
+            time.sleep(1)
+            
+    return known_press or "언론사 미상", normalize_title(title), title, "중립"
 
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -156,15 +182,14 @@ def main():
             title = clean_text(item["title"])
             desc = clean_text(item["description"])
             
-            # 파이썬 도메인/코드 기반 언론사 1차 추출
             known_press = extract_press_from_link(link)
-            
             press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
             rows.append([today_str, category, group_title, title, press, summary, sentiment, link])
             
-            time.sleep(0.5)
+            # API 속도 제한 방어를 위한 0.8초 지연
+            time.sleep(0.8)
 
-    print(f"[INFO] 최근 24시간 수집 및 언론사 식별 완료: 총 {len(rows)}건")
+    print(f"[INFO] 최근 24시간 정교화 수집 및 논조 그룹화 완료: 총 {len(rows)}건")
 
     with open(file_name, mode="w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
