@@ -12,7 +12,6 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '')
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
-# 수집 키워드 및 분야 매핑
 KEYWORDS = {
     "공정거래": "공정위/정책",
     "내부거래": "부당지원",
@@ -131,7 +130,6 @@ def analyze_with_gemini(title, description, link, known_press):
         "generationConfig": {"response_mime_type": "application/json"}
     }
     
-    # 지수 백오프(Exponential Backoff) 재시도 로직 적용
     for attempt in range(3):
         try:
             res = requests.post(url, json=payload, timeout=15)
@@ -150,15 +148,14 @@ def analyze_with_gemini(title, description, link, known_press):
                     
                 return press, group_title, summary, sentiment
             elif res.status_code == 429:
-                # 429 발생 시 대기 시간을 10초, 20초, 40초로 늘려 재시도
-                wait_time = 10 * (2 ** attempt)
+                wait_time = 5 * (attempt + 1)
                 print(f"[WARN] Gemini API Rate Limit (429). {wait_time}초 대기 후 재시도 ({attempt+1}/3)...")
                 time.sleep(wait_time)
             else:
                 print(f"[WARN] Gemini API 응답 오류 (상태코드: {res.status_code}): {res.text}")
         except Exception as e:
             print(f"[WARN] Gemini API 요청 예외 ({attempt+1}/3): {e}")
-            time.sleep(3)
+            time.sleep(2)
             
     return known_press or "언론사 미상", normalize_title(title), title, "중립"
 
@@ -229,8 +226,8 @@ def main():
             press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
             rows.append([today_str, adjusted_category, group_title, title, press, summary, sentiment, link])
             
-            # 15 RPM 한도 준수를 위한 4.2초 안전 대기 지연
-            time.sleep(4.2)
+            # 유료/카드등록 계정 기준 0.5초 고속 지연 적용
+            time.sleep(0.5)
 
     print(f"[INFO] 금일 당일 신규 수집 완료: 총 {len(rows)}건")
     save_and_merge_1year_data(rows)
