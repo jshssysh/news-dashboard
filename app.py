@@ -36,19 +36,19 @@ pos_count = len(df[df["논조"] == "긍정"])
 neu_count = len(df[df["논조"] == "중립"])
 neg_count = len(df[df["논조"] == "부정"])
 
-# 상단 커스텀 요약 지표 바 (총, 긍정, 중립, 부정)
+# 상단 컴팩트 요약 지표 바 (분야 선택 버튼 대비 1.5배 수준의 슬림 컴팩트 규격)
 st.markdown(f"""
-<div style="display: flex; gap: 12px; justify-content: space-between; margin-top: 10px; margin-bottom: 25px;">
-    <div style="flex: 1; border: 2px solid #6c757d; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #343a40; background-color: #f8f9fa;">
+<div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
+    <div style="border: 1.5px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #343a40; background-color: #f8f9fa;">
         총({total_count})
     </div>
-    <div style="flex: 1; border: 2px solid #28a745; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #28a745; background-color: #f4fff6;">
+    <div style="border: 1.5px solid #28a745; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #28a745; background-color: #f4fff6;">
         긍정({pos_count})
     </div>
-    <div style="flex: 1; border: 2px solid #e0a800; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #d39e00; background-color: #fffdf0;">
+    <div style="border: 1.5px solid #e0a800; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #d39e00; background-color: #fffdf0;">
         중립({neu_count})
     </div>
-    <div style="flex: 1; border: 2px solid #dc3545; border-radius: 10px; padding: 14px 8px; text-align: center; font-weight: 700; font-size: 19px; color: #dc3545; background-color: #fff5f5;">
+    <div style="border: 1.5px solid #dc3545; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #dc3545; background-color: #fff5f5;">
         부정({neg_count})
     </div>
 </div>
