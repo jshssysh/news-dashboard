@@ -12,7 +12,6 @@ st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
 
 file_path = "news_list.csv"
 
-# 1. 파일 존재 여부 확인
 if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
     st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다. GitHub Actions 실행 상태를 확인해 주세요.")
     st.stop()
@@ -27,7 +26,6 @@ if df.empty:
     st.info("ℹ️ 현재 수집된 뉴스가 0건입니다.")
     st.stop()
 
-# 2. 구버전 CSV 예외 처리 (대표이슈 열 존재 확인)
 if "대표이슈" not in df.columns:
     st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
     st.stop()
@@ -46,26 +44,39 @@ col4.metric("🔴 부정 기사", f"{neg_count}건")
 
 st.divider()
 
-# 분야 선택 태그 버튼
-categories = ["전체"] + [c for c in df["분야"].unique().tolist() if pd.notna(c)]
+# 분야별 기사 수 집계 및 라벨 매핑 사전 생성
+cat_counts = df["분야"].value_counts().to_dict()
+
+category_labels = [f"전체 ({total_count}건)"]
+label_to_category = {f"전체 ({total_count}건)": "전체"}
+
+unique_cats = [c for c in df["분야"].unique().tolist() if pd.notna(c)]
+for cat in unique_cats:
+    count = cat_counts.get(cat, 0)
+    label = f"{cat} ({count}건)"
+    category_labels.append(label)
+    label_to_category[label] = cat
 
 st.subheader("📌 분야 선택")
 try:
-    selected_category = st.pills(
+    selected_label = st.pills(
         label="분야 선택",
-        options=categories,
-        default="전체",
+        options=category_labels,
+        default=category_labels[0],
         label_visibility="collapsed"
     )
 except AttributeError:
-    selected_category = st.radio(
+    selected_label = st.radio(
         label="분야 선택",
-        options=categories,
+        options=category_labels,
         horizontal=True,
         label_visibility="collapsed"
     )
 
-if selected_category and selected_category != "전체":
+# 선택된 라벨에서 원본 분야 카테고리 추출
+selected_category = label_to_category.get(selected_label, "전체")
+
+if selected_category != "전체":
     filtered_df = df[df["분야"] == selected_category]
 else:
     filtered_df = df
@@ -82,7 +93,6 @@ for issue_name, group_df in grouped:
     main_summary = group_df["AI요약"].iloc[0]
     article_count = len(group_df)
     
-    # 그룹 내 긍부정 논조 분포 집계
     pos = len(group_df[group_df["논조"] == "긍정"])
     neu = len(group_df[group_df["논조"] == "중립"])
     neg = len(group_df[group_df["논조"] == "부정"])
@@ -93,13 +103,11 @@ for issue_name, group_df in grouped:
     if neg > 0: sentiment_badges.append(f"🔴 부정 {neg}")
     sentiment_str = " | ".join(sentiment_badges)
 
-    # 이슈 대표 카드 표출
     with st.container():
         st.markdown(f"### 🔥 {issue_name}")
         st.markdown(f"**분야:** `{category}` | **메인 언론사:** `{main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_str}")
         st.info(f"💡 **AI 핵심 요약:** {main_summary}")
         
-        # 언론사 세부 반응 펼치기 버튼
         with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
             for _, row in group_df.iterrows():
                 sub_icon = {
