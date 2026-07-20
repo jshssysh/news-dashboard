@@ -36,19 +36,19 @@ pos_count = len(df[df["논조"] == "긍정"])
 neu_count = len(df[df["논조"] == "중립"])
 neg_count = len(df[df["논조"] == "부정"])
 
-# 상단 컴팩트 요약 지표 바 (분야 선택 버튼 대비 1.5배 수준의 슬림 컴팩트 규격)
+# 상단 요약 지표 바 (배경색 제거 및 1.2배 굵어진 1.8px 테두리 적용)
 st.markdown(f"""
 <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
-    <div style="border: 1.5px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #343a40; background-color: #f8f9fa;">
+    <div style="border: 1.8px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #343a40; background-color: transparent;">
         총({total_count})
     </div>
-    <div style="border: 1.5px solid #28a745; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #28a745; background-color: #f4fff6;">
+    <div style="border: 1.8px solid #28a745; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #28a745; background-color: transparent;">
         긍정({pos_count})
     </div>
-    <div style="border: 1.5px solid #e0a800; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #d39e00; background-color: #fffdf0;">
+    <div style="border: 1.8px solid #e0a800; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #d39e00; background-color: transparent;">
         중립({neu_count})
     </div>
-    <div style="border: 1.5px solid #dc3545; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 600; font-size: 14px; color: #dc3545; background-color: #fff5f5;">
+    <div style="border: 1.8px solid #dc3545; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #dc3545; background-color: transparent;">
         부정({neg_count})
     </div>
 </div>
