@@ -163,8 +163,9 @@ for issue_name, group_df in grouped:
         st.markdown(f"**분야:** `{safe_category}` | **메인 언론사:** `{safe_main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_html}", unsafe_allow_html=True)
         st.info(f"💡 **AI 핵심 요약:** {safe_main_summary}")
         
-        with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
-            for _, row in group_df.iterrows():
+        # 기사 항목 출력 전용 함수
+        def render_article_list(df_items):
+            for _, row in df_items.iterrows():
                 sub_sentiment = row.get("논조", "중립")
                 if sub_sentiment == "긍정":
                     sub_style = "border: 1.5px solid #28a745; color: #28a745;"
@@ -178,7 +179,6 @@ for issue_name, group_df in grouped:
                 safe_sub_summary = html.escape(str(row.get('AI요약', '')))
                 safe_sub_link = html.escape(str(row.get('기사링크', '#')))
 
-                # 한 줄 출력 레이아웃 (논조 -> 언론사 -> 제목 -> 요약 순)
                 st.markdown(f"""
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; line-height: 1.5; flex-wrap: wrap;">
                     <span style="{sub_style} border-radius: 5px; padding: 1px 6px; font-size: 12px; font-weight: 700; background-color: transparent; white-space: nowrap;">
@@ -196,4 +196,12 @@ for issue_name, group_df in grouped:
                 </div>
                 """, unsafe_allow_html=True)
                 st.markdown("<hr style='margin: 4px 0 8px 0; border: none; border-top: 1px solid #f0f2f6;' />", unsafe_allow_html=True)
+
+        # 2개 이상 보도기사가 있을 경우에만 펼치기(expander) 적용
+        if article_count >= 2:
+            with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
+                render_article_list(group_df)
+        else:
+            render_article_list(group_df)
+
         st.divider()
