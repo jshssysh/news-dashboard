@@ -12,6 +12,7 @@ st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
 
 file_path = "news_list.csv"
 
+# 1. 파일 존재 여부 확인
 if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
     st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다. GitHub Actions 실행 상태를 확인해 주세요.")
     st.stop()
@@ -24,6 +25,11 @@ except Exception as e:
 
 if df.empty:
     st.info("ℹ️ 현재 수집된 뉴스가 0건입니다.")
+    st.stop()
+
+# 2. 구버전 CSV 예외 처리 (대표이슈 열 존재 확인)
+if "대표이슈" not in df.columns:
+    st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
     st.stop()
 
 # 상단 핵심 요약 지표
@@ -71,7 +77,7 @@ st.divider()
 grouped = filtered_df.groupby("대표이슈", sort=False)
 
 for issue_name, group_df in grouped:
-    main_press = group_df["언론사"].iloc[0]  # 메인 대표 언론사
+    main_press = group_df["언론사"].iloc[0] if "언론사" in group_df.columns else "언론사 미상"
     category = group_df["분야"].iloc[0]
     main_summary = group_df["AI요약"].iloc[0]
     article_count = len(group_df)
