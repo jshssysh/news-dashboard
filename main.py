@@ -65,7 +65,7 @@ def extract_press_from_link(link):
     return None
 
 def get_naver_news_24h(keyword):
-    url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=100&sort=date"
+    valid_items = []
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
@@ -75,27 +75,40 @@ def get_naver_news_24h(keyword):
     now_kst = datetime.now(kst)
     time_threshold = now_kst - timedelta(hours=24)
     
-    valid_items = []
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            items = res.json().get("items", [])
-            for item in items:
-                pub_date_str = item.get("pubDate", "")
-                try:
-                    pub_dt = parsedate_to_datetime(pub_date_str)
-                    if pub_dt >= time_threshold:
+    start = 1
+    while start <= 1000: # 네이버 API 최대 start 값은 1000
+        url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=100&start={start}&sort=date"
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                items = res.json().get("items", [])
+                if not items:
+                    break
+                    
+                stop_fetching = False
+                for item in items:
+                    pub_date_str = item.get("pubDate", "")
+                    try:
+                        pub_dt = parsedate_to_datetime(pub_date_str)
+                        if pub_dt >= time_threshold:
+                            valid_items.append(item)
+                        else:
+                            stop_fetching = True
+                            break
+                    except Exception as e:
+                        print(f"[WARN] 날짜 파싱 실패, 기본 포함: {e}")
                         valid_items.append(item)
-                    else:
-                        break
-                except Exception as e:
-                    print(f"[WARN] 날짜 파싱 실패, 기본 포함: {e}")
-                    valid_items.append(item)
-        else:
-            print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
-    except Exception as e:
-        print(f"[EXCEPTION] 네이버 API 요청 예외: {e}")
-        
+                
+                if stop_fetching:
+                    break
+                start += 100
+            else:
+                print(f"[ERROR] 네이버 API 호출 실패 (상태코드: {res.status_code})")
+                break
+        except Exception as e:
+            print(f"[EXCEPTION] 네이버 API 요청 예외: {e}")
+            break
+            
     return valid_items
 
 def clean_text(text):
@@ -209,8 +222,9 @@ def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     
     try:
-        combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce")
-        cutoff_date = datetime.now() - timedelta(days=365)
+        # utc=True를 부여하여 aware 객체로 변환하고, 기준일자 역시 utcnow로 통일하여 타입 충돌 방지
+        combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
+        cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=365)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception as e:
@@ -253,7 +267,6 @@ def main():
 
     print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
 
-    # 10건 단위 배치 처리 (전체 API 호출 횟수 20회 이하로 축소)
     batch_size = 10
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
@@ -266,7 +279,6 @@ def main():
             r_idx, press, group_title, summary, sentiment = res
             analyzed_results[r_idx] = (press, group_title, summary, sentiment)
             
-        # 15 RPM 한도 완전 준수를 위한 5.0초 대기 지연
         time.sleep(5.0)
 
     rows = []
