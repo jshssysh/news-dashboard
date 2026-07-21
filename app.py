@@ -2,6 +2,7 @@ import os
 import html
 import pandas as pd
 import streamlit as st
+from datetime import timedelta
 
 st.set_page_config(
     page_title="공정위 & 그룹동향 이슈 트래커",
@@ -9,11 +10,9 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
-
 file_path = "news_list.csv"
 
-# 파일 존재 및 데이터 판별
+# 1. 파일 존재 및 데이터 판별
 if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
     st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다. GitHub Actions 실행 상태를 확인해 주세요.")
     st.stop()
@@ -32,13 +31,61 @@ if "대표이슈" not in df.columns:
     st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
     st.stop()
 
-# 상단 핵심 요약 지표 집계
-total_count = len(df)
-pos_count = len(df[df["논조"] == "긍정"])
-neu_count = len(df[df["논조"] == "중립"])
-neg_count = len(df[df["논조"] == "부정"])
+# 2. 날짜 데이터 전처리 및 기본값 설정
+# 수집일자를 YYYY-MM-DD 형태의 date 객체로 변환
+df["날짜"] = pd.to_datetime(df["수집일자"]).dt.date
+최신_날짜 = df["날짜"].max()
 
-# 상단 요약 지표 바 (1.8px 테두리 및 투명 배경)
+if "target_date" not in st.session_state:
+    st.session_state.target_date = 최신_날짜
+
+# 3. 상단 헤더 레이아웃 분할 (타이틀 좌측, 날짜 위젯 우측)
+col_title, col_date = st.columns([7, 3])
+
+with col_title:
+    st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
+
+with col_date:
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True) # 수직 정렬용 여백
+    btn_left, date_center, btn_right = st.columns([1.5, 4, 1.5])
+    
+    with btn_left:
+        if st.button("◀ 이전", use_container_width=True):
+            st.session_state.target_date -= timedelta(days=1)
+            st.rerun()
+            
+    with date_center:
+        # 달력 위젯에서 날짜를 직접 선택할 경우의 처리
+        selected = st.date_input(
+            "날짜 선택", 
+            value=st.session_state.target_date, 
+            label_visibility="collapsed"
+        )
+        if selected != st.session_state.target_date:
+            st.session_state.target_date = selected
+            st.rerun()
+            
+    with btn_right:
+        if st.button("다음 ▶", use_container_width=True):
+            st.session_state.target_date += timedelta(days=1)
+            st.rerun()
+
+# 4. 선택된 날짜 기준으로 데이터프레임 필터링
+daily_df = df[df["날짜"] == st.session_state.target_date]
+
+st.divider()
+
+if daily_df.empty:
+    st.info(f"ℹ️ {st.session_state.target_date.strftime('%Y년 %m월 %d일')}에 수집된 뉴스 데이터가 없습니다.")
+    st.stop()
+
+# 5. 상단 핵심 요약 지표 집계 (필터링된 daily_df 기준)
+total_count = len(daily_df)
+pos_count = len(daily_df[daily_df["논조"] == "긍정"])
+neu_count = len(daily_df[daily_df["논조"] == "중립"])
+neg_count = len(daily_df[daily_df["논조"] == "부정"])
+
+# 상단 요약 지표 바
 st.markdown(f"""
 <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
     <div style="border: 1.8px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #343a40; background-color: transparent;">
@@ -56,15 +103,13 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
-
-# 분야별 기사 수 집계 및 라벨 매핑 사전 생성
-cat_counts = df["분야"].value_counts().to_dict()
+# 6. 분야별 기사 수 집계 및 라벨 매핑 사전 생성
+cat_counts = daily_df["분야"].value_counts().to_dict()
 
 category_labels = [f"전체 ({total_count}건)"]
 label_to_category = {f"전체 ({total_count}건)": "전체"}
 
-unique_cats = [c for c in df["분야"].unique().tolist() if pd.notna(c)]
+unique_cats = [c for c in daily_df["분야"].unique().tolist() if pd.notna(c)]
 for cat in unique_cats:
     count = cat_counts.get(cat, 0)
     label = f"{cat} ({count}건)"
@@ -90,14 +135,14 @@ except AttributeError:
 selected_category = label_to_category.get(selected_label, "전체")
 
 if selected_category != "전체":
-    filtered_df = df[df["분야"] == selected_category]
+    filtered_df = daily_df[daily_df["분야"] == selected_category]
 else:
-    filtered_df = df
+    filtered_df = daily_df
 
 st.caption(f"선택된 분야: **{selected_category}** (총 **{len(filtered_df)}**건 보도)")
 st.divider()
 
-# 대표 이슈(group_title) 단위로 기사 그룹화
+# 7. 대표 이슈(group_title) 단위로 기사 그룹화
 grouped = filtered_df.groupby("대표이슈", sort=False)
 
 for issue_name, group_df in grouped:
