@@ -121,7 +121,6 @@ def verify_and_adjust_category(category, title, description):
     return category
 
 def analyze_batch_with_gemini(batch_items):
-    """5건의 기사를 하나의 프롬프트로 묶어 Gemini API에 요청하는 배치 처리 함수"""
     if not GEMINI_API_KEY:
         return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
         
@@ -158,44 +157,38 @@ def analyze_batch_with_gemini(batch_items):
         "generationConfig": {"response_mime_type": "application/json"}
     }
     
-    for attempt in range(3):
-        try:
-            res = requests.post(url, json=payload, timeout=20)
-            if res.status_code == 200:
-                data = res.json()
-                text_response = data['candidates'][0]['content']['parts'][0]['text']
-                parsed_list = json.loads(text_response)
-                
-                result_map = {}
-                for r in parsed_list:
-                    r_idx = r.get("idx")
-                    press = r.get("press", "언론사 미상")
-                    gt = normalize_title(r.get("group_title", ""))
-                    summary = r.get("summary", "")
-                    sentiment = r.get("sentiment", "중립")
-                    if sentiment not in ["긍정", "중립", "부정"]:
-                        sentiment = "중립"
-                    result_map[r_idx] = (press, gt, summary, sentiment)
-                    
-                results = []
-                for item in batch_items:
-                    i_idx = item["idx"]
-                    if i_idx in result_map:
-                        p, g, s, sent = result_map[i_idx]
-                        results.append((i_idx, p, g or normalize_title(item["title"]), s or item["title"], sent))
-                    else:
-                        results.append((i_idx, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"))
-                return results
-            elif res.status_code == 429:
-                wait_time = 5 * (attempt + 1)
-                print(f"[WARN] Gemini API Rate Limit (429). {wait_time}초 대기 후 재시도... ({attempt+1}/3)")
-                time.sleep(wait_time)
-            else:
-                print(f"[WARN] API 응답 오류 ({res.status_code}): {res.text}")
-        except Exception as e:
-            print(f"[WARN] API 요청 예외 ({attempt+1}/3): {e}")
-            time.sleep(2)
+    try:
+        res = requests.post(url, json=payload, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            text_response = data['candidates'][0]['content']['parts'][0]['text']
+            parsed_list = json.loads(text_response)
             
+            result_map = {}
+            for r in parsed_list:
+                r_idx = r.get("idx")
+                press = r.get("press", "언론사 미상")
+                gt = normalize_title(r.get("group_title", ""))
+                summary = r.get("summary", "")
+                sentiment = r.get("sentiment", "중립")
+                if sentiment not in ["긍정", "중립", "부정"]:
+                    sentiment = "중립"
+                result_map[r_idx] = (press, gt, summary, sentiment)
+                
+            results = []
+            for item in batch_items:
+                i_idx = item["idx"]
+                if i_idx in result_map:
+                    p, g, s, sent = result_map[i_idx]
+                    results.append((i_idx, p, g or normalize_title(item["title"]), s or item["title"], sent))
+                else:
+                    results.append((i_idx, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"))
+            return results
+        else:
+            print(f"[WARN] Gemini API 응답 상태 코드: {res.status_code}")
+    except Exception as e:
+        print(f"[WARN] Gemini API 요청 예외: {e}")
+        
     return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
 
 def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
@@ -260,11 +253,11 @@ def main():
 
     print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
 
-    # 5건씩 배치(Batch)로 그룹화
-    batch_size = 5
+    # 10건 단위 배치 처리 (전체 API 호출 횟수 20회 이하로 축소)
+    batch_size = 10
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
-    print(f"[INFO] 5건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 예정")
+    print(f"[INFO] 10건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
 
     analyzed_results = {}
     for b_idx, batch in enumerate(batches):
@@ -273,8 +266,8 @@ def main():
             r_idx, press, group_title, summary, sentiment = res
             analyzed_results[r_idx] = (press, group_title, summary, sentiment)
             
-        # 429 방지를 위한 배치 간 안전 대기 지연 (1.5초)
-        time.sleep(1.5)
+        # 15 RPM 한도 완전 준수를 위한 5.0초 대기 지연
+        time.sleep(5.0)
 
     rows = []
     for item in raw_articles:
@@ -294,7 +287,7 @@ def main():
             item["link"]
         ])
 
-    print(f"[INFO] 금일 당일 신규 수집 및 배치 분석 완료: 총 {len(rows)}건")
+    print(f"[INFO] 금일 수집 및 배치 분석 완료: 총 {len(rows)}건")
     save_and_merge_1year_data(rows)
 
 if __name__ == "__main__":
