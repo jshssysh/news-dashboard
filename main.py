@@ -12,21 +12,22 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '')
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
+# 1. 네이버 검색 API 제외 연산자(-) 추가 적용
 KEYWORDS = {
-    "공정거래": "공정위/정책",
-    "내부거래": "부당지원",
-    "하도급": "갑을관계",
-    "상생협력": "동반성장",
-    "상법": "지배구조",
+    "공정거래 -부동산 -분양 -아파트 -지역화폐": "공정위/정책",
+    "내부거래 -부동산 -아파트": "부당지원",
+    "하도급 -부동산 -분양 -건설현장": "갑을관계",
+    "상생협력 -농축산 -지자체": "동반성장",
+    "상법 -강의 -시험": "지배구조",
     "지배구조": "지배구조",
-    "종합상사": "산업동향",
+    "종합상사 -채용": "산업동향",
     "삼성": "삼성그룹",
     "삼성 계열분리": "삼성그룹",
     "일감몰아주기": "부당지원",
     "웰스토리": "삼성그룹",
     "삼우종합건축사사무소": "삼성그룹",
     "레이크사이드cc": "삼성그룹",
-    "삼성물산": "삼성물산"
+    "삼성물산 -래미안 -분양": "삼성물산"
 }
 
 PRESS_DOMAINS = {
@@ -135,7 +136,7 @@ def verify_and_adjust_category(category, title, description):
 
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
-        return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
+        return [(item["idx"], True, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     
@@ -148,6 +149,7 @@ def analyze_batch_with_gemini(batch_items):
             "known_press": item["known_press"] or "언론사 미상"
         })
         
+    # 2. AI 문맥 기반 필터링 판단 지침 추가 (is_relevant)
     prompt = f"""다음 {len(input_data)}개의 기사 목록을 분석하여 각 기사별 결과를 JSON 배열(Array) 형태로 응답해줘.
 
 입력 기사 목록:
@@ -155,14 +157,15 @@ def analyze_batch_with_gemini(batch_items):
 
 각 기사별 분석 지침:
 1. idx: 입력받은 기사의 idx 번호 그대로 유지
-2. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내의 명사형 조합).
-3. press: 언론사명 (알려진 언론사명 known_press를 최우선 사용)
-4. summary: 1문장 핵심 요약
-5. sentiment: 논조 판단 (긍정, 중립, 부정 중 하나)
+2. is_relevant: 이 기사가 '대기업 동향, 공정거래위원회 정책/규제, 재계 지배구조'와 관련된 핵심 뉴스인지 판단(true/false). 부동산 분양, 지역 화폐, 일반 정치, 단순 사건사고 등 무관한 기사는 반드시 false로 처리할 것.
+3. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내 명사형 조합). 
+4. press: 언론사명 (알려진 언론사명 known_press를 최우선 사용)
+5. summary: 1문장 핵심 요약
+6. sentiment: 논조 판단 (긍정, 중립, 부정 중 하나)
 
 응답형식 JSON 예시:
 [
-  {{"idx": 0, "press": "언론사명", "group_title": "표준대표이슈명", "summary": "1문장요약", "sentiment": "중립"}}
+  {{"idx": 0, "is_relevant": true, "press": "언론사명", "group_title": "표준대표이슈명", "summary": "1문장요약", "sentiment": "중립"}}
 ]
 """
     payload = {
@@ -171,7 +174,6 @@ def analyze_batch_with_gemini(batch_items):
     }
     
     try:
-        # 타임아웃 30초로 연장
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
             data = res.json()
@@ -181,29 +183,30 @@ def analyze_batch_with_gemini(batch_items):
             result_map = {}
             for r in parsed_list:
                 r_idx = r.get("idx")
+                is_relevant = r.get("is_relevant", True)
                 press = r.get("press", "언론사 미상")
                 gt = normalize_title(r.get("group_title", ""))
                 summary = r.get("summary", "")
                 sentiment = r.get("sentiment", "중립")
                 if sentiment not in ["긍정", "중립", "부정"]:
                     sentiment = "중립"
-                result_map[r_idx] = (press, gt, summary, sentiment)
+                result_map[r_idx] = (is_relevant, press, gt, summary, sentiment)
                 
             results = []
             for item in batch_items:
                 i_idx = item["idx"]
                 if i_idx in result_map:
-                    p, g, s, sent = result_map[i_idx]
-                    results.append((i_idx, p, g or normalize_title(item["title"]), s or item["title"], sent))
+                    is_rel, p, g, s, sent = result_map[i_idx]
+                    results.append((i_idx, is_rel, p, g or normalize_title(item["title"]), s or item["title"], sent))
                 else:
-                    results.append((i_idx, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"))
+                    results.append((i_idx, True, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"))
             return results
         else:
             print(f"[WARN] Gemini API 응답 상태 코드: {res.status_code}")
     except Exception as e:
         print(f"[WARN] Gemini API 요청 예외: {e}")
         
-    return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
+    return [(item["idx"], True, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
 
 def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"]
@@ -265,10 +268,10 @@ def main():
             })
             idx += 1
 
-    print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
+    print(f"[INFO] 1차 API 필터링 완료: {len(raw_articles)}건 (노이즈 제외)")
 
-    # 배치 크기 30건으로 상향
-    batch_size = 30
+    # 정확도 향상을 위해 배치 크기 10건으로 축소
+    batch_size = 10
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
     print(f"[INFO] {batch_size}건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
@@ -278,19 +281,23 @@ def main():
         print(f"[진행도] {b_idx + 1} / {len(batches)} 배치 분석 중...")
         results = analyze_batch_with_gemini(batch)
         for res in results:
-            r_idx, press, group_title, summary, sentiment = res
-            analyzed_results[r_idx] = (press, group_title, summary, sentiment)
+            r_idx, is_relevant, press, group_title, summary, sentiment = res
+            analyzed_results[r_idx] = (is_relevant, press, group_title, summary, sentiment)
             
-        # 유료 티어 적용에 따른 대기 시간 1초로 대폭 축소
         time.sleep(1.0)
 
     rows = []
     for item in raw_articles:
         i_idx = item["idx"]
-        press, group_title, summary, sentiment = analyzed_results.get(
-            i_idx, 
-            (item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립")
-        )
+        
+        # 3. AI 문맥 판단 결과 무관한 기사는 저장 단계에서 완전히 배제
+        if i_idx in analyzed_results:
+            is_relevant, press, group_title, summary, sentiment = analyzed_results[i_idx]
+            if not is_relevant:
+                continue
+        else:
+            press, group_title, summary, sentiment = item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"
+
         rows.append([
             item["today_str"],
             item["category"],
@@ -302,7 +309,7 @@ def main():
             item["link"]
         ])
 
-    print(f"[INFO] 금일 수집 및 배치 분석 완료: 총 {len(rows)}건")
+    print(f"[INFO] AI 문맥 필터링 완료: 최종 유효 기사 {len(rows)}건 저장")
     save_and_merge_1year_data(rows)
 
 if __name__ == "__main__":
