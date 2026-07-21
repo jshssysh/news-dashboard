@@ -12,7 +12,6 @@ st.set_page_config(
 
 file_path = "news_list.csv"
 
-# 1. 파일 존재 및 데이터 판별
 if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
     st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다. GitHub Actions 실행 상태를 확인해 주세요.")
     st.stop()
@@ -31,31 +30,46 @@ if "대표이슈" not in df.columns:
     st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
     st.stop()
 
-# 2. 날짜 데이터 전처리 및 기본값 설정
-# 수집일자를 YYYY-MM-DD 형태의 date 객체로 변환
+# 날짜 데이터 전처리 및 기본값 설정
 df["날짜"] = pd.to_datetime(df["수집일자"]).dt.date
 최신_날짜 = df["날짜"].max()
 
 if "target_date" not in st.session_state:
     st.session_state.target_date = 최신_날짜
 
-# 3. 상단 헤더 레이아웃 분할 (타이틀 좌측, 날짜 위젯 우측)
-col_title, col_date = st.columns([7, 3])
+# CSS 주입: 버튼 및 날짜 위젯 폰트 크기/굵기 강조
+st.markdown("""
+<style>
+/* 날짜 입력 위젯 텍스트 스타일 */
+div[data-testid="stDateInput"] input {
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+}
+/* 버튼 텍스트 스타일 */
+div[data-testid="stButton"] button p {
+    font-size: 18px !important;
+    font-weight: 900 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 상단 헤더 레이아웃 분할
+col_title, col_date = st.columns([6.5, 3.5])
 
 with col_title:
     st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
 
 with col_date:
-    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True) # 수직 정렬용 여백
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     btn_left, date_center, btn_right = st.columns([1.5, 4, 1.5])
     
     with btn_left:
-        if st.button("◀ 이전", use_container_width=True):
+        if st.button("< 이전", use_container_width=True):
             st.session_state.target_date -= timedelta(days=1)
             st.rerun()
             
     with date_center:
-        # 달력 위젯에서 날짜를 직접 선택할 경우의 처리
         selected = st.date_input(
             "날짜 선택", 
             value=st.session_state.target_date, 
@@ -66,11 +80,11 @@ with col_date:
             st.rerun()
             
     with btn_right:
-        if st.button("다음 ▶", use_container_width=True):
+        if st.button("다음 >", use_container_width=True):
             st.session_state.target_date += timedelta(days=1)
             st.rerun()
 
-# 4. 선택된 날짜 기준으로 데이터프레임 필터링
+# 선택된 날짜 기준으로 데이터프레임 필터링
 daily_df = df[df["날짜"] == st.session_state.target_date]
 
 st.divider()
@@ -79,13 +93,11 @@ if daily_df.empty:
     st.info(f"ℹ️ {st.session_state.target_date.strftime('%Y년 %m월 %d일')}에 수집된 뉴스 데이터가 없습니다.")
     st.stop()
 
-# 5. 상단 핵심 요약 지표 집계 (필터링된 daily_df 기준)
 total_count = len(daily_df)
 pos_count = len(daily_df[daily_df["논조"] == "긍정"])
 neu_count = len(daily_df[daily_df["논조"] == "중립"])
 neg_count = len(daily_df[daily_df["논조"] == "부정"])
 
-# 상단 요약 지표 바
 st.markdown(f"""
 <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
     <div style="border: 1.8px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #343a40; background-color: transparent;">
@@ -103,7 +115,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 6. 분야별 기사 수 집계 및 라벨 매핑 사전 생성
 cat_counts = daily_df["분야"].value_counts().to_dict()
 
 category_labels = [f"전체 ({total_count}건)"]
@@ -142,7 +153,6 @@ else:
 st.caption(f"선택된 분야: **{selected_category}** (총 **{len(filtered_df)}**건 보도)")
 st.divider()
 
-# 7. 대표 이슈(group_title) 단위로 기사 그룹화
 grouped = filtered_df.groupby("대표이슈", sort=False)
 
 for issue_name, group_df in grouped:
@@ -150,7 +160,6 @@ for issue_name, group_df in grouped:
     neu = len(group_df[group_df["논조"] == "중립"])
     neg = len(group_df[group_df["논조"] == "부정"])
     
-    # 우세 논조 판단
     if neg >= pos and neg >= neu and neg > 0:
         dominant_label = "부정"
         badge_style = "border: 1.8px solid #dc3545; color: #dc3545;"
@@ -161,7 +170,6 @@ for issue_name, group_df in grouped:
         dominant_label = "중립"
         badge_style = "border: 1.8px solid #e0a800; color: #d39e00;"
 
-    # 우세 논조 메인 기사 추출
     dominant_articles = group_df[group_df["논조"] == dominant_label]
     if not dominant_articles.empty:
         main_article = dominant_articles.iloc[0]
@@ -174,14 +182,12 @@ for issue_name, group_df in grouped:
     raw_category = group_df["분야"].iloc[0]
     article_count = len(group_df)
 
-    # HTML 특수문자 안전 변환
     safe_issue_name = html.escape(str(issue_name))
     safe_main_press = html.escape(str(raw_main_press))
     safe_main_summary = html.escape(str(raw_main_summary))
     safe_main_link = html.escape(str(raw_main_link))
     safe_category = html.escape(str(raw_category))
 
-    # 논조 분포 테두리 태그 생성
     sentiment_badges = []
     if pos > 0:
         sentiment_badges.append(f'<span style="border: 1.5px solid #28a745; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #28a745; background-color: transparent;">긍정 {pos}</span>')
@@ -208,7 +214,6 @@ for issue_name, group_df in grouped:
         st.markdown(f"**분야:** `{safe_category}` | **메인 언론사:** `{safe_main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_html}", unsafe_allow_html=True)
         st.info(f"💡 **AI 핵심 요약:** {safe_main_summary}")
         
-        # 기사 항목 출력 전용 함수
         def render_article_list(df_items):
             for _, row in df_items.iterrows():
                 sub_sentiment = row.get("논조", "중립")
@@ -242,7 +247,6 @@ for issue_name, group_df in grouped:
                 """, unsafe_allow_html=True)
                 st.markdown("<hr style='margin: 4px 0 8px 0; border: none; border-top: 1px solid #f0f2f6;' />", unsafe_allow_html=True)
 
-        # 2개 이상 보도기사가 있을 경우에만 펼치기(expander) 적용
         if article_count >= 2:
             with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
                 render_article_list(group_df)
