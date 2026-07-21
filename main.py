@@ -76,7 +76,7 @@ def get_naver_news_24h(keyword):
     time_threshold = now_kst - timedelta(hours=24)
     
     start = 1
-    while start <= 1000: # 네이버 API 최대 start 값은 1000
+    while start <= 1000:
         url = f"https://openapi.naver.com/v1/search/news.json?query={keyword}&display=100&start={start}&sort=date"
         try:
             res = requests.get(url, headers=headers, timeout=10)
@@ -222,7 +222,6 @@ def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     
     try:
-        # utc=True를 부여하여 aware 객체로 변환하고, 기준일자 역시 utcnow로 통일하여 타입 충돌 방지
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
         cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=365)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
@@ -267,19 +266,20 @@ def main():
 
     print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
 
-    batch_size = 30
+    batch_size = 10
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
     print(f"[INFO] 10건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
 
     analyzed_results = {}
     for b_idx, batch in enumerate(batches):
+        print(f"[진행도] {b_idx + 1} / {len(batches)} 배치 분석 중...")
         results = analyze_batch_with_gemini(batch)
         for res in results:
             r_idx, press, group_title, summary, sentiment = res
             analyzed_results[r_idx] = (press, group_title, summary, sentiment)
             
-        time.sleep(5.0)
+        time.sleep(15.0)
 
     rows = []
     for item in raw_articles:
