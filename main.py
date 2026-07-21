@@ -267,7 +267,7 @@ def main():
 
     print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
 
-    batch_size = 10
+    batch_size = 30
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
     print(f"[INFO] 10건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
