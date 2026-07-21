@@ -1,137 +1,252 @@
-import streamlit as st
+import os
+import html
 import pandas as pd
-from datetime import datetime, timedelta
+import streamlit as st
+from datetime import timedelta
 
-# 페이지 기본 설정
-st.set_page_config(page_title="Daily Brief", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="공정위 & 그룹동향 이슈 트래커",
+    page_icon="📰",
+    layout="wide"
+)
 
-# 1. 안정적인 UI 최적화 CSS (오직 날짜 네비게이션만 타겟팅)
-st.markdown("""
-<style>
-/* 1. 날짜 선택기(첫 번째 stHorizontalBlock) 강제 1줄 고정 */
-div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:first-of-type {
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-}
-div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"] {
-    width: 33% !important;
-    min-width: 0 !important;
-    flex: 1 1 0% !important;
-}
+file_path = "news_list.csv"
 
-/* 2. 요약 박스 디자인 */
-.summary-box {
-    background-color: #2D2D2D;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    font-size: 0.95em;
-    line-height: 1.5;
-    color: #E0E0E0;
-}
+# 1. 파일 존재 및 데이터 판별
+if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+    st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다. GitHub Actions 실행 상태를 확인해 주세요.")
+    st.stop()
 
-/* 3. 라디오 버튼(카테고리)을 반응형 칩(Chip) 형태로 디자인 변경 */
-div[role="radiogroup"] {
-    gap: 0.5rem;
-}
-div[role="radiogroup"] > label {
-    background-color: #1E1E1E;
-    padding: 5px 15px;
-    border-radius: 20px;
-    border: 1px solid #444;
-}
-</style>
+try:
+    df = pd.read_csv(file_path)
+except Exception as e:
+    st.error(f"❌ 데이터 읽기 오류: {e}")
+    st.stop()
+
+if df.empty:
+    st.info("ℹ️ 현재 수집된 뉴스가 0건입니다.")
+    st.stop()
+
+if "대표이슈" not in df.columns:
+    st.warning("⚠️ 이전 규격의 CSV 데이터가 남아있습니다. GitHub Actions의 'Run workflow'를 다시 실행하시면 최신 수집 데이터로 자동 교체됩니다.")
+    st.stop()
+
+# 2. 날짜 데이터 전처리 및 기본값 설정
+# 수집일자를 YYYY-MM-DD 형태의 date 객체로 변환
+df["날짜"] = pd.to_datetime(df["수집일자"]).dt.date
+최신_날짜 = df["날짜"].max()
+
+if "target_date" not in st.session_state:
+    st.session_state.target_date = 최신_날짜
+
+# 3. 상단 헤더 레이아웃 분할 (타이틀 좌측, 날짜 위젯 우측)
+col_title, col_date = st.columns([7, 3])
+
+with col_title:
+    st.title("📰 공정위 & 그룹동향 이슈 그룹화 대시보드")
+
+with col_date:
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True) # 수직 정렬용 여백
+    btn_left, date_center, btn_right = st.columns([1.5, 4, 1.5])
+    
+    with btn_left:
+        if st.button("◀ 이전", use_container_width=True):
+            st.session_state.target_date -= timedelta(days=1)
+            st.rerun()
+            
+    with date_center:
+        # 달력 위젯에서 날짜를 직접 선택할 경우의 처리
+        selected = st.date_input(
+            "날짜 선택", 
+            value=st.session_state.target_date, 
+            label_visibility="collapsed"
+        )
+        if selected != st.session_state.target_date:
+            st.session_state.target_date = selected
+            st.rerun()
+            
+    with btn_right:
+        if st.button("다음 ▶", use_container_width=True):
+            st.session_state.target_date += timedelta(days=1)
+            st.rerun()
+
+# 4. 선택된 날짜 기준으로 데이터프레임 필터링
+daily_df = df[df["날짜"] == st.session_state.target_date]
+
+st.divider()
+
+if daily_df.empty:
+    st.info(f"ℹ️ {st.session_state.target_date.strftime('%Y년 %m월 %d일')}에 수집된 뉴스 데이터가 없습니다.")
+    st.stop()
+
+# 5. 상단 핵심 요약 지표 집계 (필터링된 daily_df 기준)
+total_count = len(daily_df)
+pos_count = len(daily_df[daily_df["논조"] == "긍정"])
+neu_count = len(daily_df[daily_df["논조"] == "중립"])
+neg_count = len(daily_df[daily_df["논조"] == "부정"])
+
+# 상단 요약 지표 바
+st.markdown(f"""
+<div style="display: flex; gap: 10px; align-items: center; justify-content: flex-start; margin-top: 5px; margin-bottom: 20px;">
+    <div style="border: 1.8px solid #6c757d; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #343a40; background-color: transparent;">
+        총({total_count})
+    </div>
+    <div style="border: 1.8px solid #28a745; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #28a745; background-color: transparent;">
+        긍정({pos_count})
+    </div>
+    <div style="border: 1.8px solid #e0a800; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #d39e00; background-color: transparent;">
+        중립({neu_count})
+    </div>
+    <div style="border: 1.8px solid #dc3545; border-radius: 8px; padding: 6px 14px; text-align: center; font-weight: 700; font-size: 14px; color: #dc3545; background-color: transparent;">
+        부정({neg_count})
+    </div>
+</div>
 """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 함수
-@st.cache_data(ttl=600)
-def load_data():
-    try:
-        df = pd.read_csv("news_list.csv")
-        df['dt'] = pd.to_datetime(df['수집일자'], errors='coerce')
-        df['date_str'] = df['dt'].dt.strftime('%Y/%m/%d')
-        return df
-    except Exception:
-        return pd.DataFrame()
+# 6. 분야별 기사 수 집계 및 라벨 매핑 사전 생성
+cat_counts = daily_df["분야"].value_counts().to_dict()
 
-df = load_data()
+category_labels = [f"전체 ({total_count}건)"]
+label_to_category = {f"전체 ({total_count}건)": "전체"}
 
-# 3. 날짜 상태 관리
-if 'current_date' not in st.session_state:
-    if not df.empty:
-        st.session_state.current_date = df['dt'].max().date()
-    else:
-        st.session_state.current_date = datetime.now().date()
+unique_cats = [c for c in daily_df["분야"].unique().tolist() if pd.notna(c)]
+for cat in unique_cats:
+    count = cat_counts.get(cat, 0)
+    label = f"{cat} ({count}건)"
+    category_labels.append(label)
+    label_to_category[label] = cat
 
-# 4. 상단 헤더
-st.title("D Daily Brief")
-st.caption(f"{st.session_state.current_date.strftime('%Y년 %m월 %d일')} 발행")
-
-# 5. 날짜 네비게이션 UI (정밀 CSS로 모바일 1줄 고정됨)
-col1, col2, col3 = st.columns([1, 3, 1])
-with col1:
-    if st.button("◀", use_container_width=True):
-        st.session_state.current_date -= timedelta(days=1)
-        st.rerun()
-with col2:
-    date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-    st.markdown(f"<div style='text-align: center; font-weight: bold; font-size: 1.2em; padding-top: 5px;'>{date_display}</div>", unsafe_allow_html=True)
-with col3:
-    if st.button("▶", use_container_width=True):
-        st.session_state.current_date += timedelta(days=1)
-        st.rerun()
-
-st.divider()
-
-# 6. 데이터 필터링
-if not df.empty:
-    target_date_str = st.session_state.current_date.strftime('%Y/%m/%d')
-    daily_df = df[df['date_str'] == target_date_str]
-else:
-    daily_df = pd.DataFrame()
-
-# 7. 메트릭 대시보드 (기본 디자인 복구로 찌그러짐 방지)
-if not daily_df.empty:
-    m_col1, m_col2 = st.columns(2)
-    with m_col1:
-        st.metric("수집 기사", f"{len(daily_df)}건")
-        st.metric("중립 보도", f"{len(daily_df[daily_df['논조'] == '중립'])}건")
-    with m_col2:
-        st.metric("긍정 신호", f"{len(daily_df[daily_df['논조'] == '긍정'])}건")
-        st.metric("부정 신호", f"{len(daily_df[daily_df['논조'] == '부정'])}건")
-else:
-    st.info("해당 날짜에 수집된 기사 데이터가 없습니다.")
-
-st.divider()
-
-# 8. 카테고리 필터 (반응형 라디오 버튼 적용)
-if not daily_df.empty:
-    categories = ['전체'] + list(daily_df['분야'].unique())
-    
-    # st.columns 대신 자동 줄바꿈이 지원되는 라디오 위젯 사용
-    selected_category = st.radio(
-        "카테고리 선택",
-        options=categories,
+st.subheader("📌 분야 선택")
+try:
+    selected_label = st.pills(
+        label="분야 선택",
+        options=category_labels,
+        default=category_labels[0],
+        label_visibility="collapsed"
+    )
+except AttributeError:
+    selected_label = st.radio(
+        label="분야 선택",
+        options=category_labels,
         horizontal=True,
         label_visibility="collapsed"
     )
-    
-    st.write("") 
-    
-    if selected_category == '전체':
-        filtered_df = daily_df
-    else:
-        filtered_df = daily_df[daily_df['분야'] == selected_category]
 
-    # 9. 기사 리스트 출력 (아코디언)
-    grouped = filtered_df.groupby('대표이슈')
+selected_category = label_to_category.get(selected_label, "전체")
+
+if selected_category != "전체":
+    filtered_df = daily_df[daily_df["분야"] == selected_category]
+else:
+    filtered_df = daily_df
+
+st.caption(f"선택된 분야: **{selected_category}** (총 **{len(filtered_df)}**건 보도)")
+st.divider()
+
+# 7. 대표 이슈(group_title) 단위로 기사 그룹화
+grouped = filtered_df.groupby("대표이슈", sort=False)
+
+for issue_name, group_df in grouped:
+    pos = len(group_df[group_df["논조"] == "긍정"])
+    neu = len(group_df[group_df["논조"] == "중립"])
+    neg = len(group_df[group_df["논조"] == "부정"])
     
-    for group_title, group_data in grouped:
-        rep_article = group_data.iloc[0]
-        sentiment_color = "#4CAF50" if rep_article['논조'] == '긍정' else "#F44336" if rep_article['논조'] == '부정' else "#FFC107"
+    # 우세 논조 판단
+    if neg >= pos and neg >= neu and neg > 0:
+        dominant_label = "부정"
+        badge_style = "border: 1.8px solid #dc3545; color: #dc3545;"
+    elif pos >= neg and pos >= neu and pos > 0:
+        dominant_label = "긍정"
+        badge_style = "border: 1.8px solid #28a745; color: #28a745;"
+    else:
+        dominant_label = "중립"
+        badge_style = "border: 1.8px solid #e0a800; color: #d39e00;"
+
+    # 우세 논조 메인 기사 추출
+    dominant_articles = group_df[group_df["논조"] == dominant_label]
+    if not dominant_articles.empty:
+        main_article = dominant_articles.iloc[0]
+    else:
+        main_article = group_df.iloc[0]
+
+    raw_main_press = main_article.get("언론사", "언론사 미상") if pd.notna(main_article.get("언론사")) else "언론사 미상"
+    raw_main_summary = main_article.get("AI요약", "")
+    raw_main_link = main_article.get("기사링크", "#")
+    raw_category = group_df["분야"].iloc[0]
+    article_count = len(group_df)
+
+    # HTML 특수문자 안전 변환
+    safe_issue_name = html.escape(str(issue_name))
+    safe_main_press = html.escape(str(raw_main_press))
+    safe_main_summary = html.escape(str(raw_main_summary))
+    safe_main_link = html.escape(str(raw_main_link))
+    safe_category = html.escape(str(raw_category))
+
+    # 논조 분포 테두리 태그 생성
+    sentiment_badges = []
+    if pos > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #28a745; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #28a745; background-color: transparent;">긍정 {pos}</span>')
+    if neu > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #e0a800; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #d39e00; background-color: transparent;">중립 {neu}</span>')
+    if neg > 0:
+        sentiment_badges.append(f'<span style="border: 1.5px solid #dc3545; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; color: #dc3545; background-color: transparent;">부정 {neg}</span>')
+    sentiment_html = " ".join(sentiment_badges)
+
+    with st.container():
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="{badge_style} border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 14px; background-color: transparent; display: inline-block;">
+                {dominant_label}
+            </span>
+            <span style="font-size: 20px; font-weight: 700; color: inherit;">
+                <a href="{safe_main_link}" target="_blank" style="text-decoration: none; color: inherit;">
+                    {safe_issue_name} <span style="font-size: 15px;">🔗</span>
+                </a>
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
         
-        with st.expander(f"{group_title} ({len(group_data)}건)"):
-            st.markdown(f"<span style='color:{sentiment_color}; font-weight:bold;'>[{rep_article['논조']}]</span> <span style='color:#888;'>{rep_article['분야']}</span>", unsafe_allow_html=True)
-            st.markdown(f"<div class='summary-box'>{rep_article['AI요약']}</div>", unsafe_allow_html=True)
-            for _, row in group_data.iterrows():
-                st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
+        st.markdown(f"**분야:** `{safe_category}` | **메인 언론사:** `{safe_main_press}` | **총 보도 매체:** `{article_count}개 언론사` | **논조 분포:** {sentiment_html}", unsafe_allow_html=True)
+        st.info(f"💡 **AI 핵심 요약:** {safe_main_summary}")
+        
+        # 기사 항목 출력 전용 함수
+        def render_article_list(df_items):
+            for _, row in df_items.iterrows():
+                sub_sentiment = row.get("논조", "중립")
+                if sub_sentiment == "긍정":
+                    sub_style = "border: 1.5px solid #28a745; color: #28a745;"
+                elif sub_sentiment == "부정":
+                    sub_style = "border: 1.5px solid #dc3545; color: #dc3545;"
+                else:
+                    sub_style = "border: 1.5px solid #e0a800; color: #d39e00;"
+                    
+                safe_sub_press = html.escape(str(row.get('언론사', '언론사미상')))
+                safe_sub_title = html.escape(str(row.get('제목', '제목없음')))
+                safe_sub_summary = html.escape(str(row.get('AI요약', '')))
+                safe_sub_link = html.escape(str(row.get('기사링크', '#')))
+
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; line-height: 1.5; flex-wrap: wrap;">
+                    <span style="{sub_style} border-radius: 5px; padding: 1px 6px; font-size: 12px; font-weight: 700; background-color: transparent; white-space: nowrap;">
+                        {sub_sentiment}
+                    </span>
+                    <span style="font-weight: 700; white-space: nowrap;">
+                        [{safe_sub_press}]
+                    </span>
+                    <a href="{safe_sub_link}" target="_blank" style="font-weight: 600; text-decoration: none; color: #1f77b4;">
+                        {safe_sub_title}
+                    </a>
+                    <span style="color: #6c757d; font-size: 13px;">
+                        - {safe_sub_summary}
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("<hr style='margin: 4px 0 8px 0; border: none; border-top: 1px solid #f0f2f6;' />", unsafe_allow_html=True)
+
+        # 2개 이상 보도기사가 있을 경우에만 펼치기(expander) 적용
+        if article_count >= 2:
+            with st.expander(f"📂 언론사별 반응 및 관련 기사 보기 ({article_count}개 보도 기사 펼치기)"):
+                render_article_list(group_df)
+        else:
+            render_article_list(group_df)
+
+        st.divider()
