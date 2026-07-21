@@ -1,277 +1,159 @@
-import os
-import html
-import pandas as pd
 import streamlit as st
-from datetime import timedelta
+import pandas as pd
+from datetime import datetime, timedelta
 
-# 페이지 기본 설정 (와이드 레이아웃으로 변경하여 데스크탑 공간 확보)
-st.set_page_config(
-    page_title="Daily Brief",
-    page_icon="📰",
-    layout="wide" 
-)
+# 페이지 기본 설정
+st.set_page_config(page_title="Daily Brief", layout="centered", initial_sidebar_state="collapsed")
 
-# ---------------------------------------------------------
-# 1. 반응형 CSS 주입 (데스크탑/모바일 최적화 및 다크모드)
-# ---------------------------------------------------------
+# 1. 날짜 네비게이션 강제 1줄 정렬 CSS 주입 (모바일 최적화)
 st.markdown("""
+<span id="date-nav-wrapper"></span>
 <style>
-    /* 전체 배경 다크모드 및 중앙 최대 너비 제한 (PC 환경에서 너무 퍼지는 것 방지) */
-    .stApp { background-color: #121212; color: #e5e5e5; }
-    .block-container { max-width: 1100px !important; padding-top: 2rem !important; }
-    
-    /* 날짜 선택 위젯 */
-    div[data-testid="stDateInput"] input {
-        font-size: 16px !important; font-weight: 700 !important; text-align: center !important;
-        background-color: #2c2c2e !important; color: white !important;
-        border-radius: 8px !important; border: none !important;
+/* 날짜 네비게이션 모바일 1줄 고정 */
+@media (max-width: 640px) {
+    #date-nav-wrapper + div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
-    
-    /* -----------------------------------
-       반응형 그리드 및 카드 디자인
-       ----------------------------------- */
-    .grid-container { display: grid; gap: 16px; margin-bottom: 24px; }
-    .grid-item { background-color: #1c1c1e; border-radius: 12px; border: 1px solid #2c2c2e; }
-    .grid-title { color: #8e8e93; font-size: 13px; margin-bottom: 8px; }
-    
-    .brief-card { background-color: #1c1c1e; border-radius: 12px; margin-top: 16px; margin-bottom: 4px; border: 1px solid #2c2c2e; }
-    .brief-card.neg { border-left: 4px solid #ef4444; }
-    .brief-card.pos { border-left: 4px solid #3b82f6; }
-    .brief-card.neu { border-left: 4px solid #f59e0b; }
-    
-    .card-tags { display: flex; gap: 8px; font-size: 12px; margin-bottom: 12px; align-items: center; }
-    .tag-neg { color: #ef4444; background: rgba(239,68,68,0.15); padding: 3px 8px; border-radius: 6px; font-weight: bold; }
-    .tag-pos { color: #3b82f6; background: rgba(59,130,246,0.15); padding: 3px 8px; border-radius: 6px; font-weight: bold; }
-    .tag-neu { color: #f59e0b; background: rgba(245,158,11,0.15); padding: 3px 8px; border-radius: 6px; font-weight: bold; }
-    .tag-cat { color: #60a5fa; background: rgba(96,165,250,0.15); padding: 3px 8px; border-radius: 6px; }
-    .tag-date { color: #8e8e93; font-size: 11px; margin-left: auto; }
-    
-    .card-source { color: #8e8e93; font-size: 12px; margin-bottom: 8px; }
-    .card-title { font-weight: bold; color: white; margin-bottom: 12px; line-height: 1.4; }
-    .card-title-badge { background-color: #3b82f6; color: white; font-size: 12px; padding: 2px 8px; border-radius: 12px; margin-right: 6px; vertical-align: middle; }
-    .card-summary { color: #aeaeb2; line-height: 1.5; margin-bottom: 0px; }
-    
-    .streamlit-expanderHeader { background-color: #1c1c1e !important; color: #60a5fa !important; border: none !important; border-radius: 8px !important; font-size: 13px !important; }
-
-    /* 모바일 디바이스 최적화 (가로 폭 767px 이하) */
-    @media (max-width: 767px) {
-        .grid-container { grid-template-columns: repeat(2, 1fr); }
-        .grid-item { padding: 16px; }
-        .grid-value { font-size: 22px; font-weight: bold; color: white; }
-        .brief-card { padding: 16px; }
-        .card-title { font-size: 16px; }
-        .card-summary { font-size: 13px; }
+    #date-nav-wrapper + div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
     }
-
-    /* 데스크탑 모니터 최적화 (가로 폭 768px 이상) */
-    @media (min-width: 768px) {
-        .grid-container { grid-template-columns: repeat(4, 1fr); }
-        .grid-item { padding: 20px; }
-        .grid-value { font-size: 28px; font-weight: bold; color: white; }
-        .brief-card { padding: 24px; }
-        .card-title { font-size: 19px; }
-        .card-summary { font-size: 15px; }
-    }
+}
+/* 다크모드 카드 스타일 UI */
+div[data-testid="metric-container"] {
+    background-color: #1E1E1E;
+    border: 1px solid #333;
+    padding: 5% 5% 5% 10%;
+    border-radius: 10px;
+}
+/* 요약 텍스트 박스 */
+.summary-box {
+    background-color: #2D2D2D;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+    line-height: 1.5;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 2. 데이터 로드 및 초기 검증
-# ---------------------------------------------------------
-file_path = "news_list.csv"
+# 2. 데이터 로드 함수 (캐싱)
+@st.cache_data(ttl=600)
+def load_data():
+    try:
+        # news_list.csv 파일이 같은 디렉토리에 있다고 가정
+        df = pd.read_csv("news_list.csv")
+        df['dt'] = pd.to_datetime(df['수집일자'], errors='coerce')
+        # 시간 단위를 잘라내고 순수 날짜 문자열(YYYY/MM/DD)로 변환
+        df['date_str'] = df['dt'].dt.strftime('%Y/%m/%d')
+        return df
+    except Exception as e:
+        return pd.DataFrame()
 
-if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-    st.warning("⚠️ 현재 수집된 뉴스 데이터가 없습니다.")
-    st.stop()
+df = load_data()
 
-try:
-    df = pd.read_csv(file_path)
-except Exception as e:
-    st.error(f"❌ 데이터 읽기 오류: {e}")
-    st.stop()
+# 3. 날짜 상태 관리 (Session State)
+if 'current_date' not in st.session_state:
+    if not df.empty:
+        # 데이터가 있으면 가장 최근 날짜를 기본값으로
+        st.session_state.current_date = df['dt'].max().date()
+    else:
+        # 없으면 오늘 날짜
+        st.session_state.current_date = datetime.now().date()
 
-if df.empty or "대표이슈" not in df.columns:
-    st.info("ℹ️ 현재 표시할 데이터가 없습니다.")
-    st.stop()
+# 4. 상단 헤더
+st.title("D Daily Brief")
+st.caption(f"{st.session_state.current_date.strftime('%Y년 %m월 %d일')} 발행")
 
-df["날짜"] = pd.to_datetime(df["수집일자"]).dt.date
-최신_날짜 = df["날짜"].max()
+# 5. 날짜 네비게이션 UI (CSS 타겟팅을 위한 빈 span 태그가 바로 위에 위치)
+st.markdown('<span id="date-nav-wrapper"></span>', unsafe_allow_html=True)
+col1, col2, col3 = st.columns([1, 4, 1])
 
-if "target_date" not in st.session_state:
-    st.session_state.target_date = 최신_날짜
+with col1:
+    if st.button("◀", use_container_width=True):
+        st.session_state.current_date -= timedelta(days=1)
+        st.rerun()
 
-# ---------------------------------------------------------
-# 3. 커스텀 헤더 및 요일 계산
-# ---------------------------------------------------------
-days_kr = ["월", "화", "수", "목", "금", "토", "일"]
-target_day_kr = days_kr[st.session_state.target_date.weekday()]
-formatted_date = f"{st.session_state.target_date.strftime('%Y년 %m월 %d일')} ({target_day_kr})"
+with col2:
+    date_display = st.session_state.current_date.strftime('%Y/%m/%d')
+    st.markdown(f"<div style='text-align: center; font-weight: bold; font-size: 1.2em; padding-top: 5px;'>{date_display}</div>", unsafe_allow_html=True)
 
-st.markdown(f"""
-<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-top: 10px; flex-wrap: wrap; gap: 10px;">
-    <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="background-color: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px;">D</div>
-        <div style="font-size: 24px; font-weight: bold; color: white;">Daily Brief</div>
-    </div>
-    <div style="color: #8e8e93; font-size: 13px; text-align: right; min-width: 150px;">
-        {formatted_date} 발행
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# 4. 날짜 이동 컨트롤러
-# ---------------------------------------------------------
-col_space, col_nav = st.columns([6, 4]) 
-
-with col_nav:
-    btn_left, date_center, btn_right = st.columns([1.5, 4, 1.5])
-    with btn_left:
-        if st.button("◀", use_container_width=True):
-            st.session_state.target_date -= timedelta(days=1)
-            st.rerun()
-    with date_center:
-        selected = st.date_input("날짜", value=st.session_state.target_date, label_visibility="collapsed")
-        if selected != st.session_state.target_date:
-            st.session_state.target_date = selected
-            st.rerun()
-    with btn_right:
-        if st.button("▶", use_container_width=True):
-            st.session_state.target_date += timedelta(days=1)
-            st.rerun()
-
-st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# 5. 데이터 필터링 및 요약 지표 출력 (반응형 적용됨)
-# ---------------------------------------------------------
-daily_df = df[df["날짜"] == st.session_state.target_date]
-
-if daily_df.empty:
-    st.info(f"ℹ️ {formatted_date}에 수집된 뉴스 데이터가 없습니다.")
-    st.stop()
-
-total_count = len(daily_df)
-pos_count = len(daily_df[daily_df["논조"] == "긍정"])
-neu_count = len(daily_df[daily_df["논조"] == "중립"])
-neg_count = len(daily_df[daily_df["논조"] == "부정"])
-
-st.markdown(f"""
-<div class="grid-container">
-    <div class="grid-item">
-        <div class="grid-title">수집 기사</div>
-        <div class="grid-value">{total_count}<span style="font-size: 14px; font-weight: normal; color: #8e8e93;">건</span></div>
-    </div>
-    <div class="grid-item">
-        <div class="grid-title">긍정 신호</div>
-        <div class="grid-value">{pos_count}<span style="font-size: 14px; font-weight: normal; color: #8e8e93;">건</span></div>
-    </div>
-    <div class="grid-item">
-        <div class="grid-title">중립 보도</div>
-        <div class="grid-value">{neu_count}<span style="font-size: 14px; font-weight: normal; color: #8e8e93;">건</span></div>
-    </div>
-    <div class="grid-item">
-        <div class="grid-title">부정 신호</div>
-        <div class="grid-value" style="color: #ef4444;">{neg_count}<span style="font-size: 14px; font-weight: normal; color: #8e8e93;">건</span></div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# 6. 분야 선택 가로 스크롤 (Pills)
-# ---------------------------------------------------------
-cat_counts = daily_df["분야"].value_counts().to_dict()
-category_labels = [f"전체 {total_count}"]
-label_to_category = {f"전체 {total_count}": "전체"}
-
-unique_cats = [c for c in daily_df["분야"].unique().tolist() if pd.notna(c)]
-for cat in unique_cats:
-    count = cat_counts.get(cat, 0)
-    label = f"{cat} {count}"
-    category_labels.append(label)
-    label_to_category[label] = cat
-
-selected_label = st.pills(
-    label="분야 선택",
-    options=category_labels,
-    default=category_labels[0],
-    label_visibility="collapsed"
-)
-
-selected_category = label_to_category.get(selected_label, "전체")
-
-if selected_category != "전체":
-    filtered_df = daily_df[daily_df["분야"] == selected_category]
-else:
-    filtered_df = daily_df
+with col3:
+    if st.button("▶", use_container_width=True):
+        st.session_state.current_date += timedelta(days=1)
+        st.rerun()
 
 st.divider()
 
-# ---------------------------------------------------------
-# 7. 기사 렌더링 (반응형 적용됨)
-# ---------------------------------------------------------
-grouped = filtered_df.groupby("대표이슈", sort=False)
+# 6. 해당 날짜 데이터 필터링
+if not df.empty:
+    target_date_str = st.session_state.current_date.strftime('%Y/%m/%d')
+    daily_df = df[df['date_str'] == target_date_str]
+else:
+    daily_df = pd.DataFrame()
 
-for issue_name, group_df in grouped:
-    pos = len(group_df[group_df["논조"] == "긍정"])
-    neu = len(group_df[group_df["논조"] == "중립"])
-    neg = len(group_df[group_df["논조"] == "부정"])
+# 7. 메트릭 대시보드 (2x2 그리드)
+if not daily_df.empty:
+    total_count = len(daily_df)
+    positive_count = len(daily_df[daily_df['논조'] == '긍정'])
+    neutral_count = len(daily_df[daily_df['논조'] == '중립'])
+    negative_count = len(daily_df[daily_df['논조'] == '부정'])
     
-    if neg >= pos and neg >= neu and neg > 0:
-        dominant_label, card_class, tag_class = "부정", "neg", "tag-neg"
-    elif pos >= neg and pos >= neu and pos > 0:
-        dominant_label, card_class, tag_class = "긍정", "pos", "tag-pos"
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+        st.metric("수집 기사", f"{total_count}건")
+        st.metric("중립 보도", f"{neutral_count}건")
+    with m_col2:
+        st.metric("긍정 신호", f"{positive_count}건")
+        st.metric("부정 신호", f"{negative_count}건")
+else:
+    st.info("해당 날짜에 수집된 기사 데이터가 없습니다.")
+
+st.divider()
+
+# 8. 카테고리 필터 (버튼 그룹)
+if not daily_df.empty:
+    categories = ['전체'] + list(daily_df['분야'].unique())
+    
+    # 카테고리 선택 상태 관리
+    if 'selected_category' not in st.session_state:
+        st.session_state.selected_category = '전체'
+        
+    # 가로 스크롤 가능한 컨테이너에 버튼 배치
+    cat_cols = st.columns(len(categories))
+    for i, cat in enumerate(categories):
+        with cat_cols[i]:
+            if st.button(cat, key=f"cat_{cat}"):
+                st.session_state.selected_category = cat
+                st.rerun()
+                
+    st.write("") # 여백
+    
+    # 선택된 카테고리 기사 필터링
+    if st.session_state.selected_category == '전체':
+        filtered_df = daily_df
     else:
-        dominant_label, card_class, tag_class = "중립", "neu", "tag-neu"
+        filtered_df = daily_df[daily_df['분야'] == st.session_state.selected_category]
 
-    dominant_articles = group_df[group_df["논조"] == dominant_label]
-    main_article = dominant_articles.iloc[0] if not dominant_articles.empty else group_df.iloc[0]
-
-    raw_main_press = main_article.get("언론사", "언론사 미상") if pd.notna(main_article.get("언론사")) else "언론사 미상"
-    raw_main_summary = main_article.get("AI요약", "")
-    raw_main_link = main_article.get("기사링크", "#")
-    raw_category = group_df["분야"].iloc[0]
-    article_count = len(group_df)
-    date_display = st.session_state.target_date.strftime("%m.%d.")
-
-    safe_issue_name = html.escape(str(issue_name))
-    safe_main_press = html.escape(str(raw_main_press))
-    safe_main_summary = html.escape(str(raw_main_summary))
-    safe_main_link = html.escape(str(raw_main_link))
-    safe_category = html.escape(str(raw_category))
-
-    st.markdown(f"""
-    <div class="brief-card {card_class}">
-        <div class="card-tags">
-            <span class="{tag_class}">{dominant_label}</span>
-            <span class="tag-cat">{safe_category}</span>
-            <span class="tag-date">{date_display}</span>
-        </div>
-        <div class="card-source">{safe_main_press}</div>
-        <div class="card-title">
-            <span class="card-title-badge">이슈</span>
-            <a href="{safe_main_link}" target="_blank" style="color: white; text-decoration: none;">{safe_issue_name}</a>
-        </div>
-        <div class="card-summary">{safe_main_summary}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # 9. 기사 리스트 출력 (2-Pass 클러스터링으로 묶인 이슈별 아코디언)
+    # 대표이슈(group_title)를 기준으로 그룹화
+    grouped = filtered_df.groupby('대표이슈')
     
-    if article_count > 1:
-        with st.expander(f"관련 보도 {article_count}건 전체보기"):
-            for _, row in group_df.iterrows():
-                sub_sentiment = row.get("논조", "중립")
-                safe_sub_press = html.escape(str(row.get('언론사', '언론사미상')))
-                safe_sub_title = html.escape(str(row.get('제목', '제목없음')))
-                safe_sub_link = html.escape(str(row.get('기사링크', '#')))
-
-                color_code = "#f59e0b"
-                if sub_sentiment == "긍정": color_code = "#3b82f6"
-                elif sub_sentiment == "부정": color_code = "#ef4444"
-
-                st.markdown(f"""
-                <div style="font-size: 13px; margin-bottom: 8px; line-height: 1.4;">
-                    <span style="color: {color_code}; font-weight: bold;">[{sub_sentiment}]</span> 
-                    <span style="color: #8e8e93;">{safe_sub_press}</span> 
-                    <a href="{safe_sub_link}" target="_blank" style="color: #e5e5e5; text-decoration: none;">{safe_sub_title}</a>
-                </div>
-                """, unsafe_allow_html=True)
+    for group_title, group_data in grouped:
+        # 그룹의 첫 번째 기사를 대표로 사용
+        rep_article = group_data.iloc[0]
+        sentiment_color = "#4CAF50" if rep_article['논조'] == '긍정' else "#F44336" if rep_article['논조'] == '부정' else "#FFC107"
+        
+        with st.expander(f"{group_title} ({len(group_data)}건)"):
+            st.markdown(f"<span style='color:{sentiment_color}; font-weight:bold;'>[{rep_article['논조']}]</span> <span style='color:#888;'>{rep_article['분야']}</span>", unsafe_allow_html=True)
+            
+            # AI 요약문 출력 박스
+            st.markdown(f"<div class='summary-box'>{rep_article['AI요약']}</div>", unsafe_allow_html=True)
+            
+            # 묶인 원본 기사 링크 리스트
+            for _, row in group_data.iterrows():
+                st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
