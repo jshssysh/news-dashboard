@@ -91,7 +91,7 @@ def get_naver_news_24h(keyword):
                         else:
                             stop_fetching = True
                             break
-                    except Exception as e:
+                    except Exception:
                         valid_items.append(item)
                 if stop_fetching: break
                 start += 100
@@ -115,7 +115,18 @@ def verify_and_adjust_category(category, title, description):
         else: return "공정위/정책"
     return category
 
-# [Pass 1] 개별 기사 분석 (에러 로깅 및 마크다운 정제 추가)
+# [핵심] 핵심 키워드 기반 강제 이슈 통일 함수 (파이썬 정규식 매핑)
+def force_merge_by_keywords(title, original_group_title):
+    t_lower = title.replace(" ", "")
+    
+    # 1. 삼성전자 RX사업추진실 / 로봇 조직 신설 관련 키워드 강제 통합
+    if "RX사업추진실" in t_lower or ("대표이사직속" in t_lower and "로봇" in t_lower):
+        return "삼성전자 RX사업추진실 신설"
+        
+    # 필요한 경우 여기에 주요 반복 이슈 키워드 매핑을 지속해서 추가 가능
+    
+    return original_group_title
+
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
         print("[ERROR] GEMINI_API_KEY 존재여부확인불가")
@@ -143,43 +154,38 @@ def analyze_batch_with_gemini(batch_items):
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-            
-            # 마크다운 백틱 강제 제거
             if raw_text.startswith("```json"): raw_text = raw_text[7:]
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
             
             parsed_list = json.loads(raw_text.strip())
-            result_map = {r.get("idx"): (r.get("relevance_score", 10), r.get("press", "미상"), normalize_title(r.get("group_title", "")), r.get("summary", ""), r.get("sentiment", "중립")) for r in parsed_list}
+            result_map = {}
+            for r in parsed_list:
+                r_idx = r.get("idx")
+                score = r.get("relevance_score", 10)
+                press = r.get("press", "미상")
+                g_title = normalize_title(r.get("group_title", ""))
+                summary = r.get("summary", "")
+                sentiment = r.get("sentiment", "중립")
+                result_map[r_idx] = (score, press, g_title, summary, sentiment)
+                
             return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립"))) for item in batch_items]
         else:
             print(f"[ERROR] 상태코드: {res.status_code}")
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] 파싱실패: {e}")
     except Exception as e:
         print(f"[ERROR] 예외발생: {e}")
         
     return [(item["idx"], 10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
 
-# [Pass 2] 전체 이슈 통합 (에러 로깅 및 마크다운 정제 추가)
 def master_cluster_with_gemini(unique_issue_titles):
     if not GEMINI_API_KEY or not unique_issue_titles:
         return {title: title for title in unique_issue_titles}
         
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
-    
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
-다음은 오늘 하루 수집된 개별 기사들의 1차 이슈명 목록입니다.
-의미가 같거나 완전히 동일한 사건을 다루고 있는 맥락(예: '로봇 조직 신설'과 'RX사업추진실 신설')의 이슈들을 능동적으로 파악하여, 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
-
+다음은 오늘 하루 수집된 개별 기사들의 1차 이슈명 목록입니다. 의미가 같은 사건을 다루는 이슈들을 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
 [초기 이슈명 목록]
 {json.dumps(unique_issue_titles, ensure_ascii=False)}
-
-지침:
-1. 의미가 같은 이슈명들은 반드시 똑같은 'merged' 값으로 통일해야 합니다.
-2. 다른 이슈들과 묶일 필요가 없는 독립적인 이슈는 original 값을 그대로 merged에 사용하세요.
-3. 누락되는 original 이슈명이 단 하나도 없도록 모든 항목을 매핑해 주세요.
-
 응답 JSON 배열 예시:
 [
   {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}},
@@ -187,23 +193,17 @@ def master_cluster_with_gemini(unique_issue_titles):
 ]
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
-    
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-            
             if raw_text.startswith("```json"): raw_text = raw_text[7:]
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
-                
             parsed_list = json.loads(raw_text.strip())
             return {item.get("original", ""): item.get("merged", "") for item in parsed_list}
-        else:
-            print(f"[ERROR] 마스터통합 상태코드: {res.status_code}")
-    except Exception as e:
-        print(f"[ERROR] 2차 마스터 클러스터링 예외: {e}")
-        
+    except Exception:
+        pass
     return {title: title for title in unique_issue_titles}
 
 def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
@@ -233,7 +233,7 @@ def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     all_articles = []
-    seen_links, seen_titles, unique_for_api = set(), set(), {}
+    seen_links, unique_for_api = set(), {}
     idx = 0
 
     for keyword, category in KEYWORDS.items():
@@ -254,7 +254,6 @@ def main():
             }
             all_articles.append(article_data)
             
-            # 비용 절감용 (동일 제목 1건만 API 전송)
             if norm_t not in unique_for_api:
                 api_data = article_data.copy()
                 api_data["description"] = desc[:80]
@@ -267,34 +266,35 @@ def main():
     
     analyzed_results = {} 
     
-    # [실행] Pass 1: 개별 기사 분석
     for b_idx, batch in enumerate(batches):
         print(f"[진행도] {b_idx + 1} / {len(batches)} 1차 분석 중...")
         for r_idx, score, _, g_title, summary, sentiment in analyze_batch_with_gemini(batch):
             if norm_t := idx_to_norm_t.get(r_idx):
+                # 1차 결과가 나오자마자 하이브리드 강제 병합 함수 적용
+                original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
+                if original_item:
+                    g_title = force_merge_by_keywords(original_item["title"], g_title)
                 analyzed_results[norm_t] = (score, g_title, summary, sentiment)
         time.sleep(1.0)
 
-    # [실행] Pass 2: 마스터 이슈 클러스터링 (단 1회 API 호출)
     valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
     if valid_group_titles:
-        print(f"[INFO] 2차 능동형 마스터 통합 진행 중... (대상: {len(valid_group_titles)}종류)")
+        print(f"[INFO] 2차 능동형 마스터 통합 진행 중...")
         master_mapping = master_cluster_with_gemini(valid_group_titles)
-        
-        # 1차 분석 결과에 2차 통합 이슈명 덮어쓰기
         for norm_t, (score, orig_gt, summary, sentiment) in analyzed_results.items():
             if score >= 5 and orig_gt in master_mapping:
                 analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment)
 
-    # [실행] Pass 3: 전체 기사 복원 및 CSV 저장
     rows = []
     for item in all_articles:
         norm_t = item["norm_t"]
         if norm_t in analyzed_results:
             score, group_title, summary, sentiment = analyzed_results[norm_t]
             if score < 5: continue
+            # 최종 저장 직전에도 한 번 더 키워드 강제 병합 검증
+            group_title = force_merge_by_keywords(item["title"], group_title)
         else:
-            group_title, summary, sentiment = normalize_title(item["title"]), item["title"], "중립"
+            group_title, summary, sentiment = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "중립"
 
         rows.append([
             item["today_str"], item["category"], group_title, item["title"],
