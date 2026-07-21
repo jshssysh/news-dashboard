@@ -115,9 +115,10 @@ def verify_and_adjust_category(category, title, description):
         else: return "공정위/정책"
     return category
 
-# [Pass 1] 개별 기사 분석 
+# [Pass 1] 개별 기사 분석 (에러 로깅 및 마크다운 정제 추가)
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
+        print("[ERROR] GEMINI_API_KEY 존재여부확인불가")
         return [(item["idx"], 10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
@@ -141,19 +142,31 @@ def analyze_batch_with_gemini(batch_items):
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
-            parsed_list = json.loads(res.json()['candidates'][0]['content']['parts'][0]['text'])
+            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            
+            # 마크다운 백틱 강제 제거
+            if raw_text.startswith("```json"): raw_text = raw_text[7:]
+            if raw_text.startswith("```"): raw_text = raw_text[3:]
+            if raw_text.endswith("```"): raw_text = raw_text[:-3]
+            
+            parsed_list = json.loads(raw_text.strip())
             result_map = {r.get("idx"): (r.get("relevance_score", 10), r.get("press", "미상"), normalize_title(r.get("group_title", "")), r.get("summary", ""), r.get("sentiment", "중립")) for r in parsed_list}
             return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립"))) for item in batch_items]
-    except Exception:
-        pass
+        else:
+            print(f"[ERROR] 상태코드: {res.status_code}")
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] 파싱실패: {e}")
+    except Exception as e:
+        print(f"[ERROR] 예외발생: {e}")
+        
     return [(item["idx"], 10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
 
-# [Pass 2] 전체 이슈 통합 (Semantic Clustering)
+# [Pass 2] 전체 이슈 통합 (에러 로깅 및 마크다운 정제 추가)
 def master_cluster_with_gemini(unique_issue_titles):
     if not GEMINI_API_KEY or not unique_issue_titles:
         return {title: title for title in unique_issue_titles}
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
 다음은 오늘 하루 수집된 개별 기사들의 1차 이슈명 목록입니다.
@@ -178,10 +191,18 @@ def master_cluster_with_gemini(unique_issue_titles):
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
-            parsed_list = json.loads(res.json()['candidates'][0]['content']['parts'][0]['text'])
+            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            
+            if raw_text.startswith("```json"): raw_text = raw_text[7:]
+            if raw_text.startswith("```"): raw_text = raw_text[3:]
+            if raw_text.endswith("```"): raw_text = raw_text[:-3]
+                
+            parsed_list = json.loads(raw_text.strip())
             return {item.get("original", ""): item.get("merged", "") for item in parsed_list}
+        else:
+            print(f"[ERROR] 마스터통합 상태코드: {res.status_code}")
     except Exception as e:
-        print(f"[WARN] 2차 마스터 클러스터링 예외: {e}")
+        print(f"[ERROR] 2차 마스터 클러스터링 예외: {e}")
         
     return {title: title for title in unique_issue_titles}
 
