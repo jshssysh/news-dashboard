@@ -1,16 +1,12 @@
-name: Auto Update News Data
+name: update-data
 
 on:
   schedule:
-    # 매일 한국 시간 오전 6시 30분에 자동 실행 (UTC 기준 21:30)
-    - cron: '30 21 * * *'
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write 
-
 jobs:
-  update-data:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,17 +23,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pandas
 
-      - name: 파이썬 스크립트 실행
+      - name: 파이썬 스크립트 실행 (API 키 매핑 필수)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python main.py
 
-      - name: 변경된 데이터 커밋 및 푸시
+      - name: 결과 CSV 파일 깃허브에 커밋 및 푸시
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add news_list.csv
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update: news_list.csv" && git pull --rebase origin main && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update news data" && git push)
