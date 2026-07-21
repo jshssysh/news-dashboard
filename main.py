@@ -171,7 +171,8 @@ def analyze_batch_with_gemini(batch_items):
     }
     
     try:
-        res = requests.post(url, json=payload, timeout=15)
+        # 타임아웃 30초로 연장
+        res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
             data = res.json()
             text_response = data['candidates'][0]['content']['parts'][0]['text']
@@ -266,10 +267,11 @@ def main():
 
     print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
 
-    batch_size = 10
+    # 배치 크기 30건으로 상향
+    batch_size = 30
     batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
     
-    print(f"[INFO] 10건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
+    print(f"[INFO] {batch_size}건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 진행")
 
     analyzed_results = {}
     for b_idx, batch in enumerate(batches):
@@ -279,7 +281,8 @@ def main():
             r_idx, press, group_title, summary, sentiment = res
             analyzed_results[r_idx] = (press, group_title, summary, sentiment)
             
-        time.sleep(15.0)
+        # 유료 티어 적용에 따른 대기 시간 1초로 대폭 축소
+        time.sleep(1.0)
 
     rows = []
     for item in raw_articles:
