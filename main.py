@@ -105,60 +105,6 @@ def normalize_title(text):
     text = re.sub(r'[^\w\s]', '', text)
     return " ".join(text.split())
 
-def analyze_with_gemini(title, description, link, known_press):
-    if not GEMINI_API_KEY:
-        return known_press or "언론사 미상", normalize_title(title), title, "중립"
-        
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    prompt = f"""다음 기사를 분석하여 정확한 JSON 객체로 답변해줘.
-
-1. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내의 명사형 조합).
-2. press: 언론사명 (알려진 언론사명 '{known_press}'를 최우선 사용)
-3. summary: 1문장 핵심 요약
-4. sentiment: 논조 판단 (부정, 긍정, 중립 중 하나)
-
-기사 URL: {link}
-제목: {title}
-내용: {description}
-
-응답형식 JSON:
-{{"press": "언론사명", "group_title": "표준대표이슈명", "summary": "1문장요약", "sentiment": "긍정|중립|부정"}}
-"""
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"response_mime_type": "application/json"}
-    }
-    
-    for attempt in range(3):
-        try:
-            res = requests.post(url, json=payload, timeout=15)
-            if res.status_code == 200:
-                data = res.json()
-                text_response = data['candidates'][0]['content']['parts'][0]['text']
-                result = json.loads(text_response)
-                
-                press = result.get("press", known_press or "언론사 미상")
-                group_title = normalize_title(result.get("group_title", title))
-                summary = result.get("summary", title)
-                sentiment = result.get("sentiment", "중립")
-                
-                if sentiment not in ["긍정", "중립", "부정"]:
-                    sentiment = "중립"
-                    
-                return press, group_title, summary, sentiment
-            elif res.status_code == 429:
-                wait_time = 5 * (attempt + 1)
-                print(f"[WARN] Gemini API Rate Limit (429). {wait_time}초 대기 후 재시도 ({attempt+1}/3)...")
-                time.sleep(wait_time)
-            else:
-                print(f"[WARN] Gemini API 응답 오류 (상태코드: {res.status_code}): {res.text}")
-        except Exception as e:
-            print(f"[WARN] Gemini API 요청 예외 ({attempt+1}/3): {e}")
-            time.sleep(2)
-            
-    return known_press or "언론사 미상", normalize_title(title), title, "중립"
-
 def verify_and_adjust_category(category, title, description):
     text_content = (title + " " + description).replace(" ", "")
     
@@ -173,6 +119,84 @@ def verify_and_adjust_category(category, title, description):
             return "공정위/정책"
             
     return category
+
+def analyze_batch_with_gemini(batch_items):
+    """5건의 기사를 하나의 프롬프트로 묶어 Gemini API에 요청하는 배치 처리 함수"""
+    if not GEMINI_API_KEY:
+        return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
+        
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    input_data = []
+    for item in batch_items:
+        input_data.append({
+            "idx": item["idx"],
+            "title": item["title"],
+            "description": item["description"],
+            "known_press": item["known_press"] or "언론사 미상"
+        })
+        
+    prompt = f"""다음 {len(input_data)}개의 기사 목록을 분석하여 각 기사별 결과를 JSON 배열(Array) 형태로 응답해줘.
+
+입력 기사 목록:
+{json.dumps(input_data, ensure_ascii=False)}
+
+각 기사별 분석 지침:
+1. idx: 입력받은 기사의 idx 번호 그대로 유지
+2. group_title: 이 기사와 연관된 다른 뉴스들을 하나로 그룹화하기 위한 '표준 대표 이슈명' (10자 이내의 명사형 조합).
+3. press: 언론사명 (알려진 언론사명 known_press를 최우선 사용)
+4. summary: 1문장 핵심 요약
+5. sentiment: 논조 판단 (긍정, 중립, 부정 중 하나)
+
+응답형식 JSON 예시:
+[
+  {{"idx": 0, "press": "언론사명", "group_title": "표준대표이슈명", "summary": "1문장요약", "sentiment": "중립"}}
+]
+"""
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"response_mime_type": "application/json"}
+    }
+    
+    for attempt in range(3):
+        try:
+            res = requests.post(url, json=payload, timeout=20)
+            if res.status_code == 200:
+                data = res.json()
+                text_response = data['candidates'][0]['content']['parts'][0]['text']
+                parsed_list = json.loads(text_response)
+                
+                result_map = {}
+                for r in parsed_list:
+                    r_idx = r.get("idx")
+                    press = r.get("press", "언론사 미상")
+                    gt = normalize_title(r.get("group_title", ""))
+                    summary = r.get("summary", "")
+                    sentiment = r.get("sentiment", "중립")
+                    if sentiment not in ["긍정", "중립", "부정"]:
+                        sentiment = "중립"
+                    result_map[r_idx] = (press, gt, summary, sentiment)
+                    
+                results = []
+                for item in batch_items:
+                    i_idx = item["idx"]
+                    if i_idx in result_map:
+                        p, g, s, sent = result_map[i_idx]
+                        results.append((i_idx, p, g or normalize_title(item["title"]), s or item["title"], sent))
+                    else:
+                        results.append((i_idx, item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립"))
+                return results
+            elif res.status_code == 429:
+                wait_time = 5 * (attempt + 1)
+                print(f"[WARN] Gemini API Rate Limit (429). {wait_time}초 대기 후 재시도... ({attempt+1}/3)")
+                time.sleep(wait_time)
+            else:
+                print(f"[WARN] API 응답 오류 ({res.status_code}): {res.text}")
+        except Exception as e:
+            print(f"[WARN] API 요청 예외 ({attempt+1}/3): {e}")
+            time.sleep(2)
+            
+    return [(item["idx"], item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
 
 def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"]
@@ -205,9 +229,10 @@ def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    rows = []
+    raw_articles = []
     seen_links = set()
 
+    idx = 0
     for keyword, category in KEYWORDS.items():
         articles = get_naver_news_24h(keyword)
         for item in articles:
@@ -219,17 +244,57 @@ def main():
 
             title = clean_text(item["title"])
             desc = clean_text(item["description"])
-            
             adjusted_category = verify_and_adjust_category(category, title, desc)
             known_press = extract_press_from_link(link)
             
-            press, group_title, summary, sentiment = analyze_with_gemini(title, desc, link, known_press)
-            rows.append([today_str, adjusted_category, group_title, title, press, summary, sentiment, link])
-            
-            # 유료/카드등록 계정 기준 0.5초 고속 지연 적용
-            time.sleep(0.5)
+            raw_articles.append({
+                "idx": idx,
+                "category": adjusted_category,
+                "title": title,
+                "description": desc,
+                "link": link,
+                "known_press": known_press,
+                "today_str": today_str
+            })
+            idx += 1
 
-    print(f"[INFO] 금일 당일 신규 수집 완료: 총 {len(rows)}건")
+    print(f"[INFO] 최종 분석 대상 기사 수: {len(raw_articles)}건")
+
+    # 5건씩 배치(Batch)로 그룹화
+    batch_size = 5
+    batches = [raw_articles[i:i + batch_size] for i in range(0, len(raw_articles), batch_size)]
+    
+    print(f"[INFO] 5건 묶음 배치 생성 완료: 총 {len(batches)}개 API 요청 예정")
+
+    analyzed_results = {}
+    for b_idx, batch in enumerate(batches):
+        results = analyze_batch_with_gemini(batch)
+        for res in results:
+            r_idx, press, group_title, summary, sentiment = res
+            analyzed_results[r_idx] = (press, group_title, summary, sentiment)
+            
+        # 429 방지를 위한 배치 간 안전 대기 지연 (1.5초)
+        time.sleep(1.5)
+
+    rows = []
+    for item in raw_articles:
+        i_idx = item["idx"]
+        press, group_title, summary, sentiment = analyzed_results.get(
+            i_idx, 
+            (item["known_press"] or "언론사 미상", normalize_title(item["title"]), item["title"], "중립")
+        )
+        rows.append([
+            item["today_str"],
+            item["category"],
+            group_title,
+            item["title"],
+            press,
+            summary,
+            sentiment,
+            item["link"]
+        ])
+
+    print(f"[INFO] 금일 당일 신규 수집 및 배치 분석 완료: 총 {len(rows)}건")
     save_and_merge_1year_data(rows)
 
 if __name__ == "__main__":
