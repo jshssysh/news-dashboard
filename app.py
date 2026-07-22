@@ -4,32 +4,35 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Daily Brief", layout="centered", initial_sidebar_state="collapsed")
 
+# 모바일 레이아웃 고정 및 기존 커스텀 UI 복원 CSS 융합
 st.markdown("""
 <style>
+/* 날짜 네비게이션 1줄 고정 */
 div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:first-of-type {
     flex-wrap: nowrap !important;
     align-items: center !important;
 }
 div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"] {
-    width: 33% !important;
-    min-width: 0 !important;
-    flex: 1 1 0% !important;
+    width: 33% !important; min-width: 0 !important; flex: 1 1 0% !important;
 }
-.summary-box {
-    background-color: #2D2D2D;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    font-size: 0.95em;
-    line-height: 1.5;
-    color: #E0E0E0;
-}
+/* 카테고리 라디오 버튼 반응형 칩 형태 */
 div[role="radiogroup"] { gap: 0.5rem; }
 div[role="radiogroup"] > label {
-    background-color: #1E1E1E;
-    padding: 5px 15px;
-    border-radius: 20px;
-    border: 1px solid #444;
+    background-color: #1E1E1E; padding: 5px 15px; border-radius: 20px; border: 1px solid #444;
+}
+/* 기존 스크린샷 UI 완벽 복원 (배지 및 남색 요약 박스) */
+.badge-positive { border: 1px solid #4CAF50; color: #4CAF50; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
+.badge-neutral { border: 1px solid #FFC107; color: #FFC107; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
+.badge-negative { border: 1px solid #F44336; color: #F44336; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
+.badge-fail { border: 1px solid #9C27B0; color: #9C27B0; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
+
+.summary-box-blue { 
+    background-color: #0d1e36; /* 남색 배경 복원 */
+    padding: 15px; 
+    border-radius: 8px; 
+    margin-bottom: 10px; 
+    font-size: 0.95em; 
+    color: #4DA8DA; /* 밝은 파란색 텍스트 복원 */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -97,11 +100,24 @@ if not daily_df.empty:
     
     for group_title, group_data in grouped:
         rep_article = group_data.iloc[0]
-        # 에러 시각화를 위해 판단 실패 항목은 보라색 표기
-        sentiment_color = "#4CAF50" if rep_article['논조'] == '긍정' else "#F44336" if rep_article['논조'] == '부정' else "#9C27B0" if rep_article['논조'] == '판단 실패' else "#FFC107"
+        sentiment = rep_article['논조']
         
-        with st.expander(f"{group_title} ({len(group_data)}건)"):
-            st.markdown(f"<span style='color:{sentiment_color}; font-weight:bold;'>[{rep_article['논조']}]</span> <span style='color:#888;'>{rep_article['분야']}</span>", unsafe_allow_html=True)
-            st.markdown(f"<div class='summary-box'>{rep_article['AI요약']}</div>", unsafe_allow_html=True)
+        # 논조에 따른 배지 클래스 할당
+        if sentiment == '긍정': badge_class = "badge-positive"
+        elif sentiment == '부정': badge_class = "badge-negative"
+        elif sentiment == '판단 실패': badge_class = "badge-fail"
+        else: badge_class = "badge-neutral"
+        
+        main_press = rep_article['언론사']
+        total_press = len(group_data)
+        
+        st.markdown(f"<div><span class='{badge_class}'>{sentiment}</span> <strong>{group_title} 🔗</strong></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#bbb;'>분야: <span style='color:#4CAF50;'>{rep_article['분야']}</span> | 메인 언론사: <span style='color:#4CAF50;'>{main_press}</span> | 총 보도 매체: <span style='color:#4CAF50;'>{total_press}개 언론사</span> | 논조 분포: <span class='{badge_class}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{sentiment} {total_press}</span></div>", unsafe_allow_html=True)
+        
+        st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {rep_article['AI요약']}</div>", unsafe_allow_html=True)
+        
+        with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({total_press}개 보도 기사 펼치기)"):
             for _, row in group_data.iterrows():
                 st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
+        
+        st.write("---")
