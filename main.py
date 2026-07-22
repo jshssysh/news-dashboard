@@ -52,26 +52,19 @@ NAVER_PRESS_CODES = {
 
 def extract_press_from_link(link):
     for domain, name in PRESS_DOMAINS.items():
-        if domain in link:
-            return name
+        if domain in link: return name
     if "n.news.naver.com" in link or "news.naver.com" in link:
         parts = link.split("/")
         for i, part in enumerate(parts):
             if part == "article" and i + 1 < len(parts):
-                code = parts[i+1]
-                if code in NAVER_PRESS_CODES:
-                    return NAVER_PRESS_CODES[code]
+                if parts[i+1] in NAVER_PRESS_CODES: return NAVER_PRESS_CODES[parts[i+1]]
     return None
 
 def get_naver_news_24h(keyword):
     valid_items = []
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
-    }
+    headers = {"X-Naver-Client-Id": NAVER_CLIENT_ID, "X-Naver-Client-Secret": NAVER_CLIENT_SECRET}
     kst = timezone(timedelta(hours=9))
-    now_kst = datetime.now(kst)
-    time_threshold = now_kst - timedelta(hours=24)
+    time_threshold = datetime.now(kst) - timedelta(hours=24)
     start = 1
     
     while start <= 1000:
@@ -83,28 +76,25 @@ def get_naver_news_24h(keyword):
                 if not items: break
                 stop_fetching = False
                 for item in items:
-                    pub_date_str = item.get("pubDate", "")
                     try:
-                        pub_dt = parsedate_to_datetime(pub_date_str)
-                        if pub_dt >= time_threshold:
+                        if parsedate_to_datetime(item.get("pubDate", "")) >= time_threshold:
                             valid_items.append(item)
                         else:
                             stop_fetching = True
                             break
-                    except Exception:
-                        valid_items.append(item)
+                    except Exception: valid_items.append(item)
                 if stop_fetching: break
                 start += 100
-            else:
-                break
-        except Exception:
-            break
+            else: break
+        except Exception: break
     return valid_items
 
 def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
 def normalize_title(text):
+    # 정규식 고도화: 대괄호[], 소괄호(), 꺽쇠<> 안의 꼬리표 강제 제거
+    text = re.sub(r'\[.*?\]|\(.*?\)|\<.*?\>', '', text)
     return " ".join(re.sub(r'[^\w\s]', '', text).split())
 
 def verify_and_adjust_category(category, title, description):
@@ -115,22 +105,16 @@ def verify_and_adjust_category(category, title, description):
         else: return "공정위/정책"
     return category
 
-# [핵심] 핵심 키워드 기반 강제 이슈 통일 함수 (파이썬 정규식 매핑)
 def force_merge_by_keywords(title, original_group_title):
     t_lower = title.replace(" ", "")
-    
-    # 1. 삼성전자 RX사업추진실 / 로봇 조직 신설 관련 키워드 강제 통합
     if "RX사업추진실" in t_lower or ("대표이사직속" in t_lower and "로봇" in t_lower):
         return "삼성전자 RX사업추진실 신설"
-        
-    # 필요한 경우 여기에 주요 반복 이슈 키워드 매핑을 지속해서 추가 가능
-    
     return original_group_title
 
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
-        print("[ERROR] GEMINI_API_KEY 존재여부확인불가")
-        return [(item["idx"], 10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
+        # API 키 누락 시 판단 실패 명시
+        return [(item["idx"], 10, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패") for item in batch_items]
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상"} for item in batch_items]
@@ -166,26 +150,28 @@ def analyze_batch_with_gemini(batch_items):
                 press = r.get("press", "미상")
                 g_title = normalize_title(r.get("group_title", ""))
                 summary = r.get("summary", "")
-                sentiment = r.get("sentiment", "중립")
+                
+                # 키 값 누락 방어 및 실패 처리
+                sentiment = r.get("sentiment")
+                if sentiment not in ["긍정", "중립", "부정"]:
+                    sentiment = "판단 실패"
+                    
                 result_map[r_idx] = (score, press, g_title, summary, sentiment)
                 
-            return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립"))) for item in batch_items]
-        else:
-            print(f"[ERROR] 상태코드: {res.status_code}")
+            return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패"))) for item in batch_items]
     except Exception as e:
-        print(f"[ERROR] 예외발생: {e}")
+        print(f"[ERROR] 파싱 예외 발생: {e}")
         
-    return [(item["idx"], 10, item["known_press"] or "미상", normalize_title(item["title"]), item["title"], "중립") for item in batch_items]
+    # 예외 발생 시 모든 배치를 '판단 실패'로 리턴
+    return [(item["idx"], 10, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패") for item in batch_items]
 
 def master_cluster_with_gemini(unique_issue_titles):
-    if not GEMINI_API_KEY or not unique_issue_titles:
-        return {title: title for title in unique_issue_titles}
-        
+    if not GEMINI_API_KEY or not unique_issue_titles: return {title: title for title in unique_issue_titles}
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
-다음은 오늘 하루 수집된 개별 기사들의 1차 이슈명 목록입니다. 의미가 같은 사건을 다루는 이슈들을 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
 [초기 이슈명 목록]
 {json.dumps(unique_issue_titles, ensure_ascii=False)}
+의미가 같은 사건을 다루는 이슈들을 능동적으로 파악하여 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
 응답 JSON 배열 예시:
 [
   {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}},
@@ -202,11 +188,10 @@ def master_cluster_with_gemini(unique_issue_titles):
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
             parsed_list = json.loads(raw_text.strip())
             return {item.get("original", ""): item.get("merged", "") for item in parsed_list}
-    except Exception:
-        pass
+    except Exception: pass
     return {title: title for title in unique_issue_titles}
 
-def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
+def save_and_merge_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"]
     new_df = pd.DataFrame(new_rows, columns=columns)
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
@@ -214,21 +199,20 @@ def save_and_merge_1year_data(new_rows, file_name="news_list.csv"):
             old_df = pd.read_csv(file_name)
             old_df["분야"] = old_df["분야"].replace({"그룹동향": "삼성그룹", "삼성/이슈": "삼성그룹"})
             combined_df = pd.concat([old_df, new_df], ignore_index=True)
-        except Exception:
-            combined_df = new_df
-    else:
-        combined_df = new_df
+        except Exception: combined_df = new_df
+    else: combined_df = new_df
 
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
-        cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=365)
+        # 경량화: 365일 -> 30일 데이터만 대시보드 파일에 남김
+        cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=30)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
-    except Exception:
-        pass
+    except Exception: pass
+    
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
-    print(f"[INFO] 누계 데이터 업데이트 완료: {len(combined_df)}건")
+    print(f"[INFO] 30일 경량화 업데이트 완료: {len(combined_df)}건")
 
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -270,16 +254,13 @@ def main():
         print(f"[진행도] {b_idx + 1} / {len(batches)} 1차 분석 중...")
         for r_idx, score, _, g_title, summary, sentiment in analyze_batch_with_gemini(batch):
             if norm_t := idx_to_norm_t.get(r_idx):
-                # 1차 결과가 나오자마자 하이브리드 강제 병합 함수 적용
                 original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
-                if original_item:
-                    g_title = force_merge_by_keywords(original_item["title"], g_title)
+                if original_item: g_title = force_merge_by_keywords(original_item["title"], g_title)
                 analyzed_results[norm_t] = (score, g_title, summary, sentiment)
         time.sleep(1.0)
 
     valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
     if valid_group_titles:
-        print(f"[INFO] 2차 능동형 마스터 통합 진행 중...")
         master_mapping = master_cluster_with_gemini(valid_group_titles)
         for norm_t, (score, orig_gt, summary, sentiment) in analyzed_results.items():
             if score >= 5 and orig_gt in master_mapping:
@@ -290,19 +271,18 @@ def main():
         norm_t = item["norm_t"]
         if norm_t in analyzed_results:
             score, group_title, summary, sentiment = analyzed_results[norm_t]
-            if score < 5: continue
-            # 최종 저장 직전에도 한 번 더 키워드 강제 병합 검증
+            # 적합도 미달이더라도, 에러를 시각화하기 위해 판단 실패 항목은 무조건 통과시킴
+            if score < 5 and sentiment != "판단 실패": continue
             group_title = force_merge_by_keywords(item["title"], group_title)
         else:
-            group_title, summary, sentiment = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "중립"
+            group_title, summary, sentiment = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패"
 
         rows.append([
             item["today_str"], item["category"], group_title, item["title"],
             item["known_press"] or "미상", summary, sentiment, item["link"]
         ])
 
-    print(f"[INFO] 최종 유효 기사 {len(rows)}건 병합 저장 완료")
-    save_and_merge_1year_data(rows)
+    save_and_merge_data(rows)
 
 if __name__ == "__main__":
     main()
