@@ -93,7 +93,6 @@ def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
 def normalize_title(text):
-    # 정규식 고도화: 대괄호[], 소괄호(), 꺽쇠<> 안의 꼬리표 강제 제거
     text = re.sub(r'\[.*?\]|\(.*?\)|\<.*?\>', '', text)
     return " ".join(re.sub(r'[^\w\s]', '', text).split())
 
@@ -113,24 +112,28 @@ def force_merge_by_keywords(title, original_group_title):
 
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
-        # API 키 누락 시 판단 실패 명시
         return [(item["idx"], 10, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패") for item in batch_items]
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상"} for item in batch_items]
         
+    # [프롬프트 튜닝] '기자 논조' 제거, '기업 호재/악재' 기준으로 강제 평가 지시
     prompt = f"""당신은 기업 지배구조 및 공정거래위원회 정책 전문 애널리스트입니다.
 입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
 
 분석 지침:
 1. idx: 번호 유지
-2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가. (무관한 지역행사, 분양, 단순사건 등은 4점 이하)
-3. group_title: (relevance_score 5점 이상일 때만 생성) 표준 대표 이슈명 (10자 이내 명사형)
+2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가. 
+3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형)
 4. press: 언론사명
-5. summary: (relevance_score 5점 이상일 때만 생성) 1문장 핵심 요약
-6. sentiment: (relevance_score 5점 이상일 때만 생성) 긍정, 중립, 부정 중 하나
+5. summary: (relevance_score 5점 이상일 때만) 1문장 핵심 요약
+6. sentiment: (relevance_score 5점 이상일 때만) '기자의 서술 태도'가 아닌 '해당 사건이 기업에 미치는 사업적/재무적 영향(호재/악재)'을 기준으로 판별할 것.
+   - 긍정: 신사업, M&A, 조직 신설, 실적 개선, 투자 등 호재
+   - 부정: 공정위 제재, 과징금, 법적 분쟁, 갑질 논란, 하도급 위반 등 악재
+   - 중립: 단순 시황, 영향 미미한 인사 동정
+   반드시 긍정, 중립, 부정 중 하나로만 출력.
 
-주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 키를 생성하지 말고 제외할 것.
+주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 생성 제외.
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
     
@@ -151,7 +154,6 @@ def analyze_batch_with_gemini(batch_items):
                 g_title = normalize_title(r.get("group_title", ""))
                 summary = r.get("summary", "")
                 
-                # 키 값 누락 방어 및 실패 처리
                 sentiment = r.get("sentiment")
                 if sentiment not in ["긍정", "중립", "부정"]:
                     sentiment = "판단 실패"
@@ -159,10 +161,8 @@ def analyze_batch_with_gemini(batch_items):
                 result_map[r_idx] = (score, press, g_title, summary, sentiment)
                 
             return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패"))) for item in batch_items]
-    except Exception as e:
-        print(f"[ERROR] 파싱 예외 발생: {e}")
-        
-    # 예외 발생 시 모든 배치를 '판단 실패'로 리턴
+    except Exception:
+        pass
     return [(item["idx"], 10, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패") for item in batch_items]
 
 def master_cluster_with_gemini(unique_issue_titles):
@@ -174,8 +174,7 @@ def master_cluster_with_gemini(unique_issue_titles):
 의미가 같은 사건을 다루는 이슈들을 능동적으로 파악하여 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
 응답 JSON 배열 예시:
 [
-  {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}},
-  {{"original": "원본이슈명2", "merged": "통합대표이슈명A"}}
+  {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}}
 ]
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
@@ -205,14 +204,12 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
-        # 경량화: 365일 -> 30일 데이터만 대시보드 파일에 남김
         cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=30)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception: pass
     
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
-    print(f"[INFO] 30일 경량화 업데이트 완료: {len(combined_df)}건")
 
 def main():
     today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -251,7 +248,6 @@ def main():
     analyzed_results = {} 
     
     for b_idx, batch in enumerate(batches):
-        print(f"[진행도] {b_idx + 1} / {len(batches)} 1차 분석 중...")
         for r_idx, score, _, g_title, summary, sentiment in analyze_batch_with_gemini(batch):
             if norm_t := idx_to_norm_t.get(r_idx):
                 original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
@@ -271,7 +267,6 @@ def main():
         norm_t = item["norm_t"]
         if norm_t in analyzed_results:
             score, group_title, summary, sentiment = analyzed_results[norm_t]
-            # 적합도 미달이더라도, 에러를 시각화하기 위해 판단 실패 항목은 무조건 통과시킴
             if score < 5 and sentiment != "판단 실패": continue
             group_title = force_merge_by_keywords(item["title"], group_title)
         else:
