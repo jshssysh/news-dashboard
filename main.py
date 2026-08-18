@@ -4,6 +4,7 @@ import json
 import time
 import re
 import requests
+import yaml
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -12,22 +13,13 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '')
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
-KEYWORDS = {
-    "공정거래 -부동산 -분양 -아파트 -지역화폐": "공정위/정책",
-    "내부거래 -부동산 -아파트": "부당지원",
-    "하도급 -부동산 -분양 -건설현장": "갑을관계",
-    "상생협력 -농축산 -지자체": "동반성장",
-    "상법 -강의 -시험": "지배구조",
-    "지배구조": "지배구조",
-    "종합상사 -채용": "산업동향",
-    "삼성": "삼성그룹",
-    "삼성 계열분리": "삼성그룹",
-    "일감몰아주기": "부당지원",
-    "웰스토리": "삼성그룹",
-    "삼우종합건축사사무소": "삼성그룹",
-    "레이크사이드cc": "삼성그룹",
-    "삼성물산 -래미안 -분양": "삼성물산"
-}
+KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
+
+def load_keywords(path=KEYWORDS_CONFIG_PATH):
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["keywords"]
+
+KEYWORDS = load_keywords()
 
 PRESS_DOMAINS = {
     "yna.co.kr": "연합뉴스", "chosun.com": "조선일보", "donga.com": "동아일보",
@@ -162,7 +154,9 @@ def analyze_batch_with_gemini(batch_items):
 
                 sentiment = r.get("sentiment")
                 if sentiment not in ["긍정", "중립", "부정"]:
-                    sentiment = "판단 실패"
+                    # score>=5인데 sentiment가 없으면 진짜 이상치(기술적 문제) → "판단 실패"로 표시해 노출
+                    # score<5는 프롬프트 지침상 정상적으로 sentiment를 생성하지 않은 것 → None으로 구분해 필터링 대상으로 남김
+                    sentiment = "판단 실패" if score >= 5 else None
 
                 category = r.get("category")
                 if category not in CATEGORY_LIST:

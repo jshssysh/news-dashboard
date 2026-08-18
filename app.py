@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Daily Brief", layout="centered", initial_sidebar_state="collapsed")
 
-# 모바일 레이아웃 고정 및 기존 커스텀 UI 복원 CSS 융합
+# 모바일 레이아웃 고정 및 커스텀 UI CSS
 st.markdown("""
 <style>
 /* 날짜 네비게이션 1줄 고정 */
@@ -16,26 +16,45 @@ div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:
     width: 33% !important; min-width: 0 !important; flex: 1 1 0% !important;
 }
 /* 카테고리 라디오 버튼 반응형 칩 형태 */
-div[role="radiogroup"] { gap: 0.5rem; }
+div[role="radiogroup"] { gap: 0.5rem; flex-wrap: wrap; }
 div[role="radiogroup"] > label {
     background-color: #1E1E1E; padding: 5px 15px; border-radius: 20px; border: 1px solid #444;
 }
-/* 기존 스크린샷 UI 완벽 복원 (배지 및 남색 요약 박스) */
+/* 배지 및 요약 박스 */
 .badge-positive { border: 1px solid #4CAF50; color: #4CAF50; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
 .badge-neutral { border: 1px solid #FFC107; color: #FFC107; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
 .badge-negative { border: 1px solid #F44336; color: #F44336; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
 .badge-fail { border: 1px solid #9C27B0; color: #9C27B0; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
 
-.summary-box-blue { 
-    background-color: #0d1e36; /* 남색 배경 복원 */
-    padding: 15px; 
-    border-radius: 8px; 
-    margin-bottom: 10px; 
-    font-size: 0.95em; 
-    color: #4DA8DA; /* 밝은 파란색 텍스트 복원 */
+.summary-box-blue {
+    background-color: #0d1e36;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+    color: #4DA8DA;
 }
+
+/* 통계 타일 */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
+.stat-card { background-color: #1E1E1E; border: 1px solid #333; border-radius: 10px; padding: 12px; }
+.stat-card .label { font-size: 0.8em; color: #aaa; margin-bottom: 4px; }
+.stat-card .value { font-size: 1.6em; font-weight: bold; }
+
+/* 오늘의 신호 */
+.signal-box { background-color: #12203a; border: 1px solid #24406e; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
+.signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; }
+.signal-title { font-size: 1.1em; font-weight: bold; margin: 8px 0 6px 0; }
+.signal-body { font-size: 0.9em; color: #ccc; line-height: 1.5; }
+
+/* 카테고리별 주요뉴스 목록 */
+.sidebar-item { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.9em; }
+.sidebar-item .cat { color: #4CAF50; white-space: nowrap; }
+.sidebar-item .issue { color: #ddd; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-item .score { color: #FFC107; font-size: 0.85em; white-space: nowrap; }
 </style>
 """, unsafe_allow_html=True)
+
 
 @st.cache_data(ttl=600)
 def load_data():
@@ -47,13 +66,37 @@ def load_data():
             df['중요도'] = 5  # 구버전 데이터(중요도 컬럼 없음) 호환
         df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5)
         return df
-    except Exception: return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+
+def build_issue_groups(source_df):
+    groups = []
+    for title, gdf in source_df.groupby('대표이슈'):
+        gdf_sorted = gdf.sort_values('중요도', ascending=False)
+        rep = gdf_sorted.iloc[0]
+        groups.append({
+            'title': title,
+            'importance': int(rep['중요도']),
+            'sentiment': rep['논조'],
+            'category': rep['분야'],
+            'summary': rep['AI요약'],
+            'main_press': rep['언론사'],
+            'press_count': len(gdf_sorted),
+            'rows': gdf_sorted,
+        })
+    groups.sort(key=lambda g: g['importance'], reverse=True)
+    return groups
+
+
+def badge_class(sentiment):
+    return {'긍정': 'badge-positive', '부정': 'badge-negative', '판단 실패': 'badge-fail'}.get(sentiment, 'badge-neutral')
+
 
 df = load_data()
 
 if 'current_date' not in st.session_state:
-    if not df.empty: st.session_state.current_date = df['dt'].max().date()
-    else: st.session_state.current_date = datetime.now().date()
+    st.session_state.current_date = df['dt'].max().date() if not df.empty else datetime.now().date()
 
 st.title("D Daily Brief")
 st.caption(f"{st.session_state.current_date.strftime('%Y년 %m월 %d일')} 발행")
@@ -73,58 +116,106 @@ with col3:
 
 st.divider()
 
-if not df.empty:
-    daily_df = df[df['date_str'] == st.session_state.current_date.strftime('%Y/%m/%d')]
-else:
-    daily_df = pd.DataFrame()
+daily_df = df[df['date_str'] == st.session_state.current_date.strftime('%Y/%m/%d')] if not df.empty else pd.DataFrame()
 
-if not daily_df.empty:
-    m_col1, m_col2, m_col3 = st.columns(3)
-    with m_col1:
-        st.metric("수집 기사", f"{len(daily_df)}건")
-        st.metric("중립 보도", f"{len(daily_df[daily_df['논조'] == '중립'])}건")
-    with m_col2:
-        st.metric("긍정 신호", f"{len(daily_df[daily_df['논조'] == '긍정'])}건")
-        st.metric("부정 신호", f"{len(daily_df[daily_df['논조'] == '부정'])}건")
-    with m_col3:
-        st.metric("판단 실패", f"{len(daily_df[daily_df['논조'] == '판단 실패'])}건")
-else:
+if daily_df.empty:
     st.info("해당 날짜에 수집된 기사 데이터가 없습니다.")
+    st.stop()
+
+all_issue_groups = build_issue_groups(daily_df)
+major_count = int((daily_df['중요도'] >= 6).sum())
+spread_count = len([g for g in all_issue_groups if g['press_count'] >= 5])
+sentiment_all_counts = daily_df['논조'].value_counts()
+
+st.markdown(f"""
+<div class="stat-grid">
+    <div class="stat-card"><div class="label">수집 기사</div><div class="value">{len(daily_df)}건</div></div>
+    <div class="stat-card"><div class="label">주요 뉴스</div><div class="value">{major_count}건</div></div>
+    <div class="stat-card"><div class="label">보도 확산</div><div class="value">{spread_count}건</div></div>
+</div>
+""", unsafe_allow_html=True)
+st.caption(
+    f"논조 분포 · 긍정 {sentiment_all_counts.get('긍정', 0)} · 중립 {sentiment_all_counts.get('중립', 0)} · "
+    f"부정 {sentiment_all_counts.get('부정', 0)} · 판단실패 {sentiment_all_counts.get('판단 실패', 0)}"
+)
+
+# 오늘의 신호 (규칙 기반 요약 — 별도 AI 호출 없이 수집된 데이터로 자동 생성)
+top_issue = all_issue_groups[0]
+scored_sentiments = daily_df[daily_df['중요도'] >= 5]['논조'].value_counts()
+dominant_sentiment = scored_sentiments.idxmax() if not scored_sentiments.empty else '중립'
+headline_map = {'부정': '제재·리스크 신호 부각', '긍정': '호재 신호 부각', '중립': '중립 흐름 지속', '판단 실패': '판단 보류 이슈 다수'}
+headline = headline_map.get(dominant_sentiment, '주요 흐름 점검')
+
+st.markdown(f"""
+<div class="signal-box">
+    <span class="signal-tag">규칙 요약</span>
+    <div class="signal-title">오늘 주요 흐름 · {headline}</div>
+    <div class="signal-body">오늘 수집된 {len(daily_df)}건 중 <b>{top_issue['category']}</b> 분야에서 가장 주목되는 신호가 발생했습니다.
+    중요도가 가장 높은 이슈는 '<b>{top_issue['title']}</b>'(중요도 {top_issue['importance']}/10)이며, 관련 보도가 {top_issue['press_count']}건입니다.</div>
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
-if not daily_df.empty:
-    categories = ['전체'] + list(daily_df['분야'].unique())
-    selected_category = st.radio("카테고리 선택", options=categories, horizontal=True, label_visibility="collapsed")
-    st.write("") 
-    
-    filtered_df = daily_df if selected_category == '전체' else daily_df[daily_df['분야'] == selected_category]
-    grouped = filtered_df.groupby('대표이슈')
-    # 이슈(그룹) 내 최고 중요도 기준으로 중요도 순 정렬
-    sorted_groups = sorted(grouped, key=lambda g: g[1]['중요도'].max(), reverse=True)
+# 검색 및 필터
+f_col1, f_col2, f_col3 = st.columns([2, 1, 1])
+with f_col1:
+    search_text = st.text_input("검색", placeholder="제목, 요약에서 검색", label_visibility="collapsed")
+with f_col2:
+    sentiment_filter = st.selectbox("논조", options=['논조 전체', '긍정', '중립', '부정', '판단 실패'], label_visibility="collapsed")
+with f_col3:
+    sort_option = st.selectbox("정렬", options=['중요도순', '최신순'], label_visibility="collapsed")
 
-    for group_title, group_data in sorted_groups:
-        group_data = group_data.sort_values('중요도', ascending=False)
-        rep_article = group_data.iloc[0]
-        sentiment = rep_article['논조']
-        importance = int(rep_article['중요도'])
+# 카테고리 칩 (건수 표시)
+category_counts = daily_df['분야'].value_counts()
+categories = ['전체'] + list(category_counts.index)
+chip_labels = [f"전체 {len(daily_df)}"] + [f"{c} {category_counts[c]}" for c in category_counts.index]
+selected_idx = st.radio(
+    "카테고리 선택", options=range(len(categories)),
+    format_func=lambda i: chip_labels[i], horizontal=True, label_visibility="collapsed",
+)
+selected_category = categories[selected_idx]
 
-        # 논조에 따른 배지 클래스 할당
-        if sentiment == '긍정': badge_class = "badge-positive"
-        elif sentiment == '부정': badge_class = "badge-negative"
-        elif sentiment == '판단 실패': badge_class = "badge-fail"
-        else: badge_class = "badge-neutral"
+st.write("")
 
-        main_press = rep_article['언론사']
-        total_press = len(group_data)
+# 필터 적용
+filtered_df = daily_df if selected_category == '전체' else daily_df[daily_df['분야'] == selected_category]
+if sentiment_filter != '논조 전체':
+    filtered_df = filtered_df[filtered_df['논조'] == sentiment_filter]
+if search_text:
+    mask = (
+        filtered_df['제목'].str.contains(search_text, case=False, na=False)
+        | filtered_df['AI요약'].str.contains(search_text, case=False, na=False)
+        | filtered_df['대표이슈'].str.contains(search_text, case=False, na=False)
+    )
+    filtered_df = filtered_df[mask]
 
-        st.markdown(f"<div><span class='{badge_class}'>{sentiment}</span> <strong>{group_title} 🔗</strong> <span style='color:#FFC107; font-size:0.85em;'>중요도 {importance}/10</span></div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#bbb;'>분야: <span style='color:#4CAF50;'>{rep_article['분야']}</span> | 메인 언론사: <span style='color:#4CAF50;'>{main_press}</span> | 총 보도 매체: <span style='color:#4CAF50;'>{total_press}개 언론사</span> | 논조 분포: <span class='{badge_class}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{sentiment} {total_press}</span></div>", unsafe_allow_html=True)
+issue_groups = build_issue_groups(filtered_df) if not filtered_df.empty else []
+if sort_option == '최신순':
+    issue_groups.sort(key=lambda g: g['rows']['dt'].max(), reverse=True)
 
-        st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {rep_article['AI요약']}</div>", unsafe_allow_html=True)
+if not issue_groups:
+    st.info("조건에 맞는 기사가 없습니다.")
 
-        with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({total_press}개 보도 기사 펼치기)"):
-            for _, row in group_data.iterrows():
-                st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
+for g in issue_groups:
+    bc = badge_class(g['sentiment'])
+    st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <strong>{g['title']} 🔗</strong> <span style='color:#FFC107; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#bbb;'>분야: <span style='color:#4CAF50;'>{g['category']}</span> | 메인 언론사: <span style='color:#4CAF50;'>{g['main_press']}</span> | 총 보도 매체: <span style='color:#4CAF50;'>{g['press_count']}개 언론사</span> | 논조 분포: <span class='{bc}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{g['sentiment']} {g['press_count']}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
+    with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
+        for _, row in g['rows'].iterrows():
+            st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
+    st.write("---")
 
-        st.write("---")
+# 카테고리별 주요뉴스 (데스크톱 사이드바를 모바일 우선 구조에 맞춰 접이식 섹션으로 대체)
+with st.expander("📌 카테고리별 주요뉴스 보기"):
+    seen_cats = set()
+    for g in all_issue_groups:
+        if g['category'] in seen_cats:
+            continue
+        seen_cats.add(g['category'])
+        st.markdown(
+            f"<div class='sidebar-item'><span class='cat'>{g['category']}</span>"
+            f"<span class='issue'>{g['title']}</span><span class='score'>중요도 {g['importance']}</span></div>",
+            unsafe_allow_html=True,
+        )
