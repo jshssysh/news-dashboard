@@ -13,15 +13,11 @@ st.markdown("""
 .app-logo { background-color: var(--primary-color); color: #fff; font-weight: bold; width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; flex-shrink: 0; }
 .app-title { font-size: 1.05em; font-weight: bold; color: var(--text-color); }
 
-/* 탭 버튼 줄: 좁은 화면에서도 1줄 유지, 버튼 자체도 작게 */
-.st-key-tab_row div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 6px; }
-.st-key-tab_row div[data-testid="column"] { width: auto !important; min-width: 0; flex: 1 1 0%; }
-.st-key-tab_row button { padding: 2px 10px !important; font-size: 0.8em !important; }
-
-/* 날짜 네비게이션 줄: 좁은 화면에서도 1줄 유지, 크기 축소 */
-.st-key-date_nav div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; }
-.st-key-date_nav div[data-testid="column"] { width: 33% !important; min-width: 0 !important; flex: 1 1 0% !important; }
-.st-key-date_nav button { padding: 2px 8px !important; font-size: 0.8em !important; }
+/* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게 */
+.st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 4px; }
+.st-key-top_bar div[data-testid="column"] { min-width: 0 !important; }
+.st-key-top_bar button { padding: 2px 8px !important; font-size: 0.75em !important; white-space: nowrap; }
+.app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 카테고리 라디오 버튼 반응형 칩 형태 */
 div[role="radiogroup"] { gap: 0.5rem; flex-wrap: wrap; }
@@ -49,6 +45,7 @@ div[role="radiogroup"] > label {
 .stat-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
 .stat-card .label { font-size: 0.8em; color: var(--text-color); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--text-color); }
+.stat-card .sub { font-size: 0.72em; color: var(--text-color); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
@@ -112,34 +109,33 @@ if 'current_date' not in st.session_state:
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = '뉴스'
 
-st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+with st.container(key="top_bar"):
+    title_col, tab_news, tab_law, tab_org, d_prev, d_text, d_next = st.columns([2.4, 0.8, 0.8, 1.2, 0.4, 1.1, 0.4])
 
-with st.container(key="tab_row"):
-    t_col1, t_col2, t_col3 = st.columns(3)
-    tabs = [('뉴스', t_col1), ('입법', t_col2), ('공정위 조직', t_col3)]
-    for label, col in tabs:
+    with title_col:
+        st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+
+    for label, col in [('뉴스', tab_news), ('입법', tab_law), ('공정위 조직', tab_org)]:
         with col:
             is_active = st.session_state.active_tab == label
             if st.button(label, key=f"tab_{label}", use_container_width=True, type="primary" if is_active else "secondary"):
                 st.session_state.active_tab = label
 
+    with d_prev:
+        if st.button("◀", key="date_prev", use_container_width=True):
+            st.session_state.current_date -= timedelta(days=1)
+            st.rerun()
+    with d_text:
+        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
+        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; padding-top: 6px; color: var(--text-color); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
+    with d_next:
+        if st.button("▶", key="date_next", use_container_width=True):
+            st.session_state.current_date += timedelta(days=1)
+            st.rerun()
+
 if st.session_state.active_tab != '뉴스':
     st.info(f"🚧 '{st.session_state.active_tab}' 섹션은 준비 중입니다. 곧 추가될 예정입니다.")
     st.stop()
-
-with st.container(key="date_nav"):
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col1:
-        if st.button("◀", use_container_width=True):
-            st.session_state.current_date -= timedelta(days=1)
-            st.rerun()
-    with col2:
-        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.9em; padding-top: 4px; color: var(--text-color);'>{date_display}</div>", unsafe_allow_html=True)
-    with col3:
-        if st.button("▶", use_container_width=True):
-            st.session_state.current_date += timedelta(days=1)
-            st.rerun()
 
 st.divider()
 
@@ -151,15 +147,24 @@ if daily_df.empty:
 
 all_issue_groups = build_issue_groups(daily_df)
 major_count = int((daily_df['중요도'] >= 6).sum())
-spread_count = len([g for g in all_issue_groups if g['press_count'] >= 5])
+spread_groups = [g for g in all_issue_groups if g['press_count'] >= 5]
+spread_count = len(spread_groups)
 sentiment_all_counts = daily_df['논조'].value_counts()
 daily_category_counts = daily_df['분야'].value_counts()
 
+# 수집기사 = 오늘 수집된 전체 기사 수, 중복 = 같은 이슈로 묶여 반복 보도된 기사 수(전체 - 고유 이슈 수)
+dup_count = len(daily_df) - len(all_issue_groups)
+# 보도확산 타일에 표시할, 가장 많은 매체가 다룬 이슈 한 줄 요약
+most_spread = max(all_issue_groups, key=lambda g: g['press_count'])
+spread_caption = most_spread['title']
+if len(spread_caption) > 16:
+    spread_caption = spread_caption[:16] + '…'
+
 st.markdown(f"""
 <div class="stat-grid">
-    <div class="stat-card"><div class="label">수집 기사</div><div class="value">{len(daily_df)}건</div></div>
-    <div class="stat-card"><div class="label">주요 뉴스</div><div class="value">{major_count}건</div></div>
-    <div class="stat-card"><div class="label">보도 확산</div><div class="value">{spread_count}건</div></div>
+    <div class="stat-card"><div class="label">수집 기사</div><div class="value">{len(daily_df)}건</div><div class="sub">중복 {dup_count}건</div></div>
+    <div class="stat-card"><div class="label">주요 뉴스</div><div class="value">{major_count}건</div><div class="sub">AI 판단 기준</div></div>
+    <div class="stat-card"><div class="label">보도 확산</div><div class="value">{spread_count}건</div><div class="sub">{spread_caption} 등</div></div>
 </div>
 """, unsafe_allow_html=True)
 st.caption(
