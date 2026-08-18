@@ -117,7 +117,7 @@ def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
         return [(item["idx"], 0, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상", "original_category": item["category"]} for item in batch_items]
 
     # [프롬프트 튜닝] '기자 논조' 제거, '기업 호재/악재' 기준으로 강제 평가 지시
@@ -171,13 +171,15 @@ def analyze_batch_with_gemini(batch_items):
                 result_map[r_idx] = (score, press, g_title, summary, sentiment, category)
 
             return [(item["idx"], *result_map.get(item["idx"], (0, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
-    except Exception:
-        pass
+        else:
+            print(f"[Gemini API 오류] status={res.status_code} body={res.text[:300]}")
+    except Exception as e:
+        print(f"[Gemini API 예외] {e}")
     return [(item["idx"], 0, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
 
 def master_cluster_with_gemini(unique_issue_titles):
     if not GEMINI_API_KEY or not unique_issue_titles: return {title: title for title in unique_issue_titles}
-    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
 [초기 이슈명 목록]
 {json.dumps(unique_issue_titles, ensure_ascii=False)}
@@ -197,7 +199,10 @@ def master_cluster_with_gemini(unique_issue_titles):
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
             parsed_list = json.loads(raw_text.strip())
             return {item.get("original", ""): item.get("merged", "") for item in parsed_list}
-    except Exception: pass
+        else:
+            print(f"[Gemini 클러스터링 오류] status={res.status_code} body={res.text[:300]}")
+    except Exception as e:
+        print(f"[Gemini 클러스터링 예외] {e}")
     return {title: title for title in unique_issue_titles}
 
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
