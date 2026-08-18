@@ -16,6 +16,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').r
 # 개발/UI 테스트용: true면 Gemini 분석을 건너뛰고 수집만 해서 저장 (빠르고 무료)
 SKIP_AI_ANALYSIS = os.environ.get("SKIP_AI_ANALYSIS", "").strip().lower() == "true"
 
+# GitHub Actions 러너는 UTC로 동작하므로, 날짜/시각은 항상 한국시간(KST) 기준으로 명시해서 사용한다
+KST = timezone(timedelta(hours=9))
+
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
 
 def load_keywords(path=KEYWORDS_CONFIG_PATH):
@@ -61,8 +64,7 @@ def extract_press_from_link(link):
 def get_naver_news_24h(keyword):
     valid_items = []
     headers = {"X-Naver-Client-Id": NAVER_CLIENT_ID, "X-Naver-Client-Secret": NAVER_CLIENT_SECRET}
-    kst = timezone(timedelta(hours=9))
-    time_threshold = datetime.now(kst) - timedelta(hours=24)
+    time_threshold = datetime.now(KST) - timedelta(hours=24)
     start = 1
     
     while start <= 1000:
@@ -227,7 +229,7 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
 
 def main():
-    today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    today_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     all_articles = []
     seen_links, unique_for_api = set(), {}
     idx = 0
