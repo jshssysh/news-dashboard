@@ -1,0 +1,13 @@
+name: keep-streamlit-awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Streamlit 앱 주소에 접속해서 절전 모드 방지
+        run: curl -sSf -o /dev/null "https://news-dashboard-tdy5wq3sghzs7appjuga4sx.streamlit.app/" || true
