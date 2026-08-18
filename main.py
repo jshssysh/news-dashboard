@@ -13,6 +13,9 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '')
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 
+# 개발/UI 테스트용: true면 Gemini 분석을 건너뛰고 수집만 해서 저장 (빠르고 무료)
+SKIP_AI_ANALYSIS = os.environ.get("SKIP_AI_ANALYSIS", "").strip().lower() == "true"
+
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
 
 def load_keywords(path=KEYWORDS_CONFIG_PATH):
@@ -253,45 +256,55 @@ def main():
                 unique_for_api[norm_t] = api_data
             idx += 1
 
-    api_items = list(unique_for_api.values())
-    idx_to_norm_t = {item["idx"]: item["norm_t"] for item in api_items}
-    batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
-    
-    analyzed_results = {}
-
-    for b_idx, batch in enumerate(batches):
-        for r_idx, score, _, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
-            if norm_t := idx_to_norm_t.get(r_idx):
-                original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
-                if original_item: g_title = force_merge_by_keywords(original_item["title"], g_title)
-                final_category = category or (original_item["category"] if original_item else None)
-                analyzed_results[norm_t] = (score, g_title, summary, sentiment, final_category)
-        time.sleep(1.0)
-
-    valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
-    if valid_group_titles:
-        master_mapping = master_cluster_with_gemini(valid_group_titles)
-        for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
-            if score >= 5 and orig_gt in master_mapping:
-                analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment, category)
-
     rows = []
-    for item in all_articles:
-        norm_t = item["norm_t"]
-        if norm_t in analyzed_results:
-            score, group_title, summary, sentiment, category = analyzed_results[norm_t]
-            # 기술적 분석 실패("판단 실패")는 항상 노출하고, 저관련도(score<5)만 걸러낸다
-            if sentiment != "판단 실패" and score < 5: continue
-            group_title = force_merge_by_keywords(item["title"], group_title)
-            category = category or item["category"]
-        else:
-            group_title, summary, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패", 0
-            category = item["category"]
 
-        rows.append([
-            item["today_str"], category, group_title, item["title"],
-            item["known_press"] or "미상", summary, sentiment, score, item["link"]
-        ])
+    if SKIP_AI_ANALYSIS:
+        print(f"[개발 모드] SKIP_AI_ANALYSIS=true → Gemini 호출 없이 {len(all_articles)}건을 원본 그대로 저장합니다.")
+        for item in all_articles:
+            group_title = force_merge_by_keywords(item["title"], normalize_title(item["title"]))
+            rows.append([
+                item["today_str"], item["category"], group_title, item["title"],
+                item["known_press"] or "미상", "AI 분석 생략(개발 모드)", "미분석", 0, item["link"]
+            ])
+    else:
+        api_items = list(unique_for_api.values())
+        idx_to_norm_t = {item["idx"]: item["norm_t"] for item in api_items}
+        batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
+
+        analyzed_results = {}
+
+        for b_idx, batch in enumerate(batches):
+            for r_idx, score, _, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
+                if norm_t := idx_to_norm_t.get(r_idx):
+                    original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
+                    if original_item: g_title = force_merge_by_keywords(original_item["title"], g_title)
+                    final_category = category or (original_item["category"] if original_item else None)
+                    analyzed_results[norm_t] = (score, g_title, summary, sentiment, final_category)
+            time.sleep(1.0)
+
+        valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
+        if valid_group_titles:
+            master_mapping = master_cluster_with_gemini(valid_group_titles)
+            for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
+                if score >= 5 and orig_gt in master_mapping:
+                    analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment, category)
+
+        for item in all_articles:
+            norm_t = item["norm_t"]
+            if norm_t in analyzed_results:
+                score, group_title, summary, sentiment, category = analyzed_results[norm_t]
+                # 기술적 분석 실패("판단 실패")는 항상 노출하고, 저관련도(score<5)만 걸러낸다
+                if sentiment != "판단 실패" and score < 5: continue
+                group_title = force_merge_by_keywords(item["title"], group_title)
+                category = category or item["category"]
+            else:
+                group_title, summary, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패", 0
+                category = item["category"]
+
+            rows.append([
+                item["today_str"], category, group_title, item["title"],
+                item["known_press"] or "미상", summary, sentiment, score, item["link"]
+            ])
 
     save_and_merge_data(rows)
 
