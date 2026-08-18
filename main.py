@@ -1,5 +1,4 @@
 import os
-import csv
 import json
 import time
 import re
@@ -111,13 +110,14 @@ def force_merge_by_keywords(title, original_group_title):
     return original_group_title
 
 def analyze_batch_with_gemini(batch_items):
+    """기사 배치를 Gemini에 보내 (idx, 관련도, 대표이슈명, 요약, 논조, 분야)를 한 번에 판정받는다."""
     if not GEMINI_API_KEY:
-        return [(item["idx"], 0, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
+        return [(item["idx"], 0, "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상", "original_category": item["category"]} for item in batch_items]
+    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "original_category": item["category"]} for item in batch_items]
 
-    # [프롬프트 튜닝] '기자 논조' 제거, '기업 호재/악재' 기준으로 강제 평가 지시
+    # '기자의 서술 태도'가 아닌 '기업 호재/악재' 기준으로 논조를 강제 평가하도록 지시
     prompt = f"""당신은 기업 지배구조 및 공정거래위원회 정책 전문 애널리스트입니다.
 입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
 
@@ -125,14 +125,13 @@ def analyze_batch_with_gemini(batch_items):
 1. idx: 번호 유지
 2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가.
 3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형)
-4. press: 언론사명
-5. summary: (relevance_score 5점 이상일 때만) 1문장 핵심 요약
-6. sentiment: (relevance_score 5점 이상일 때만) '기자의 서술 태도'가 아닌 '해당 사건이 기업에 미치는 사업적/재무적 영향(호재/악재)'을 기준으로 판별할 것.
+4. summary: (relevance_score 5점 이상일 때만) 1문장 핵심 요약
+5. sentiment: (relevance_score 5점 이상일 때만) '기자의 서술 태도'가 아닌 '해당 사건이 기업에 미치는 사업적/재무적 영향(호재/악재)'을 기준으로 판별할 것.
    - 긍정: 신사업, M&A, 조직 신설, 실적 개선, 투자 등 호재
    - 부정: 공정위 제재, 과징금, 법적 분쟁, 갑질 논란, 하도급 위반 등 악재
    - 중립: 단순 시황, 영향 미미한 인사 동정
    반드시 긍정, 중립, 부정 중 하나로만 출력.
-7. category: relevance_score와 무관하게 모든 기사에 대해 판정. 아래 후보 중 기사 내용에 가장 적합한 것 정확히 하나만 선택.
+6. category: relevance_score와 무관하게 모든 기사에 대해 판정. 아래 후보 중 기사 내용에 가장 적합한 것 정확히 하나만 선택.
    후보: {", ".join(CATEGORY_LIST)}
    original_category는 검색 키워드로 임시 배정된 힌트일 뿐이므로, 실제 기사 내용과 맞지 않으면 반드시 올바른 값으로 교정할 것.
 
@@ -153,7 +152,6 @@ def analyze_batch_with_gemini(batch_items):
             for r in parsed_list:
                 r_idx = r.get("idx")
                 score = r.get("relevance_score", 0)
-                press = r.get("press", "미상")
                 g_title = normalize_title(r.get("group_title", ""))
                 summary = r.get("summary", "")
 
@@ -167,14 +165,14 @@ def analyze_batch_with_gemini(batch_items):
                 if category not in CATEGORY_LIST:
                     category = None
 
-                result_map[r_idx] = (score, press, g_title, summary, sentiment, category)
+                result_map[r_idx] = (score, g_title, summary, sentiment, category)
 
-            return [(item["idx"], *result_map.get(item["idx"], (0, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
+            return [(item["idx"], *result_map.get(item["idx"], (0, "파싱 오류", "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
         else:
             print(f"[Gemini API 오류] status={res.status_code} body={res.text[:300]}")
     except Exception as e:
         print(f"[Gemini API 예외] {e}")
-    return [(item["idx"], 0, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
+    return [(item["idx"], 0, "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
 
 def master_cluster_with_gemini(unique_issue_titles):
     if not GEMINI_API_KEY or not unique_issue_titles: return {title: title for title in unique_issue_titles}
@@ -270,18 +268,19 @@ def main():
             ])
     else:
         api_items = list(unique_for_api.values())
-        idx_to_norm_t = {item["idx"]: item["norm_t"] for item in api_items}
+        api_items_by_idx = {item["idx"]: item for item in api_items}
         batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
 
         analyzed_results = {}
 
-        for b_idx, batch in enumerate(batches):
-            for r_idx, score, _, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
-                if norm_t := idx_to_norm_t.get(r_idx):
-                    original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
-                    if original_item: g_title = force_merge_by_keywords(original_item["title"], g_title)
-                    final_category = category or (original_item["category"] if original_item else None)
-                    analyzed_results[norm_t] = (score, g_title, summary, sentiment, final_category)
+        for batch in batches:
+            for r_idx, score, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
+                original_item = api_items_by_idx.get(r_idx)
+                if not original_item:
+                    continue
+                g_title = force_merge_by_keywords(original_item["title"], g_title)
+                final_category = category or original_item["category"]
+                analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
             time.sleep(1.0)
 
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
