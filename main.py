@@ -50,6 +50,9 @@ NAVER_PRESS_CODES = {
     "056": "KBS", "057": "MBN", "214": "MBC", "421": "뉴스1", "403": "뉴시스"
 }
 
+# 키워드 검색으로 붙는 분야는 임시 힌트일 뿐이며, Gemini가 기사 본문 기준으로 최종 확정한다
+CATEGORY_LIST = ["삼성그룹", "삼성물산", "공정위/정책", "부당지원", "갑을관계", "동반성장", "지배구조", "산업동향"]
+
 def extract_press_from_link(link):
     for domain, name in PRESS_DOMAINS.items():
         if domain in link: return name
@@ -112,18 +115,18 @@ def force_merge_by_keywords(title, original_group_title):
 
 def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
-        return [(item["idx"], 10, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패") for item in batch_items]
-        
+        return [(item["idx"], 0, item["known_press"] or "미상", "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
+
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상"} for item in batch_items]
-        
+    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "known_press": item["known_press"] or "미상", "original_category": item["category"]} for item in batch_items]
+
     # [프롬프트 튜닝] '기자 논조' 제거, '기업 호재/악재' 기준으로 강제 평가 지시
     prompt = f"""당신은 기업 지배구조 및 공정거래위원회 정책 전문 애널리스트입니다.
 입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
 
 분석 지침:
 1. idx: 번호 유지
-2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가. 
+2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가.
 3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형)
 4. press: 언론사명
 5. summary: (relevance_score 5점 이상일 때만) 1문장 핵심 요약
@@ -132,11 +135,14 @@ def analyze_batch_with_gemini(batch_items):
    - 부정: 공정위 제재, 과징금, 법적 분쟁, 갑질 논란, 하도급 위반 등 악재
    - 중립: 단순 시황, 영향 미미한 인사 동정
    반드시 긍정, 중립, 부정 중 하나로만 출력.
+7. category: relevance_score와 무관하게 모든 기사에 대해 판정. 아래 후보 중 기사 내용에 가장 적합한 것 정확히 하나만 선택.
+   후보: {", ".join(CATEGORY_LIST)}
+   original_category는 검색 키워드로 임시 배정된 힌트일 뿐이므로, 실제 기사 내용과 맞지 않으면 반드시 올바른 값으로 교정할 것.
 
-주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 생성 제외.
+주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 생성 제외 (category는 항상 생성).
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
-    
+
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
@@ -144,26 +150,30 @@ def analyze_batch_with_gemini(batch_items):
             if raw_text.startswith("```json"): raw_text = raw_text[7:]
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
-            
+
             parsed_list = json.loads(raw_text.strip())
             result_map = {}
             for r in parsed_list:
                 r_idx = r.get("idx")
-                score = r.get("relevance_score", 10)
+                score = r.get("relevance_score", 0)
                 press = r.get("press", "미상")
                 g_title = normalize_title(r.get("group_title", ""))
                 summary = r.get("summary", "")
-                
+
                 sentiment = r.get("sentiment")
                 if sentiment not in ["긍정", "중립", "부정"]:
                     sentiment = "판단 실패"
-                    
-                result_map[r_idx] = (score, press, g_title, summary, sentiment)
-                
-            return [(item["idx"], *result_map.get(item["idx"], (10, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패"))) for item in batch_items]
+
+                category = r.get("category")
+                if category not in CATEGORY_LIST:
+                    category = None
+
+                result_map[r_idx] = (score, press, g_title, summary, sentiment, category)
+
+            return [(item["idx"], *result_map.get(item["idx"], (0, item["known_press"] or "미상", "파싱 오류", "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
     except Exception:
         pass
-    return [(item["idx"], 10, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패") for item in batch_items]
+    return [(item["idx"], 0, item["known_press"] or "미상", "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
 
 def master_cluster_with_gemini(unique_issue_titles):
     if not GEMINI_API_KEY or not unique_issue_titles: return {title: title for title in unique_issue_titles}
@@ -191,16 +201,19 @@ def master_cluster_with_gemini(unique_issue_titles):
     return {title: title for title in unique_issue_titles}
 
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
-    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "기사링크"]
+    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크"]
     new_df = pd.DataFrame(new_rows, columns=columns)
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
         try:
             old_df = pd.read_csv(file_name)
             old_df["분야"] = old_df["분야"].replace({"그룹동향": "삼성그룹", "삼성/이슈": "삼성그룹"})
+            if "중요도" not in old_df.columns:
+                old_df["중요도"] = 5  # 구버전 데이터: 중요도 정보 없음 → 중간값으로 채움
             combined_df = pd.concat([old_df, new_df], ignore_index=True)
         except Exception: combined_df = new_df
     else: combined_df = new_df
 
+    combined_df["중요도"] = pd.to_numeric(combined_df["중요도"], errors="coerce").fillna(5).astype(int)
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
@@ -245,36 +258,40 @@ def main():
     idx_to_norm_t = {item["idx"]: item["norm_t"] for item in api_items}
     batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
     
-    analyzed_results = {} 
-    
+    analyzed_results = {}
+
     for b_idx, batch in enumerate(batches):
-        for r_idx, score, _, g_title, summary, sentiment in analyze_batch_with_gemini(batch):
+        for r_idx, score, _, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
             if norm_t := idx_to_norm_t.get(r_idx):
                 original_item = next((item for item in api_items if item["norm_t"] == norm_t), None)
                 if original_item: g_title = force_merge_by_keywords(original_item["title"], g_title)
-                analyzed_results[norm_t] = (score, g_title, summary, sentiment)
+                final_category = category or (original_item["category"] if original_item else None)
+                analyzed_results[norm_t] = (score, g_title, summary, sentiment, final_category)
         time.sleep(1.0)
 
     valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
     if valid_group_titles:
         master_mapping = master_cluster_with_gemini(valid_group_titles)
-        for norm_t, (score, orig_gt, summary, sentiment) in analyzed_results.items():
+        for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
             if score >= 5 and orig_gt in master_mapping:
-                analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment)
+                analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment, category)
 
     rows = []
     for item in all_articles:
         norm_t = item["norm_t"]
         if norm_t in analyzed_results:
-            score, group_title, summary, sentiment = analyzed_results[norm_t]
-            if score < 5 and sentiment != "판단 실패": continue
+            score, group_title, summary, sentiment, category = analyzed_results[norm_t]
+            # 기술적 분석 실패("판단 실패")는 항상 노출하고, 저관련도(score<5)만 걸러낸다
+            if sentiment != "판단 실패" and score < 5: continue
             group_title = force_merge_by_keywords(item["title"], group_title)
+            category = category or item["category"]
         else:
-            group_title, summary, sentiment = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패"
+            group_title, summary, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패", 0
+            category = item["category"]
 
         rows.append([
-            item["today_str"], item["category"], group_title, item["title"],
-            item["known_press"] or "미상", summary, sentiment, item["link"]
+            item["today_str"], category, group_title, item["title"],
+            item["known_press"] or "미상", summary, sentiment, score, item["link"]
         ])
 
     save_and_merge_data(rows)

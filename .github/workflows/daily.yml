@@ -2,7 +2,7 @@ name: update-data
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    - cron: '30 21 * * *'  # 매일 한국시간(KST, UTC+9) 06:30 실행
   workflow_dispatch:
 
 jobs:

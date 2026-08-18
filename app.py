@@ -43,6 +43,9 @@ def load_data():
         df = pd.read_csv("news_list.csv")
         df['dt'] = pd.to_datetime(df['수집일자'], errors='coerce')
         df['date_str'] = df['dt'].dt.strftime('%Y/%m/%d')
+        if '중요도' not in df.columns:
+            df['중요도'] = 5  # 구버전 데이터(중요도 컬럼 없음) 호환
+        df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5)
         return df
     except Exception: return pd.DataFrame()
 
@@ -97,27 +100,31 @@ if not daily_df.empty:
     
     filtered_df = daily_df if selected_category == '전체' else daily_df[daily_df['분야'] == selected_category]
     grouped = filtered_df.groupby('대표이슈')
-    
-    for group_title, group_data in grouped:
+    # 이슈(그룹) 내 최고 중요도 기준으로 중요도 순 정렬
+    sorted_groups = sorted(grouped, key=lambda g: g[1]['중요도'].max(), reverse=True)
+
+    for group_title, group_data in sorted_groups:
+        group_data = group_data.sort_values('중요도', ascending=False)
         rep_article = group_data.iloc[0]
         sentiment = rep_article['논조']
-        
+        importance = int(rep_article['중요도'])
+
         # 논조에 따른 배지 클래스 할당
         if sentiment == '긍정': badge_class = "badge-positive"
         elif sentiment == '부정': badge_class = "badge-negative"
         elif sentiment == '판단 실패': badge_class = "badge-fail"
         else: badge_class = "badge-neutral"
-        
+
         main_press = rep_article['언론사']
         total_press = len(group_data)
-        
-        st.markdown(f"<div><span class='{badge_class}'>{sentiment}</span> <strong>{group_title} 🔗</strong></div>", unsafe_allow_html=True)
+
+        st.markdown(f"<div><span class='{badge_class}'>{sentiment}</span> <strong>{group_title} 🔗</strong> <span style='color:#FFC107; font-size:0.85em;'>중요도 {importance}/10</span></div>", unsafe_allow_html=True)
         st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#bbb;'>분야: <span style='color:#4CAF50;'>{rep_article['분야']}</span> | 메인 언론사: <span style='color:#4CAF50;'>{main_press}</span> | 총 보도 매체: <span style='color:#4CAF50;'>{total_press}개 언론사</span> | 논조 분포: <span class='{badge_class}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{sentiment} {total_press}</span></div>", unsafe_allow_html=True)
-        
+
         st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {rep_article['AI요약']}</div>", unsafe_allow_html=True)
-        
+
         with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({total_press}개 보도 기사 펼치기)"):
             for _, row in group_data.iterrows():
                 st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
-        
+
         st.write("---")
