@@ -18,13 +18,13 @@ div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:
 /* 카테고리 라디오 버튼 반응형 칩 형태 */
 div[role="radiogroup"] { gap: 0.5rem; flex-wrap: wrap; }
 div[role="radiogroup"] > label {
-    background-color: #1E1E1E; padding: 5px 15px; border-radius: 20px; border: 1px solid #444;
+    background-color: #f0f2f5; padding: 5px 15px; border-radius: 20px; border: 1px solid #dfe2e7; color: #333;
 }
-/* 배지 및 요약 박스 */
-.badge-positive { border: 1px solid #4CAF50; color: #4CAF50; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
-.badge-neutral { border: 1px solid #FFC107; color: #FFC107; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
-.badge-negative { border: 1px solid #F44336; color: #F44336; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
-.badge-fail { border: 1px solid #9C27B0; color: #9C27B0; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; margin-right: 8px;}
+/* 배지 및 요약 박스 (라이트 테마) */
+.badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
+.badge-neutral { background-color: #fff3cd; color: #8a6100; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
+.badge-negative { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
+.badge-fail { background-color: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 
 .summary-box-blue {
     background-color: #0d1e36;
@@ -32,26 +32,26 @@ div[role="radiogroup"] > label {
     border-radius: 8px;
     margin-bottom: 10px;
     font-size: 0.95em;
-    color: #4DA8DA;
+    color: #8ab4f8;
 }
 
 /* 통계 타일 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
-.stat-card { background-color: #1E1E1E; border: 1px solid #333; border-radius: 10px; padding: 12px; }
-.stat-card .label { font-size: 0.8em; color: #aaa; margin-bottom: 4px; }
-.stat-card .value { font-size: 1.6em; font-weight: bold; }
+.stat-card { background-color: #f5f6f8; border: 1px solid #e2e4e8; border-radius: 10px; padding: 12px; }
+.stat-card .label { font-size: 0.8em; color: #6b7280; margin-bottom: 4px; }
+.stat-card .value { font-size: 1.6em; font-weight: bold; color: #1e3a5f; }
 
-/* 오늘의 신호 */
-.signal-box { background-color: #12203a; border: 1px solid #24406e; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
+/* 오늘의 신호 (라이트 페이지 위 짙은 네이비 강조 카드) */
+.signal-box { background-color: #12203a; border: 1px solid #12203a; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; }
-.signal-title { font-size: 1.1em; font-weight: bold; margin: 8px 0 6px 0; }
-.signal-body { font-size: 0.9em; color: #ccc; line-height: 1.5; }
+.signal-title { font-size: 1.1em; font-weight: bold; margin: 8px 0 6px 0; color: #fff; }
+.signal-body { font-size: 0.9em; color: #cbd5e1; line-height: 1.5; }
 
 /* 카테고리별 주요뉴스 목록 */
-.sidebar-item { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.9em; }
-.sidebar-item .cat { color: #4CAF50; white-space: nowrap; }
-.sidebar-item .issue { color: #ddd; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-item .score { color: #FFC107; font-size: 0.85em; white-space: nowrap; }
+.sidebar-item { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eaecef; font-size: 0.9em; }
+.sidebar-item .cat { color: #1e3a5f; font-weight: bold; white-space: nowrap; }
+.sidebar-item .issue { color: #444; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-item .score { color: #b8860b; font-size: 0.85em; white-space: nowrap; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -199,13 +199,13 @@ if not issue_groups:
 
 for g in issue_groups:
     bc = badge_class(g['sentiment'])
-    st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <strong>{g['title']} 🔗</strong> <span style='color:#FFC107; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#bbb;'>분야: <span style='color:#4CAF50;'>{g['category']}</span> | 메인 언론사: <span style='color:#4CAF50;'>{g['main_press']}</span> | 총 보도 매체: <span style='color:#4CAF50;'>{g['press_count']}개 언론사</span> | 논조 분포: <span class='{bc}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{g['sentiment']} {g['press_count']}</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
-    with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
-        for _, row in g['rows'].iterrows():
-            st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#4DA8DA;'>{row['제목']}</a>", unsafe_allow_html=True)
-    st.write("---")
+    with st.container(border=True):
+        st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <strong>{g['title']} 🔗</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; color:#6b7280;'>분야: <span style='color:#1e3a5f; font-weight:bold;'>{g['category']}</span> | 메인 언론사: <span style='color:#1e3a5f; font-weight:bold;'>{g['main_press']}</span> | 총 보도 매체: <span style='color:#1e3a5f; font-weight:bold;'>{g['press_count']}개 언론사</span> | 논조 분포: <span class='{bc}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{g['sentiment']} {g['press_count']}</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
+        with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
+            for _, row in g['rows'].iterrows():
+                st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 
 # 카테고리별 주요뉴스 (데스크톱 사이드바를 모바일 우선 구조에 맞춰 접이식 섹션으로 대체)
 with st.expander("📌 카테고리별 주요뉴스 보기"):
