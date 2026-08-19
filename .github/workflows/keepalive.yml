@@ -2,7 +2,7 @@ name: keep-streamlit-awake
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 */6 * * *'  # Streamlit 무료 티어는 약 12시간 무접속 시 절전 - 6시간마다면 충분
   workflow_dispatch:
 
 jobs:

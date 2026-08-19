@@ -109,7 +109,16 @@ def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_T
     for norm_titles in norm_titles_by_category.values():
         leaders = []
         for nt in norm_titles:
-            leader = next((l for l in leaders if difflib.SequenceMatcher(None, nt, l).ratio() >= threshold), None)
+            # SequenceMatcher는 seq2 정보를 캐싱하므로 nt를 seq2에 고정하고 leader만 바꿔가며 비교.
+            # ratio()는 비싸므로 real_quick_ratio → quick_ratio 로 싸게 걸러낸 뒤에만 호출한다.
+            sm = difflib.SequenceMatcher()
+            sm.set_seq2(nt)
+            leader = None
+            for l in leaders:
+                sm.set_seq1(l)
+                if sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold:
+                    leader = l
+                    break
             if leader is None:
                 leaders.append(nt)
                 leader = nt
@@ -306,7 +315,8 @@ def main():
             item["idx"] = i
             api_items.append(item)
         api_items_by_idx = {item["idx"]: item for item in api_items}
-        batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
+        # 배치가 클수록 배치마다 반복되는 프롬프트 지시문 비용이 줄어든다 (너무 크면 응답 파싱 실패 위험)
+        batches = [api_items[i:i + 20] for i in range(0, len(api_items), 20)]
 
         print(f"[비용 절감] 고유 제목 {len(unique_for_api)}건 → 유사 제목 클러스터링 후 {len(api_items)}건만 Gemini 분석")
 
@@ -320,7 +330,7 @@ def main():
                 g_title = force_merge_by_keywords(original_item["title"], g_title)
                 final_category = category or original_item["category"]
                 analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
-            time.sleep(1.0)
+            time.sleep(0.3)  # 유료 Tier 1은 분당 한도가 넉넉해 1초씩 쉴 필요 없음
 
         # 유사 제목 그룹의 나머지(대표가 아닌) 기사들도 대표와 같은 분석 결과를 그대로 사용
         for nt, leader_nt in title_cluster_map.items():
