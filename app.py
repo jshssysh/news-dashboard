@@ -329,9 +329,9 @@ with main_col:
             tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
 
         with st.container(border=True):
-            st.markdown(f"<div>{tags_html} <strong>{g['title']}</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='summary-box-blue'>AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='summary-box-blue'>{g['summary']}</div>", unsafe_allow_html=True)
             if reasons:
                 reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
                 st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
