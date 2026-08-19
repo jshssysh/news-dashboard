@@ -216,6 +216,10 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     else: combined_df = new_df
 
     combined_df["중요도"] = pd.to_numeric(combined_df["중요도"], errors="coerce").fillna(5).astype(int)
+    # 같은 기사링크가 여러 번 저장된 경우, 실제 AI 분석된 행이 "미분석"(개발 모드 플레이스홀더) 행에 덮어써지지 않도록
+    # 미분석 행을 먼저 정렬해서 최우선으로 밀어내고, 분석된 행 중에서는 최신 것이 남도록 한다
+    combined_df["_priority"] = (combined_df["논조"] != "미분석").astype(int)
+    combined_df = combined_df.sort_values("_priority", kind="stable").drop(columns=["_priority"])
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
