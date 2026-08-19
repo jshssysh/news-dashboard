@@ -366,10 +366,21 @@ with main_col:
             st.markdown(f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='summary-box-blue'>{g['summary']}</div>", unsafe_allow_html=True)
-            if reasons:
-                reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
-                st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
-            with st.expander(f"언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
+            toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
+            is_open = st.session_state.get(toggle_key, False)
+
+            r_col1, r_col2 = st.columns([4, 1])
+            with r_col1:
+                if reasons:
+                    reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                    st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
+            with r_col2:
+                arrow = "▲" if is_open else "▼"
+                if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}", use_container_width=True):
+                    st.session_state[toggle_key] = not is_open
+                    st.rerun()
+
+            if is_open:
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 

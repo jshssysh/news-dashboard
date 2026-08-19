@@ -110,7 +110,7 @@ def normalize_title(text):
     return " ".join(re.sub(r'[^\w\s]', '', text).split())
 
 # 완전히 같은 제목이 아니어도(같은 사건, 다른 표현) 겹치는 기사는 대표 1건만 Gemini에 보내 비용을 아낀다
-TITLE_SIMILARITY_THRESHOLD = 0.65
+TITLE_SIMILARITY_THRESHOLD = 0.55  # 완화: 비용 절감 우선 (서로 다른 사건이 묶일 위험은 소폭 증가)
 
 def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_THRESHOLD):
     """분야별로, 제목이 비슷한 기사들을 그룹으로 묶는다. (다른 분야끼리는 비교하지 않음)
