@@ -272,7 +272,7 @@ with main_col:
     with f_col3:
         sentiment_filter = st.selectbox("논조", options=['논조 전체', '긍정', '중립', '부정', '판단 실패'], label_visibility="collapsed")
     with f_col4:
-        sort_option = st.selectbox("정렬", options=['중요도순', '최신순'], label_visibility="collapsed")
+        sort_option = st.selectbox("정렬", options=['중요도순', '보도량순', '최신순'], label_visibility="collapsed")
 
     # 기간 선택에 따라 검색 대상 범위를 넓힘 (상단 통계·오늘의 신호는 항상 선택된 날짜 하루 기준 유지)
     period_days = {'오늘만': 0, '최근 7일': 6, '최근 30일': 29}[period_choice]
@@ -307,11 +307,32 @@ with main_col:
         filtered_df = filtered_df[mask]
 
     issue_groups = build_issue_groups(filtered_df) if not filtered_df.empty else []
+    issue_groups = [g for g in issue_groups if g['main_press'] != '미상']  # 대표 언론사를 못 찾은 이슈는 제외
+
     if sort_option == '최신순':
         issue_groups.sort(key=lambda g: g['rows']['dt'].max(), reverse=True)
+    elif sort_option == '보도량순':
+        issue_groups.sort(key=lambda g: g['press_count'], reverse=True)
+    # '중요도순'은 build_issue_groups가 이미 그 순서로 정렬해서 반환함
 
     if not issue_groups:
         st.info("조건에 맞는 기사가 없습니다.")
+    else:
+        total_count = len(issue_groups)
+        pg_col1, pg_col2 = st.columns([1, 2])
+        with pg_col1:
+            page_size = st.selectbox("표시 개수", options=[10, 20, 50], index=1, label_visibility="collapsed")
+        total_pages = max(1, -(-total_count // page_size))  # 올림 나눗셈
+        if "list_page" not in st.session_state or st.session_state.list_page > total_pages:
+            st.session_state.list_page = 1
+        with pg_col2:
+            page = st.number_input(
+                f"페이지 (총 {total_pages}쪽)", min_value=1, max_value=total_pages,
+                step=1, key="list_page",
+            )
+        start = (page - 1) * page_size
+        st.caption(f"전체 {total_count}건 중 {start + 1}~{min(start + page_size, total_count)}건 표시")
+        issue_groups = issue_groups[start:start + page_size]
 
     for g in issue_groups:
         bc = badge_class(g['sentiment'])
