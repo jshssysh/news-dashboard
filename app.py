@@ -51,11 +51,12 @@ st.markdown("""
 .st-key-top_bar button { padding: 2px 8px !important; font-size: 0.75em !important; white-space: nowrap; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* 카테고리 라디오 버튼 반응형 칩 형태 */
-div[role="radiogroup"] { gap: 0.5rem; flex-wrap: wrap; }
+/* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
+div[role="radiogroup"] { gap: 0.5rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
 div[role="radiogroup"] > label {
     background-color: var(--secondary-background-color); padding: 5px 15px; border-radius: 20px;
     border: 1px solid rgba(128, 128, 128, 0.3); color: var(--text-color);
+    white-space: nowrap; flex-shrink: 0;
 }
 
 /* 배지 및 칩 (라이트/다크 공통 — 배지 자체는 항상 옅은 색 배경 + 짙은 텍스트라 어느 테마에서도 읽힘) */
@@ -76,7 +77,7 @@ div[role="radiogroup"] > label {
 .signal-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
 .signal-item:first-of-type { margin-top: 10px; padding-top: 0; border-top: none; }
 .signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; text-align: center; font-size: 0.75em; line-height: 18px; margin-right: 4px; }
-.signal-item-head { color: #fff; font-size: 0.95em; }
+.signal-item-head { color: #fff; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .signal-item-body { color: #cbd5e1; font-size: 0.85em; margin-top: 4px; line-height: 1.4; }
 .chip-category-dark { background-color: #24406e; color: #8ab4f8; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; margin: 0 4px; }
 .signal-score { color: #f6c453; font-size: 0.8em; margin-left: 6px; }
