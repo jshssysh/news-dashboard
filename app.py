@@ -52,12 +52,12 @@ div[role="radiogroup"] > label {
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--text-color); }
 .stat-card .sub { font-size: 0.72em; color: var(--text-color); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* 카테고리별 주요뉴스 (본문 전체 폭 그리드) */
-.cat-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 15px; }
-.cat-news-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
-.cat-news-card .cat-name { color: var(--primary-color); font-weight: bold; font-size: 0.85em; margin-bottom: 6px; }
-.cat-news-card .cat-issue { color: var(--text-color); font-size: 0.9em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-.cat-news-card .cat-score { color: var(--text-color); opacity: 0.6; font-size: 0.8em; }
+/* 카테고리별 주요뉴스 (창 크기에 맞춰 박스가 줄어들며 항상 한 줄 유지) */
+.cat-news-grid { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 15px; overflow-x: auto; }
+.cat-news-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px; flex: 1 1 0; min-width: 70px; }
+.cat-news-card .cat-name { color: var(--primary-color); font-weight: bold; font-size: 0.8em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-news-card .cat-issue { color: var(--text-color); font-size: 0.85em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
+.cat-news-card .cat-score { color: var(--text-color); opacity: 0.6; font-size: 0.75em; white-space: nowrap; }
 
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
@@ -141,7 +141,7 @@ with st.container(key="top_bar"):
             st.rerun()
 
 if st.session_state.active_tab != '뉴스':
-    st.info(f"🚧 '{st.session_state.active_tab}' 섹션은 준비 중입니다. 곧 추가될 예정입니다.")
+    st.info(f"'{st.session_state.active_tab}' 섹션은 준비 중입니다. 곧 추가될 예정입니다.")
     st.stop()
 
 st.divider()
@@ -196,7 +196,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # 카테고리별 주요뉴스 (본문 전체 폭에 그리드로 표시)
-st.markdown("##### 📌 카테고리별 주요뉴스")
+st.markdown("##### 카테고리별 주요뉴스")
 seen_cats = set()
 cat_cards = ["<div class='cat-news-grid'>"]
 for g in all_issue_groups:
@@ -269,17 +269,17 @@ with main_col:
     for g in issue_groups:
         bc = badge_class(g['sentiment'])
         with st.container(border=True):
-            st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span> <strong>{g['title']} 🔗</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span> <strong>{g['title']}</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
             st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; opacity:0.75;'>메인 언론사: <b>{g['main_press']}</b> | 총 보도 매체: <b>{g['press_count']}개 언론사</b> | 논조 분포: <span class='{bc}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{g['sentiment']} {g['press_count']}</span></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='summary-box-blue'>💡 AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
-            with st.expander(f"📁 언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
+            st.markdown(f"<div class='summary-box-blue'>AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
+            with st.expander(f"언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 
 with side_col:
     # 카테고리별 수집 현황 (오늘 기준 진행률 바)
     max_count = int(daily_category_counts.max()) if not daily_category_counts.empty else 1
-    kw_html = ["<div class='sidebar-panel'><div class='panel-title'>📊 카테고리별 수집 현황</div>"]
+    kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
     for cat, count in daily_category_counts.items():
         pct = int(count / max_count * 100) if max_count else 0
         kw_html.append(
