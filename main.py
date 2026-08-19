@@ -233,7 +233,7 @@ def master_cluster_with_gemini(unique_issue_titles):
     return {title: title for title in unique_issue_titles}
 
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
-    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크"]
+    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
     new_df = pd.DataFrame(new_rows, columns=columns)
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
         try:
@@ -241,6 +241,8 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
             old_df["분야"] = old_df["분야"].replace({"그룹동향": "삼성그룹", "삼성/이슈": "삼성그룹"})
             if "중요도" not in old_df.columns:
                 old_df["중요도"] = 5  # 구버전 데이터: 중요도 정보 없음 → 중간값으로 채움
+            if "발행일시" not in old_df.columns:
+                old_df["발행일시"] = ""  # 구버전 데이터: 발행 시각 미보존
             combined_df = pd.concat([old_df, new_df], ignore_index=True)
         except Exception: combined_df = new_df
     else: combined_df = new_df
@@ -276,11 +278,18 @@ def main():
             title = clean_text(item["title"])
             norm_t = normalize_title(title)
             desc = clean_text(item["description"])
-            
+
+            # 네이버가 주는 실제 기사 발행 시각(RFC 2822)을 KST 문자열로 변환해 보존
+            try:
+                pub_date = parsedate_to_datetime(item.get("pubDate", "")).astimezone(KST).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                pub_date = ""
+
             article_data = {
-                "idx": idx, "category": verify_and_adjust_category(category, title, desc), 
-                "title": title, "norm_t": norm_t, "description": desc, "link": link, 
-                "known_press": extract_press_from_link(link), "today_str": today_str
+                "idx": idx, "category": verify_and_adjust_category(category, title, desc),
+                "title": title, "norm_t": norm_t, "description": desc, "link": link,
+                "known_press": extract_press_from_link(link), "today_str": today_str,
+                "pub_date": pub_date
             }
             all_articles.append(article_data)
             
@@ -298,7 +307,7 @@ def main():
             group_title = force_merge_by_keywords(item["title"], normalize_title(item["title"]))
             rows.append([
                 item["today_str"], item["category"], group_title, item["title"],
-                item["known_press"] or "미상", "AI 분석 생략(개발 모드)", "미분석", 0, item["link"]
+                item["known_press"] or "미상", "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"]
             ])
     else:
         # 완전 동일 제목(unique_for_api)에서 한 단계 더 나아가, 분야별로 제목이 비슷한 기사를 묶어
@@ -358,7 +367,7 @@ def main():
 
             rows.append([
                 item["today_str"], category, group_title, item["title"],
-                item["known_press"] or "미상", summary, sentiment, score, item["link"]
+                item["known_press"] or "미상", summary, sentiment, score, item["link"], item["pub_date"]
             ])
 
     save_and_merge_data(rows)

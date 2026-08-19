@@ -117,6 +117,8 @@ def load_data():
         if '중요도' not in df.columns:
             df['중요도'] = 5  # 구버전 데이터(중요도 컬럼 없음) 호환
         df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5)
+        # 실제 기사 발행 시각 (구버전 데이터엔 없음 → NaT, 카드에서 수집 시각으로 대체 표시)
+        df['pub_dt'] = pd.to_datetime(df['발행일시'], errors='coerce') if '발행일시' in df.columns else pd.NaT
         return df
     except Exception:
         return pd.DataFrame()
@@ -136,6 +138,7 @@ def build_issue_groups(source_df):
             'main_press': rep['언론사'],
             'press_count': len(gdf_sorted),
             'rep_dt': rep['dt'],
+            'rep_pub_dt': rep['pub_dt'],
             'rep_link': rep['기사링크'],
             'rows': gdf_sorted,
         })
@@ -212,10 +215,15 @@ st.markdown(f"""
     <div class="stat-card"><div class="label">보도 확산</div><div class="value">{spread_count}건</div><div class="sub">{spread_caption} 등</div></div>
 </div>
 """, unsafe_allow_html=True)
-st.caption(
-    f"논조 분포 · 긍정 {sentiment_all_counts.get('긍정', 0)} · 중립 {sentiment_all_counts.get('중립', 0)} · "
-    f"부정 {sentiment_all_counts.get('부정', 0)} · 판단실패 {sentiment_all_counts.get('판단 실패', 0)}"
-)
+caption_parts = [
+    f"긍정 {sentiment_all_counts.get('긍정', 0)}",
+    f"중립 {sentiment_all_counts.get('중립', 0)}",
+    f"부정 {sentiment_all_counts.get('부정', 0)}",
+    f"판단실패 {sentiment_all_counts.get('판단 실패', 0)}",
+]
+if sentiment_all_counts.get('미분석', 0):
+    caption_parts.append(f"미분석 {sentiment_all_counts.get('미분석', 0)}")
+st.caption("논조 분포 · " + " · ".join(caption_parts))
 
 # 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
 top3 = all_issue_groups[:3]
@@ -309,7 +317,9 @@ with main_col:
         reasons = selection_reasons(g)
         fine_tag = extract_fine_amount(f"{g['title']} {g['summary']}")
         domain = extract_domain(g['rep_link'])
-        dt_display = g['rep_dt'].strftime('%m.%d %H:%M') if pd.notna(g['rep_dt']) else ''
+        # 실제 발행 시각이 있으면 우선 표시, 없으면(구버전 데이터) 수집 시각으로 대체
+        card_dt = g['rep_pub_dt'] if pd.notna(g['rep_pub_dt']) else g['rep_dt']
+        dt_display = card_dt.strftime('%m.%d %H:%M') if pd.notna(card_dt) else ''
 
         tags_html = f"<span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span>"
         if '제재·심결 신호' in reasons:
