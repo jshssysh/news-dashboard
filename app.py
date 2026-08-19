@@ -1,6 +1,38 @@
+import re
+from urllib.parse import urlparse
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+
+# 기사 본문(제목+요약)에 등장하면 "선별 근거" 칩으로 표시할 중대 키워드
+CRITICAL_KEYWORDS = ["과징금", "시정명령", "고발", "동의의결", "담합", "사익편취", "일감몰아주기", "기술탈취"]
+FINE_AMOUNT_PATTERN = re.compile(r"과징금\s*([0-9][0-9,\.]*)\s*(억|만)\s*원?")
+
+
+def extract_domain(url):
+    try:
+        return urlparse(url).netloc.replace("www.", "")
+    except Exception:
+        return ""
+
+
+def extract_fine_amount(text):
+    m = FINE_AMOUNT_PATTERN.search(text or "")
+    return f"과징금 {m.group(1)}{m.group(2)}원" if m else None
+
+
+def selection_reasons(g):
+    reasons = []
+    if g["press_count"] >= 5:
+        reasons.append(f"반복 보도 {g['press_count']}건")
+    text = f"{g['title']} {g['summary']}"
+    matched = next((kw for kw in CRITICAL_KEYWORDS if kw in text), None)
+    if matched:
+        reasons.append(f"중대 키워드 {matched}")
+    if g["category"] == "제재·심결":
+        reasons.append("제재·심결 신호")
+    return reasons
 
 st.set_page_config(page_title="Daily Brief", layout="wide", initial_sidebar_state="collapsed")
 
@@ -32,6 +64,10 @@ div[role="radiogroup"] > label {
 .badge-negative { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .badge-fail { background-color: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .chip-category { background-color: var(--secondary-background-color); color: var(--text-color); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; border: 1px solid rgba(128,128,128,0.3); }
+.chip-tag-warn { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
+.card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
+.reason-chip { display: inline-block; background-color: var(--secondary-background-color); color: var(--text-color); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
 .summary-box-blue { background-color: #0d1e36; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 0.95em; color: #8ab4f8; }
@@ -99,6 +135,8 @@ def build_issue_groups(source_df):
             'summary': rep['AI요약'],
             'main_press': rep['언론사'],
             'press_count': len(gdf_sorted),
+            'rep_dt': rep['dt'],
+            'rep_link': rep['기사링크'],
             'rows': gdf_sorted,
         })
     groups.sort(key=lambda g: g['importance'], reverse=True)
@@ -268,10 +306,24 @@ with main_col:
 
     for g in issue_groups:
         bc = badge_class(g['sentiment'])
+        reasons = selection_reasons(g)
+        fine_tag = extract_fine_amount(f"{g['title']} {g['summary']}")
+        domain = extract_domain(g['rep_link'])
+        dt_display = g['rep_dt'].strftime('%m.%d %H:%M') if pd.notna(g['rep_dt']) else ''
+
+        tags_html = f"<span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span>"
+        if '제재·심결 신호' in reasons:
+            tags_html += " <span class='chip-tag-warn'>제재·규제</span>"
+        if fine_tag:
+            tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
+
         with st.container(border=True):
-            st.markdown(f"<div><span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span> <strong>{g['title']}</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='margin-top:5px; margin-bottom:15px; font-size:0.85em; opacity:0.75;'>메인 언론사: <b>{g['main_press']}</b> | 총 보도 매체: <b>{g['press_count']}개 언론사</b> | 논조 분포: <span class='{bc}' style='padding:0px 4px; font-size:1em; font-weight:normal;'>{g['sentiment']} {g['press_count']}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div>{tags_html} <strong>{g['title']}</strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='summary-box-blue'>AI 핵심 요약: {g['summary']}</div>", unsafe_allow_html=True)
+            if reasons:
+                reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
             with st.expander(f"언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)

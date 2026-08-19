@@ -48,7 +48,10 @@ NAVER_PRESS_CODES = {
 }
 
 # 키워드 검색으로 붙는 분야는 임시 힌트일 뿐이며, Gemini가 기사 본문 기준으로 최종 확정한다
-CATEGORY_LIST = ["삼성그룹", "삼성물산", "공정위/정책", "부당지원", "갑을관계", "동반성장", "지배구조", "산업동향"]
+CATEGORY_LIST = [
+    "삼성그룹", "삼성물산", "공정위/정책", "부당지원", "갑을관계",
+    "동반성장", "지배구조", "산업동향", "제재·심결", "그린·AI워싱",
+]
 
 def extract_press_from_link(link):
     for domain, name in PRESS_DOMAINS.items():
