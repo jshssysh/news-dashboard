@@ -8,6 +8,7 @@ import yaml
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '').replace("'", "")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace('"', '').replace("'", "")
@@ -63,6 +64,15 @@ def extract_press_from_link(link):
             if part == "article" and i + 1 < len(parts):
                 if parts[i+1] in NAVER_PRESS_CODES: return NAVER_PRESS_CODES[parts[i+1]]
     return None
+
+def press_display_name(known_press, link):
+    """언론사명을 못 찾은 경우, "미상" 대신 링크의 도메인을 보여준다."""
+    if known_press:
+        return known_press
+    try:
+        return urlparse(link).netloc.replace("www.", "") or "미상"
+    except Exception:
+        return "미상"
 
 def get_naver_news_24h(keyword):
     valid_items = []
@@ -310,7 +320,7 @@ def main():
             group_title = force_merge_by_keywords(item["title"], normalize_title(item["title"]))
             rows.append([
                 item["today_str"], item["category"], group_title, item["title"],
-                item["known_press"] or "미상", "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"]
+                press_display_name(item["known_press"], item["link"]), "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"]
             ])
     else:
         # 완전 동일 제목(unique_for_api)에서 한 단계 더 나아가, 분야별로 제목이 비슷한 기사를 묶어
@@ -370,7 +380,7 @@ def main():
 
             rows.append([
                 item["today_str"], category, group_title, item["title"],
-                item["known_press"] or "미상", summary, sentiment, score, item["link"], item["pub_date"]
+                press_display_name(item["known_press"], item["link"]), summary, sentiment, score, item["link"], item["pub_date"]
             ])
 
     save_and_merge_data(rows)
