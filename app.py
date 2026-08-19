@@ -33,12 +33,17 @@ div[role="radiogroup"] > label {
 .badge-fail { background-color: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .chip-category { background-color: var(--secondary-background-color); color: var(--text-color); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; border: 1px solid rgba(128,128,128,0.3); }
 
-/* AI 요약 / 오늘의 신호는 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
+/* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
 .summary-box-blue { background-color: #0d1e36; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 0.95em; color: #8ab4f8; }
 .signal-box { background-color: #12203a; border: 1px solid #12203a; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; }
-.signal-title { font-size: 1.1em; font-weight: bold; margin: 8px 0 6px 0; color: #fff; }
-.signal-body { font-size: 0.9em; color: #cbd5e1; line-height: 1.5; }
+.signal-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
+.signal-item:first-of-type { margin-top: 10px; padding-top: 0; border-top: none; }
+.signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; text-align: center; font-size: 0.75em; line-height: 18px; margin-right: 4px; }
+.signal-item-head { color: #fff; font-size: 0.95em; }
+.signal-item-body { color: #cbd5e1; font-size: 0.85em; margin-top: 4px; line-height: 1.4; }
+.chip-category-dark { background-color: #24406e; color: #8ab4f8; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; margin: 0 4px; }
+.signal-score { color: #f6c453; font-size: 0.8em; margin-left: 6px; }
 
 /* 통계 타일 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
@@ -47,14 +52,16 @@ div[role="radiogroup"] > label {
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--text-color); }
 .stat-card .sub { font-size: 0.72em; color: var(--text-color); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* 카테고리별 주요뉴스 (본문 전체 폭 그리드) */
+.cat-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 15px; }
+.cat-news-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
+.cat-news-card .cat-name { color: var(--primary-color); font-weight: bold; font-size: 0.85em; margin-bottom: 6px; }
+.cat-news-card .cat-issue { color: var(--text-color); font-size: 0.9em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
+.cat-news-card .cat-score { color: var(--text-color); opacity: 0.6; font-size: 0.8em; }
+
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
 .sidebar-panel .panel-title { font-weight: bold; color: var(--text-color); margin-bottom: 8px; }
-
-.sidebar-item { padding: 8px 0; border-bottom: 1px solid rgba(128,128,128,0.2); font-size: 0.85em; }
-.sidebar-item .cat { color: var(--primary-color); font-weight: bold; }
-.sidebar-item .issue { color: var(--text-color); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 2px 0; }
-.sidebar-item .score { color: var(--text-color); opacity: 0.7; font-size: 0.85em; }
 
 .kw-row { margin-bottom: 10px; }
 .kw-row .kw-label { display: flex; justify-content: space-between; font-size: 0.85em; color: var(--text-color); font-weight: bold; margin-bottom: 4px; }
@@ -172,21 +179,36 @@ st.caption(
     f"부정 {sentiment_all_counts.get('부정', 0)} · 판단실패 {sentiment_all_counts.get('판단 실패', 0)}"
 )
 
-# 오늘의 신호 (규칙 기반 요약 — 별도 AI 호출 없이 수집된 데이터로 자동 생성)
-top_issue = all_issue_groups[0]
-scored_sentiments = daily_df[daily_df['중요도'] >= 5]['논조'].value_counts()
-dominant_sentiment = scored_sentiments.idxmax() if not scored_sentiments.empty else '중립'
-headline_map = {'부정': '제재·리스크 신호 부각', '긍정': '호재 신호 부각', '중립': '중립 흐름 지속', '판단 실패': '판단 보류 이슈 다수'}
-headline = headline_map.get(dominant_sentiment, '주요 흐름 점검')
+# 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
+top3 = all_issue_groups[:3]
+signal_items = "".join(f"""
+<div class="signal-item">
+    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><b>{g['title']}</b><span class="signal-score">중요도 {g['importance']}/10</span></div>
+    <div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div>
+</div>
+""" for i, g in enumerate(top3, start=1))
 
 st.markdown(f"""
 <div class="signal-box">
-    <span class="signal-tag">규칙 요약</span>
-    <div class="signal-title">오늘 주요 흐름 · {headline}</div>
-    <div class="signal-body">오늘 수집된 {len(daily_df)}건 중 <b>{top_issue['category']}</b> 분야에서 가장 주목되는 신호가 발생했습니다.
-    중요도가 가장 높은 이슈는 '<b>{top_issue['title']}</b>'(중요도 {top_issue['importance']}/10)이며, 관련 보도가 {top_issue['press_count']}건입니다.</div>
+    <span class="signal-tag">오늘 주요 내용</span>
+    {signal_items}
 </div>
 """, unsafe_allow_html=True)
+
+# 카테고리별 주요뉴스 (본문 전체 폭에 그리드로 표시)
+st.markdown("##### 📌 카테고리별 주요뉴스")
+seen_cats = set()
+cat_cards = ["<div class='cat-news-grid'>"]
+for g in all_issue_groups:
+    if g['category'] in seen_cats:
+        continue
+    seen_cats.add(g['category'])
+    cat_cards.append(
+        f"<div class='cat-news-card'><div class='cat-name'>{g['category']}</div>"
+        f"<span class='cat-issue'>{g['title']}</span><div class='cat-score'>중요도 {g['importance']}</div></div>"
+    )
+cat_cards.append("</div>")
+st.markdown("".join(cat_cards), unsafe_allow_html=True)
 
 st.divider()
 
@@ -255,20 +277,6 @@ with main_col:
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 
 with side_col:
-    # 카테고리별 주요뉴스
-    sidebar_html = ["<div class='sidebar-panel'><div class='panel-title'>📌 카테고리별 주요뉴스</div>"]
-    seen_cats = set()
-    for g in all_issue_groups:
-        if g['category'] in seen_cats:
-            continue
-        seen_cats.add(g['category'])
-        sidebar_html.append(
-            f"<div class='sidebar-item'><span class='cat'>{g['category']}</span>"
-            f"<span class='issue'>{g['title']}</span><span class='score'>중요도 {g['importance']}</span></div>"
-        )
-    sidebar_html.append("</div>")
-    st.markdown("".join(sidebar_html), unsafe_allow_html=True)
-
     # 카테고리별 수집 현황 (오늘 기준 진행률 바)
     max_count = int(daily_category_counts.max()) if not daily_category_counts.empty else 1
     kw_html = ["<div class='sidebar-panel'><div class='panel-title'>📊 카테고리별 수집 현황</div>"]
