@@ -181,9 +181,12 @@ def analyze_batch_with_gemini(batch_items):
             result_map = {}
             for r in parsed_list:
                 r_idx = r.get("idx")
-                score = r.get("relevance_score", 0)
-                g_title = normalize_title(r.get("group_title", ""))
-                summary = r.get("summary", "")
+                score = r.get("relevance_score") or 0
+                # 관련도가 낮은 기사는 group_title/summary를 아예 생략하는 대신 JSON null로 주는 경우가 있어,
+                # get()의 기본값이 안 먹힌다 (키는 있고 값이 None). "or" 로 한 번 더 방어해서
+                # 기사 1건의 null 값 때문에 배치 20건 전체가 예외로 날아가는 걸 방지한다.
+                g_title = normalize_title(r.get("group_title") or "")
+                summary = r.get("summary") or ""
 
                 sentiment = r.get("sentiment")
                 if sentiment not in ["긍정", "중립", "부정"]:
