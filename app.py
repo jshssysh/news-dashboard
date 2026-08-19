@@ -23,15 +23,17 @@ def extract_fine_amount(text):
 
 
 def selection_reasons(g):
+    """(표시 라벨, 가중치) 목록을 반환한다. 가중치는 참고 서비스와 같은 공식이 아니라
+    "왜 이 기사가 선별됐는지"를 보여주기 위해 우리가 정한 자체 기준 점수다."""
     reasons = []
     if g["press_count"] >= 5:
-        reasons.append(f"반복 보도 {g['press_count']}건")
+        reasons.append((f"반복 보도 {g['press_count']}건", min(g["press_count"], 30)))
     text = f"{g['title']} {g['summary']}"
     matched = next((kw for kw in CRITICAL_KEYWORDS if kw in text), None)
     if matched:
-        reasons.append(f"중대 키워드 {matched}")
+        reasons.append((f"중대 키워드 {matched}", 18))
     if g["category"] == "제재·심결":
-        reasons.append("제재·심결 신호")
+        reasons.append(("제재·심결 신호", 20))
     return reasons
 
 st.set_page_config(page_title="Daily Brief", layout="wide", initial_sidebar_state="collapsed")
@@ -344,7 +346,7 @@ with main_col:
         dt_display = card_dt.strftime('%m.%d %H:%M') if pd.notna(card_dt) else ''
 
         tags_html = f"<span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span>"
-        if '제재·심결 신호' in reasons:
+        if any(label == '제재·심결 신호' for label, _ in reasons):
             tags_html += " <span class='chip-tag-warn'>제재·규제</span>"
         if fine_tag:
             tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
@@ -354,7 +356,7 @@ with main_col:
             st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='summary-box-blue'>{g['summary']}</div>", unsafe_allow_html=True)
             if reasons:
-                reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                reason_chips = " ".join(f"<span class='reason-chip'>{label} +{pts}</span>" for label, pts in reasons)
                 st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
             with st.expander(f"언론사별 반응 및 관련 기사 보기 ({g['press_count']}개 보도 기사 펼치기)"):
                 for _, row in g['rows'].iterrows():
