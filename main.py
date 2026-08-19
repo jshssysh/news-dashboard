@@ -2,6 +2,7 @@ import os
 import json
 import time
 import re
+import difflib
 import requests
 import yaml
 import pandas as pd
@@ -97,6 +98,23 @@ def clean_text(text):
 def normalize_title(text):
     text = re.sub(r'\[.*?\]|\(.*?\)|\<.*?\>', '', text)
     return " ".join(re.sub(r'[^\w\s]', '', text).split())
+
+# 완전히 같은 제목이 아니어도(같은 사건, 다른 표현) 겹치는 기사는 대표 1건만 Gemini에 보내 비용을 아낀다
+TITLE_SIMILARITY_THRESHOLD = 0.65
+
+def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_THRESHOLD):
+    """분야별로, 제목이 비슷한 기사들을 그룹으로 묶는다. (다른 분야끼리는 비교하지 않음)
+    반환값: {원본 norm_t: 그룹 대표 norm_t}"""
+    mapping = {}
+    for norm_titles in norm_titles_by_category.values():
+        leaders = []
+        for nt in norm_titles:
+            leader = next((l for l in leaders if difflib.SequenceMatcher(None, nt, l).ratio() >= threshold), None)
+            if leader is None:
+                leaders.append(nt)
+                leader = nt
+            mapping[nt] = leader
+    return mapping
 
 def verify_and_adjust_category(category, title, description):
     text_content = (title + " " + description).replace(" ", "")
@@ -274,9 +292,23 @@ def main():
                 item["known_press"] or "미상", "AI 분석 생략(개발 모드)", "미분석", 0, item["link"]
             ])
     else:
-        api_items = list(unique_for_api.values())
+        # 완전 동일 제목(unique_for_api)에서 한 단계 더 나아가, 분야별로 제목이 비슷한 기사를 묶어
+        # 그룹당 대표 기사 1건만 Gemini에 보낸다. 나머지는 API 호출 없이 대표의 결과를 그대로 나눠 쓴다.
+        norm_titles_by_category = {}
+        for nt, item in unique_for_api.items():
+            norm_titles_by_category.setdefault(item["category"], []).append(nt)
+        title_cluster_map = cluster_similar_titles(norm_titles_by_category)
+        leader_norm_ts = list(dict.fromkeys(title_cluster_map.values()))
+
+        api_items = []
+        for i, nt in enumerate(leader_norm_ts):
+            item = unique_for_api[nt].copy()
+            item["idx"] = i
+            api_items.append(item)
         api_items_by_idx = {item["idx"]: item for item in api_items}
         batches = [api_items[i:i + 10] for i in range(0, len(api_items), 10)]
+
+        print(f"[비용 절감] 고유 제목 {len(unique_for_api)}건 → 유사 제목 클러스터링 후 {len(api_items)}건만 Gemini 분석")
 
         analyzed_results = {}
 
@@ -289,6 +321,11 @@ def main():
                 final_category = category or original_item["category"]
                 analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
             time.sleep(1.0)
+
+        # 유사 제목 그룹의 나머지(대표가 아닌) 기사들도 대표와 같은 분석 결과를 그대로 사용
+        for nt, leader_nt in title_cluster_map.items():
+            if nt != leader_nt and leader_nt in analyzed_results:
+                analyzed_results[nt] = analyzed_results[leader_nt]
 
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
         if valid_group_titles:
