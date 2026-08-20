@@ -136,6 +136,17 @@ def load_data():
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=600)
+def load_personnel():
+    try:
+        df = pd.read_csv("config/personnel.csv", comment="#")
+        df["시작일"] = pd.to_datetime(df["시작일"], errors="coerce")
+        df["종료일"] = pd.to_datetime(df["종료일"], errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
 def build_issue_groups(source_df):
     groups = []
     for title, gdf in source_df.groupby('대표이슈'):
@@ -195,7 +206,24 @@ with st.container(key="top_bar"):
             st.session_state.current_date += timedelta(days=1)
             st.rerun()
 
-if st.session_state.active_tab != '뉴스':
+if st.session_state.active_tab == '공정위 조직':
+    st.caption("부서·직책별 담당자 재임 이력 (수동 기록 · config/personnel.csv에서 직접 추가/수정 가능)")
+    personnel_df = load_personnel()
+    if personnel_df.empty:
+        st.info("아직 등록된 인사 이력이 없습니다. config/personnel.csv에 추가해주세요.")
+    else:
+        for (dept, role), grp in personnel_df.groupby(['부서', '직책']):
+            grp = grp.sort_values('시작일', ascending=False)
+            st.markdown(f"##### {dept} · {role}")
+            for _, row in grp.iterrows():
+                is_current = pd.isna(row['종료일'])
+                start = row['시작일'].strftime('%Y.%m.%d') if pd.notna(row['시작일']) else '?'
+                end_display = '현재' if is_current else row['종료일'].strftime('%Y.%m.%d')
+                current_badge = "<span class='badge-positive'>현재</span> " if is_current else ""
+                st.markdown(f"<div style='margin-bottom:6px;'>{current_badge}<b>{row['담당자']}</b> · {start} ~ {end_display}</div>", unsafe_allow_html=True)
+            st.write("")
+    st.stop()
+elif st.session_state.active_tab != '뉴스':
     st.info(f"'{st.session_state.active_tab}' 섹션은 준비 중입니다. 곧 추가될 예정입니다.")
     st.stop()
 
