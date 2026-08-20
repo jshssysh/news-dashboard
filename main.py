@@ -37,7 +37,8 @@ PRESS_DOMAINS = {
     "seoul.co.kr": "서울신문", "sbs.co.kr": "SBS", "kbs.co.kr": "KBS",
     "mbc.co.kr": "MBC", "ytn.co.kr": "YTN", "jtbc.co.kr": "JTBC",
     "news1.kr": "뉴스1", "newsis.com": "뉴시스", "biz.chosun.com": "조선비즈",
-    "ajunews.com": "아주경제", "asiatoday.co.kr": "아시아투데이"
+    "ajunews.com": "아주경제", "asiatoday.co.kr": "아시아투데이",
+    "intn.co.kr": "일간NTN"
 }
 
 NAVER_PRESS_CODES = {
