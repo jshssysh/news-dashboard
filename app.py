@@ -114,14 +114,17 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .st-key-cat_chip_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
 .st-key-cat_chip_row button { border-radius: 20px !important; white-space: nowrap !important; padding: 6px 16px !important; width: auto !important; }
 
-/* 카테고리별 주요뉴스 제목 옆 필터 줄: 기간/정렬/논조 칩은 글자 크기에 딱 맞게 줄이고,
-   검색창이 그만큼 줄어든 폭을 가져가 넓어지도록 함 */
+/* 카테고리별 주요뉴스 제목 옆 필터 줄: 드롭다운 3개는 고정 폭으로 좁히고
+   (내용 크기 맞춤(auto)은 Streamlit 내부 스타일에 밀려 무시됨 - 상단 바와 같은 방식으로 px 고정),
+   남는 폭은 전부 검색창이 가져감 */
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important; }
-.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
-.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:last-child { flex: 1 1 auto !important; }
-.st-key-news_filter_row div[data-baseweb="select"] { width: fit-content !important; display: inline-flex !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; flex: 0 0 auto !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 170px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { width: 100px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(3) { width: 100px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 110px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(5) { flex: 1 1 auto !important; width: auto !important; }
 .st-key-news_filter_row div[data-baseweb="select"] * { min-width: 0 !important; }
-.st-key-news_filter_row div[data-baseweb="select"] > div:first-child { width: auto !important; padding-right: 28px !important; }
 
 /* 배지 및 칩 (라이트/다크 공통 — 배지 자체는 항상 옅은 색 배경 + 짙은 텍스트라 어느 테마에서도 읽힘) */
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
