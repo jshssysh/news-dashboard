@@ -150,11 +150,13 @@ div[role="radiogroup"] > label {
 .sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
 .sidebar-panel .panel-title { font-weight: bold; color: var(--app-text); margin-bottom: 8px; }
 
-.kw-row { margin-bottom: 10px; }
-.kw-row .kw-label { display: flex; justify-content: space-between; font-size: 0.85em; color: var(--app-text); font-weight: bold; margin-bottom: 4px; }
-.kw-row .kw-count { opacity: 0.65; font-weight: normal; }
-.kw-track { background-color: rgba(128,128,128,0.25); border-radius: 6px; height: 6px; overflow: hidden; }
-.kw-fill { background-color: var(--app-primary); height: 100%; border-radius: 6px; }
+.kw-row { margin-bottom: 12px; }
+.kw-row .kw-label { font-size: 0.85em; color: var(--app-text); font-weight: bold; margin-bottom: 4px; }
+.sentiment-track { display: flex; width: 100%; height: 18px; border-radius: 6px; overflow: hidden; background-color: rgba(128,128,128,0.2); }
+.sentiment-seg { display: flex; align-items: center; justify-content: center; font-size: 0.68em; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; }
+.sentiment-neg { background-color: #e05353; }
+.sentiment-neu { background-color: #e0a940; color: #3a2c00; }
+.sentiment-pos { background-color: #4caf82; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -478,15 +480,35 @@ with main_col:
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 
+def sentiment_seg_html(pct, css_class):
+    if pct <= 0:
+        return ""
+    label = f"{pct}%" if pct >= 8 else ""  # 너무 좁은 구간은 글자가 안 들어가니 생략
+    return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{label}</div>"
+
+
 with side_col, st.container(key="side_sticky"):
-    # 카테고리별 수집 현황 (오늘 기준 진행률 바) - 스크롤해도 화면에 붙어 따라오도록 고정
-    max_count = int(daily_category_counts.max()) if not daily_category_counts.empty else 1
+    # 카테고리별 수집 현황 - 부정/중립/긍정 비율을 한 줄 막대로 표시 (스크롤해도 화면에 붙어 따라오도록 고정)
     kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
-    for cat, count in daily_category_counts.items():
-        pct = int(count / max_count * 100) if max_count else 0
+    for cat in daily_category_counts.index:
+        cat_rows = daily_df[daily_df['분야'] == cat]
+        neg = int((cat_rows['논조'] == '부정').sum())
+        neu = int((cat_rows['논조'] == '중립').sum())
+        pos = int((cat_rows['논조'] == '긍정').sum())
+        total_s = neg + neu + pos
+        if total_s == 0:
+            neg_pct = neu_pct = pos_pct = 0
+        else:
+            neg_pct = round(neg / total_s * 100)
+            pos_pct = round(pos / total_s * 100)
+            neu_pct = 100 - neg_pct - pos_pct  # 나머지를 중립에 배정해 항상 합계 100%가 되도록 함
         kw_html.append(
-            f"<div class='kw-row'><div class='kw-label'>{cat} <span class='kw-count'>{count}건</span></div>"
-            f"<div class='kw-track'><div class='kw-fill' style='width:{pct}%;'></div></div></div>"
+            f"<div class='kw-row'><div class='kw-label'>{cat}</div>"
+            f"<div class='sentiment-track'>"
+            f"{sentiment_seg_html(neg_pct, 'sentiment-neg')}"
+            f"{sentiment_seg_html(neu_pct, 'sentiment-neu')}"
+            f"{sentiment_seg_html(pos_pct, 'sentiment-pos')}"
+            f"</div></div>"
         )
     kw_html.append("</div>")
     st.markdown("".join(kw_html), unsafe_allow_html=True)
