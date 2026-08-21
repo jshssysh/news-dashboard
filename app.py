@@ -160,13 +160,14 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
 
 /* 통계 타일 */
-.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
+/* 수집 기사 칩이 논조 분포까지 한 줄에 담도록 나머지 두 칩을 균등하게 줄여 폭을 몰아줌 */
+.stat-grid { display: grid; grid-template-columns: 3fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
 .stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--app-text); }
 .stat-card .sub-inline { font-size: 0.72em; color: var(--app-text); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; margin-top: 4px; line-height: 1.5; }
+.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; white-space: nowrap; }
 .stat-card .sentiment-mini .sm-pos { color: #43a047; font-weight: 700; }
 .stat-card .sentiment-mini .sm-neu { color: #d99a2b; font-weight: 700; }
 .stat-card .sentiment-mini .sm-neg { color: #e05353; font-weight: 700; }
@@ -342,7 +343,7 @@ sentiment_mini_html = " · ".join(sentiment_mini_items)
 
 st.markdown(f"""
 <div class="stat-grid">
-    <div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span></div><div class="sentiment-mini">논조 분포 · {sentiment_mini_html}</div></div>
+    <div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span><span class="sentiment-mini">논조 분포 · {sentiment_mini_html}</span></div></div>
     <div class="stat-card"><div class="label">주요 뉴스</div><div class="value-line"><span class="value">{major_count}건</span><span class="sub-inline">AI 판단 기준</span></div></div>
     <div class="stat-card"><div class="label">보도 확산</div><div class="value-line"><span class="value">{spread_count}건</span><span class="sub-inline">{spread_caption} 등</span></div></div>
 </div>
