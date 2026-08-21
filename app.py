@@ -108,13 +108,10 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .st-key-side_pagination div[data-baseweb="select"] { font-weight: 800; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
-div[role="radiogroup"] { gap: 0.5rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
-div[role="radiogroup"] > label {
-    background-color: var(--app-secondary-bg); padding: 5px 15px; border-radius: 20px;
-    border: 1px solid rgba(128, 128, 128, 0.3); color: var(--app-text);
-    white-space: nowrap; flex-shrink: 0;
-}
+/* 카테고리별 주요뉴스 칩(클릭하면 필터링): 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
+.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 8px !important; overflow-x: auto !important; padding-bottom: 6px; }
+.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
+.st-key-cat_chip_row button { border-radius: 20px !important; white-space: nowrap !important; padding: 6px 16px !important; width: auto !important; }
 
 /* 배지 및 칩 (라이트/다크 공통 — 배지 자체는 항상 옅은 색 배경 + 짙은 텍스트라 어느 테마에서도 읽힘) */
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
@@ -147,13 +144,6 @@ div[role="radiogroup"] > label {
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--app-text); }
 .stat-card .sub { font-size: 0.72em; color: var(--app-text); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* 카테고리별 주요뉴스 (창 크기에 맞춰 박스가 줄어들며 항상 한 줄 유지) */
-.cat-news-grid { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 15px; overflow-x: auto; }
-.cat-news-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px; flex: 1 1 0; min-width: 70px; }
-.cat-news-card .cat-name { color: var(--app-primary); font-weight: bold; font-size: 0.8em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cat-news-card .cat-issue { color: var(--app-text); font-size: 0.85em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-.cat-news-card .cat-score { color: var(--app-text); opacity: 0.6; font-size: 0.75em; white-space: nowrap; }
 
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px 10px; margin-bottom: 14px; }
@@ -350,20 +340,49 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 카테고리별 주요뉴스 (본문 전체 폭에 그리드로 표시)
-st.markdown("##### 카테고리별 주요뉴스")
-seen_cats = set()
-cat_cards = ["<div class='cat-news-grid'>"]
+# 카테고리별 주요뉴스 + 카테고리 필터 칩을 하나로 병합 (클릭하면 아래 목록이 그 카테고리로 필터링됨)
+head_col1, head_col2 = st.columns([3, 1])
+with head_col1:
+    st.markdown("##### 카테고리별 주요뉴스")
+with head_col2:
+    period_choice = st.selectbox("기간", options=['오늘만', '최근 7일', '최근 30일'], label_visibility="collapsed")
+
+# 기간 선택에 따라 검색 대상 범위를 넓힘 (상단 통계·오늘의 신호는 항상 선택된 날짜 하루 기준 유지)
+period_days = {'오늘만': 0, '최근 7일': 6, '최근 30일': 29}[period_choice]
+if period_days == 0:
+    scoped_df = daily_df
+else:
+    range_start = st.session_state.current_date - timedelta(days=period_days)
+    scoped_df = df[(df['dt'].dt.date >= range_start) & (df['dt'].dt.date <= st.session_state.current_date)]
+
+category_counts = scoped_df['분야'].value_counts()
+categories = ['전체'] + list(category_counts.index)
+chip_counts = {'전체': len(scoped_df), **{c: category_counts[c] for c in category_counts.index}}
+
+# 카테고리별 오늘의 대표 이슈(중요도 1위) - 칩에 마우스를 올리면 툴팁으로 표시
+top_issue_by_cat = {}
 for g in all_issue_groups:
-    if g['category'] in seen_cats:
-        continue
-    seen_cats.add(g['category'])
-    cat_cards.append(
-        f"<div class='cat-news-card'><div class='cat-name'>{g['category']}</div>"
-        f"<span class='cat-issue'>{g['title']}</span><div class='cat-score'>중요도 {g['importance']}</div></div>"
-    )
-cat_cards.append("</div>")
-st.markdown("".join(cat_cards), unsafe_allow_html=True)
+    if g['category'] not in top_issue_by_cat:
+        top_issue_by_cat[g['category']] = g
+
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = '전체'
+if st.session_state.selected_category not in categories:
+    st.session_state.selected_category = '전체'
+
+with st.container(key="cat_chip_row"):
+    chip_cols = st.columns(len(categories))
+    for i, cat in enumerate(categories):
+        with chip_cols[i]:
+            tip = None
+            if cat in top_issue_by_cat:
+                tg = top_issue_by_cat[cat]
+                tip = f"{tg['title']} · 중요도 {tg['importance']}/10"
+            is_selected = st.session_state.selected_category == cat
+            if st.button(f"{cat} {chip_counts[cat]}", key=f"catchip_{cat}", type=("primary" if is_selected else "secondary"), help=tip):
+                st.session_state.selected_category = cat
+                st.rerun()
+selected_category = st.session_state.selected_category
 
 st.divider()
 
@@ -371,34 +390,14 @@ st.divider()
 main_col, side_col = st.columns([2.85, 1.0], gap="medium")
 
 with main_col:
-    # 검색 및 필터
-    f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 1, 1])
+    # 검색 및 필터 (카테고리·기간은 위로 이동)
+    f_col1, f_col2, f_col3 = st.columns([2, 1, 1])
     with f_col1:
         search_text = st.text_input("검색", placeholder="제목, 요약에서 검색", label_visibility="collapsed")
     with f_col2:
-        period_choice = st.selectbox("기간", options=['오늘만', '최근 7일', '최근 30일'], label_visibility="collapsed")
-    with f_col3:
         sentiment_filter = st.selectbox("논조", options=['논조 전체', '긍정', '중립', '부정', '판단 실패'], label_visibility="collapsed")
-    with f_col4:
+    with f_col3:
         sort_option = st.selectbox("정렬", options=['중요도순', '보도량순', '최신순'], label_visibility="collapsed")
-
-    # 기간 선택에 따라 검색 대상 범위를 넓힘 (상단 통계·오늘의 신호는 항상 선택된 날짜 하루 기준 유지)
-    period_days = {'오늘만': 0, '최근 7일': 6, '최근 30일': 29}[period_choice]
-    if period_days == 0:
-        scoped_df = daily_df
-    else:
-        range_start = st.session_state.current_date - timedelta(days=period_days)
-        scoped_df = df[(df['dt'].dt.date >= range_start) & (df['dt'].dt.date <= st.session_state.current_date)]
-
-    # 카테고리 칩 (건수는 선택된 기간 기준)
-    category_counts = scoped_df['분야'].value_counts()
-    categories = ['전체'] + list(category_counts.index)
-    chip_labels = [f"전체 {len(scoped_df)}"] + [f"{c} {category_counts[c]}" for c in category_counts.index]
-    selected_idx = st.radio(
-        "카테고리 선택", options=range(len(categories)),
-        format_func=lambda i: chip_labels[i], horizontal=True, label_visibility="collapsed",
-    )
-    selected_category = categories[selected_idx]
 
     st.write("")
 
