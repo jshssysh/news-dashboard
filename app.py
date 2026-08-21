@@ -150,13 +150,18 @@ div[role="radiogroup"] > label {
 .sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
 .sidebar-panel .panel-title { font-weight: bold; color: var(--app-text); margin-bottom: 8px; }
 
-.kw-row { margin-bottom: 12px; }
-.kw-row .kw-label { font-size: 0.85em; color: var(--app-text); font-weight: bold; margin-bottom: 4px; }
-.sentiment-track { display: flex; width: 100%; height: 18px; border-radius: 6px; overflow: hidden; background-color: rgba(128,128,128,0.2); }
-.sentiment-seg { display: flex; align-items: center; justify-content: center; font-size: 0.68em; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; }
-.sentiment-neg { background-color: #e05353; }
-.sentiment-neu { background-color: #e0a940; color: #3a2c00; }
-.sentiment-pos { background-color: #4caf82; }
+.kw-row { margin-bottom: 20px; }
+.kw-row .kw-label { font-size: 0.85em; color: var(--app-text); font-weight: bold; margin-bottom: 6px; }
+.kw-total { opacity: 0.65; font-weight: normal; }
+.cnt-neg { color: #e05353; font-weight: 700; }
+.cnt-neu { color: #d99a2b; font-weight: 700; }
+.cnt-pos { color: #43a047; font-weight: 700; }
+/* 막대는 얇게 유지하고, 글자는 막대 위아래로 튀어나오는 걸 허용해 크게 보이도록 함 */
+.sentiment-track { display: flex; width: 100%; height: 6px; border-radius: 6px; overflow: visible; background-color: rgba(128,128,128,0.2); }
+.sentiment-seg { display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+.sentiment-neg { background-color: #e05353; color: #e05353; }
+.sentiment-neu { background-color: #e0a940; color: #d99a2b; }
+.sentiment-pos { background-color: #4caf82; color: #43a047; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -483,14 +488,13 @@ with main_col:
 def sentiment_seg_html(pct, css_class):
     if pct <= 0:
         return ""
-    label = f"{pct}%" if pct >= 8 else ""  # 너무 좁은 구간은 글자가 안 들어가니 생략
-    return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{label}</div>"
+    return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{pct}%</div>"
 
 
 with side_col, st.container(key="side_sticky"):
     # 카테고리별 수집 현황 - 부정/중립/긍정 비율을 한 줄 막대로 표시 (스크롤해도 화면에 붙어 따라오도록 고정)
     kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
-    for cat in daily_category_counts.index:
+    for cat, cat_total in daily_category_counts.items():
         cat_rows = daily_df[daily_df['분야'] == cat]
         neg = int((cat_rows['논조'] == '부정').sum())
         neu = int((cat_rows['논조'] == '중립').sum())
@@ -503,7 +507,10 @@ with side_col, st.container(key="side_sticky"):
             pos_pct = round(pos / total_s * 100)
             neu_pct = 100 - neg_pct - pos_pct  # 나머지를 중립에 배정해 항상 합계 100%가 되도록 함
         kw_html.append(
-            f"<div class='kw-row'><div class='kw-label'>{cat}</div>"
+            f"<div class='kw-row'><div class='kw-label'>{cat} "
+            f"<span class='kw-total'>{cat_total}건</span> / "
+            f"<span class='cnt-neg'>{neg}</span> <span class='cnt-neu'>{neu}</span> <span class='cnt-pos'>{pos}</span>"
+            f"</div>"
             f"<div class='sentiment-track'>"
             f"{sentiment_seg_html(neg_pct, 'sentiment-neg')}"
             f"{sentiment_seg_html(neu_pct, 'sentiment-neu')}"
