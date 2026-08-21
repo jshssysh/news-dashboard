@@ -339,7 +339,7 @@ for i, g in enumerate(top3, start=1):
     top3_reason_chips = " ".join(f"<span class='reason-chip-dark'>{r}</span>" for r in top3_reasons)
     signal_items += f"""
 <div class="signal-item">
-    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a></div>
+    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a><span class="signal-score">반복 보도 {g['press_count']}건</span></div>
     <a href="{g['rep_link']}" target="_blank" style="text-decoration:none; color:inherit; display:block;"><div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div></a>
     <div>{top3_reason_chips}</div>
 </div>
