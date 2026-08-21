@@ -165,6 +165,11 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--app-text); }
 .stat-card .sub { font-size: 0.72em; color: var(--app-text); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; margin-top: 6px; line-height: 1.5; }
+.stat-card .sentiment-mini .sm-pos { color: #43a047; font-weight: 700; }
+.stat-card .sentiment-mini .sm-neu { color: #d99a2b; font-weight: 700; }
+.stat-card .sentiment-mini .sm-neg { color: #e05353; font-weight: 700; }
+.stat-card .sentiment-mini .sm-fail { color: #7b1fa2; font-weight: 700; }
 
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px 10px; margin-bottom: 14px; }
@@ -324,22 +329,23 @@ spread_caption = most_spread['title']
 if len(spread_caption) > 16:
     spread_caption = spread_caption[:16] + '…'
 
+sentiment_mini_items = [
+    f"<span class='sm-pos'>긍정 {sentiment_all_counts.get('긍정', 0)}</span>",
+    f"<span class='sm-neu'>중립 {sentiment_all_counts.get('중립', 0)}</span>",
+    f"<span class='sm-neg'>부정 {sentiment_all_counts.get('부정', 0)}</span>",
+    f"<span class='sm-fail'>판단실패 {sentiment_all_counts.get('판단 실패', 0)}</span>",
+]
+if sentiment_all_counts.get('미분석', 0):
+    sentiment_mini_items.append(f"<span class='sm-fail'>미분석 {sentiment_all_counts.get('미분석', 0)}</span>")
+sentiment_mini_html = " · ".join(sentiment_mini_items)
+
 st.markdown(f"""
 <div class="stat-grid">
-    <div class="stat-card"><div class="label">수집 기사</div><div class="value">{len(daily_df)}건</div><div class="sub">중복 {dup_count}건</div></div>
+    <div class="stat-card"><div class="label">수집 기사</div><div class="value">{len(daily_df)}건</div><div class="sub">중복 {dup_count}건</div><div class="sentiment-mini">논조 분포 · {sentiment_mini_html}</div></div>
     <div class="stat-card"><div class="label">주요 뉴스</div><div class="value">{major_count}건</div><div class="sub">AI 판단 기준</div></div>
     <div class="stat-card"><div class="label">보도 확산</div><div class="value">{spread_count}건</div><div class="sub">{spread_caption} 등</div></div>
 </div>
 """, unsafe_allow_html=True)
-caption_parts = [
-    f"긍정 {sentiment_all_counts.get('긍정', 0)}",
-    f"중립 {sentiment_all_counts.get('중립', 0)}",
-    f"부정 {sentiment_all_counts.get('부정', 0)}",
-    f"판단실패 {sentiment_all_counts.get('판단 실패', 0)}",
-]
-if sentiment_all_counts.get('미분석', 0):
-    caption_parts.append(f"미분석 {sentiment_all_counts.get('미분석', 0)}")
-st.caption("논조 분포 · " + " · ".join(caption_parts))
 
 # 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
 top3 = all_issue_groups[:3]
