@@ -410,7 +410,8 @@ with st.container(key="cat_chip_row"):
                 st.rerun()
 selected_category = st.session_state.selected_category
 
-st.divider()
+# 기본 st.divider()는 위아래 여백이 너무 커서, 기사 카드 사이 간격 정도로 줄인 얇은 선으로 대체
+st.markdown("<hr style='margin: 8px 0; border-color: rgba(128,128,128,0.3);'>", unsafe_allow_html=True)
 
 # 데스크탑: 본문(3) + 사이드바(1) 2단 구성. 화면이 좁아지면 Streamlit이 자동으로 세로 1단으로 쌓는다.
 main_col, side_col = st.columns([2.85, 1.0], gap="medium")
@@ -442,12 +443,23 @@ page_size_options = [10, 20, 50]
 if "list_page" not in st.session_state:
     st.session_state.list_page = 1
 
+# 표시 개수 선택(위젯)은 아래 side_pagination에서 렌더링되지만, 그 값을 카테고리별 수집 현황
+# 위쪽 캡션에서 먼저 써야 해서 session_state에 남아있는 이전 값을 미리 읽어온다
+_page_size_for_caption = st.session_state.get("pg_size_select", page_size_options[0])
+_page_for_caption = st.session_state.list_page
+
 
 def sentiment_seg_html(pct, css_class):
     if pct <= 0:
         return ""
     return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{pct}%</div>"
 
+
+with side_col:
+    if issue_groups:
+        _start_for_caption = (_page_for_caption - 1) * _page_size_for_caption
+        _total_pages_for_caption = max(1, -(-total_count // _page_size_for_caption))
+        st.caption(f"전체 {total_count}건 중 {_start_for_caption + 1}~{min(_start_for_caption + _page_size_for_caption, total_count)}건 표시 (총 {_total_pages_for_caption}쪽)")
 
 with side_col, st.container(key="side_sticky"):
     # 카테고리별 수집 현황 - 부정/중립/긍정 비율을 한 줄 막대로 표시 (스크롤해도 화면에 붙어 따라오도록 고정)
@@ -481,7 +493,7 @@ with side_col, st.container(key="side_sticky"):
 # 표시 개수 선택 + 페이지 번호 버튼은 카테고리별 수집 현황 밑, 사이드바에 배치 (폭도 그 칸과 동일)
 with side_col, st.container(key="side_pagination"):
     if issue_groups:
-        page_size = st.selectbox("표시 개수", options=page_size_options, index=0, label_visibility="collapsed")
+        page_size = st.selectbox("표시 개수", options=page_size_options, index=0, label_visibility="collapsed", key="pg_size_select")
 
         total_pages = max(1, -(-total_count // page_size))  # 올림 나눗셈
         if st.session_state.list_page > total_pages:
@@ -515,7 +527,6 @@ with main_col:
         st.info("조건에 맞는 기사가 없습니다.")
     else:
         start = (page - 1) * page_size
-        st.caption(f"전체 {total_count}건 중 {start + 1}~{min(start + page_size, total_count)}건 표시 (총 {total_pages}쪽)")
         issue_groups = issue_groups[start:start + page_size]
 
     for g in issue_groups:
