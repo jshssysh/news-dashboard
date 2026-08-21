@@ -156,9 +156,15 @@ div[role="radiogroup"] > label {
 .cnt-neg { color: #e05353; font-weight: 700; }
 .cnt-neu { color: #d99a2b; font-weight: 700; }
 .cnt-pos { color: #43a047; font-weight: 700; }
-/* 막대는 얇게 유지하고, 글자는 막대 위아래로 튀어나오는 걸 허용해 크게 보이도록 함 */
+/* 막대는 얇게 유지하고, 글자는 막대 위아래로 튀어나오는 걸 허용해 크게 보이도록 함.
+   글자색과 막대색이 같아 안 보이는 걸 막기 위해 흰 테두리(halo)를 둘러 대비를 준다 */
 .sentiment-track { display: flex; width: 100%; height: 6px; border-radius: 6px; overflow: visible; background-color: rgba(128,128,128,0.2); }
-.sentiment-seg { display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+.sentiment-seg {
+    display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; white-space: nowrap;
+    -webkit-text-stroke: 3px #fff;
+    paint-order: stroke fill;
+    text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 4px #fff;
+}
 .sentiment-neg { background-color: #e05353; color: #e05353; }
 .sentiment-neu { background-color: #e0a940; color: #d99a2b; }
 .sentiment-pos { background-color: #4caf82; color: #43a047; }
@@ -354,7 +360,7 @@ st.markdown("".join(cat_cards), unsafe_allow_html=True)
 st.divider()
 
 # 데스크탑: 본문(3) + 사이드바(1) 2단 구성. 화면이 좁아지면 Streamlit이 자동으로 세로 1단으로 쌓는다.
-main_col, side_col = st.columns([3, 1], gap="large")
+main_col, side_col = st.columns([2.4, 1.3], gap="medium")
 
 with main_col:
     # 검색 및 필터
