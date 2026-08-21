@@ -64,8 +64,14 @@ st.markdown("""
 .st-key-top_bar div[data-testid="column"] { min-width: 0 !important; }
 .st-key-top_bar button { padding: 2px 8px !important; font-size: 0.75em !important; white-space: nowrap; }
 
-/* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴 */
-.st-key-side_sticky { position: sticky; top: 20px; align-self: flex-start; }
+/* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
+   (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky),
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) > div[data-testid="column"],
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="stVerticalBlock"] {
+    overflow: visible !important;
+}
+.st-key-side_sticky { position: sticky !important; top: 20px; align-self: flex-start; z-index: 1; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
