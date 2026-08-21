@@ -124,14 +124,19 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
 .card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
 .card-meta-inline { font-size: 0.8em; opacity: 0.6; margin-left: 8px; }
-.reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.85em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
-.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 3px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; height: 100%; box-sizing: border-box; }
+.reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.85em; font-weight: 700; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 4px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; height: 100%; box-sizing: border-box; line-height: 1.3; }
 .stButton button { white-space: nowrap; }
-/* 유사 기사 토글 버튼: 선별 근거 칩(제재·규제 등)과 비슷한 크기로 맞춰 줄 높이를 줄임 */
-div[class*="st-key-toggle_row_"] button { font-size: 0.85em !important; padding: 3px 10px !important; }
+/* 유사 기사 토글 버튼: 선별 근거 박스와 정확히 같은 크기·굵기로 맞춤 */
+div[class*="st-key-toggle_row_"] button {
+    font-size: 0.85em !important; font-weight: 700 !important;
+    padding: 4px 10px !important; min-height: 0 !important; line-height: 1.3 !important;
+}
+/* 기사 카드 내부 요소 사이 여백을 줄여 카드 전체 높이를 줄임 */
+div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margin-bottom: 2px !important; }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
-.summary-box-blue { background-color: #0d1e36; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 0.95em; color: #8ab4f8; }
+.summary-box-blue { background-color: #0d1e36; padding: 12px; border-radius: 8px; margin-bottom: 4px; font-size: 0.95em; color: #8ab4f8; }
 .signal-box { background-color: #12203a; border: 1px solid #12203a; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; }
 .signal-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
@@ -523,7 +528,10 @@ with main_col:
         if fine_tag:
             tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
 
-        with st.container(border=True):
+        toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
+        is_open = st.session_state.get(toggle_key, False)
+
+        with st.container(border=True, key=f"article_card_{toggle_key}"):
             st.markdown(
                 f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> "
                 f"<span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span> "
@@ -531,8 +539,6 @@ with main_col:
                 unsafe_allow_html=True,
             )
             st.markdown(f"<a href='{g['rep_link']}' target='_blank' style='text-decoration:none; color:inherit; display:block;'><div class='summary-box-blue'>{g['summary']}</div></a>", unsafe_allow_html=True)
-            toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
-            is_open = st.session_state.get(toggle_key, False)
 
             with st.container(key=f"toggle_row_{toggle_key}"):
                 toggle_col, reason_col = st.columns([1, 3])
