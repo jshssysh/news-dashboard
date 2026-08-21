@@ -136,11 +136,10 @@ div[role="radiogroup"] > label {
 .signal-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
 .signal-item:first-of-type { margin-top: 10px; padding-top: 0; border-top: none; }
 .signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; text-align: center; font-size: 0.75em; line-height: 18px; margin-right: 4px; }
-.signal-item-head { color: #fff; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.signal-item-head { color: #fff; font-size: 0.95em; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .signal-item-body { color: #cbd5e1; font-size: 0.85em; margin-top: 4px; line-height: 1.4; }
 .chip-category-dark { background-color: #24406e; color: #8ab4f8; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; margin: 0 4px; }
-.signal-score { color: #f6c453; font-size: 0.8em; margin-left: 6px; }
-.reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; margin-top: 6px; }
+.reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
 
 /* 통계 타일 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
@@ -339,9 +338,8 @@ for i, g in enumerate(top3, start=1):
     top3_reason_chips = " ".join(f"<span class='reason-chip-dark'>{r}</span>" for r in top3_reasons)
     signal_items += f"""
 <div class="signal-item">
-    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a><span class="signal-score">반복 보도 {g['press_count']}건</span></div>
+    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a> {top3_reason_chips}</div>
     <a href="{g['rep_link']}" target="_blank" style="text-decoration:none; color:inherit; display:block;"><div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div></a>
-    <div>{top3_reason_chips}</div>
 </div>
 """
 
