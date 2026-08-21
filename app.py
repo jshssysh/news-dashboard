@@ -63,6 +63,9 @@ st.markdown("""
 .st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 4px; }
 .st-key-top_bar div[data-testid="column"] { min-width: 0 !important; }
 .st-key-top_bar button { padding: 2px 8px !important; font-size: 0.75em !important; white-space: nowrap; }
+
+/* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴 */
+.st-key-side_sticky { position: sticky; top: 20px; align-self: flex-start; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
@@ -366,19 +369,41 @@ with main_col:
         st.info("조건에 맞는 기사가 없습니다.")
     else:
         total_count = len(issue_groups)
-        pg_col1, pg_col2 = st.columns([1, 2])
-        with pg_col1:
-            page_size = st.selectbox("표시 개수", options=[10, 20, 50], index=1, label_visibility="collapsed")
-        total_pages = max(1, -(-total_count // page_size))  # 올림 나눗셈
-        if "list_page" not in st.session_state or st.session_state.list_page > total_pages:
+        page_size_options = [10, 20, 50]
+        if "list_page" not in st.session_state:
             st.session_state.list_page = 1
-        with pg_col2:
-            page = st.number_input(
-                f"페이지 (총 {total_pages}쪽)", min_value=1, max_value=total_pages,
-                step=1, key="list_page",
-            )
+
+        # 표시 개수 선택 + 페이지 번호 버튼(◀ 1 2 3 4 5 ▶)을 한 줄에 배치
+        WINDOW = 5
+        pg_cols = st.columns([1] + [0.4] * (WINDOW + 2))
+        with pg_cols[0]:
+            page_size = st.selectbox("표시 개수", options=page_size_options, index=1, label_visibility="collapsed")
+
+        total_pages = max(1, -(-total_count // page_size))  # 올림 나눗셈
+        if st.session_state.list_page > total_pages:
+            st.session_state.list_page = 1
+        page = st.session_state.list_page
+
+        start_p = max(1, min(page - WINDOW // 2, total_pages - WINDOW + 1))
+        end_p = min(total_pages, start_p + WINDOW - 1)
+        page_numbers = list(range(start_p, end_p + 1))
+
+        with pg_cols[1]:
+            if st.button("◀", key="page_prev_btn", disabled=(page <= 1), use_container_width=True):
+                st.session_state.list_page = max(1, page - 1)
+                st.rerun()
+        for i, p in enumerate(page_numbers):
+            with pg_cols[2 + i]:
+                if st.button(str(p), key=f"page_btn_{p}", type=("primary" if p == page else "secondary"), use_container_width=True):
+                    st.session_state.list_page = p
+                    st.rerun()
+        with pg_cols[2 + WINDOW]:
+            if st.button("▶", key="page_next_btn", disabled=(page >= total_pages), use_container_width=True):
+                st.session_state.list_page = min(total_pages, page + 1)
+                st.rerun()
+
         start = (page - 1) * page_size
-        st.caption(f"전체 {total_count}건 중 {start + 1}~{min(start + page_size, total_count)}건 표시")
+        st.caption(f"전체 {total_count}건 중 {start + 1}~{min(start + page_size, total_count)}건 표시 (총 {total_pages}쪽)")
         issue_groups = issue_groups[start:start + page_size]
 
     for g in issue_groups:
@@ -416,8 +441,8 @@ with main_col:
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
 
-with side_col:
-    # 카테고리별 수집 현황 (오늘 기준 진행률 바)
+with side_col, st.container(key="side_sticky"):
+    # 카테고리별 수집 현황 (오늘 기준 진행률 바) - 스크롤해도 화면에 붙어 따라오도록 고정
     max_count = int(daily_category_counts.max()) if not daily_category_counts.empty else 1
     kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
     for cat, count in daily_category_counts.items():
