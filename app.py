@@ -50,32 +50,49 @@ def selection_reasons(g):
 
 st.set_page_config(page_title="Daily Brief", layout="wide", initial_sidebar_state="collapsed")
 
-# 색상은 Streamlit 테마 변수(var(--...))를 사용해 라이트/다크(시스템 설정) 전환에 자동으로 맞춘다
+# Streamlit 내부 테마 변수(--primary-color 등)가 버전에 따라 값이 비거나 이름이 달라 커스텀 요소에
+# 안 먹히는 경우가 있어서, 라이트/다크는 브라우저의 prefers-color-scheme으로 직접 판단해 우리만의
+# 색상 토큰(--app-*)을 정의하고 그것만 사용한다. (Streamlit 기본 배경/텍스트 색은 이 앱 CSS와 무관하게
+# Streamlit이 자체적으로 처리하므로 그대로 둔다)
 st.markdown("""
 <style>
+:root {
+    --app-primary: #ff4b4b;
+    --app-secondary-bg: #f0f2f6;
+    --app-text: #31333f;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --app-primary: #ff6b6b;
+        --app-secondary-bg: #262730;
+        --app-text: #fafafa;
+    }
+}
 .block-container { max-width: 1100px; padding-top: 3rem; }
 
 .app-header { display: flex; align-items: center; gap: 9px; padding: 2px 0; }
-.app-logo { background: linear-gradient(135deg, var(--primary-color), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
-.app-title { font-size: 1.2em; font-weight: 800; letter-spacing: -0.2px; color: var(--text-color); }
+.app-logo { background: linear-gradient(135deg, var(--app-primary), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
+.app-title { font-size: 1.2em; font-weight: 800; letter-spacing: -0.2px; color: var(--app-text); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
    내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
+/* data-testid 값은 Streamlit 버전마다 달라질 수 있어(column/stColumn 등) 이름에 의존하지 않고
+   "가로 블록의 직계 자식 div"라는 구조만으로 컬럼을 지정한다 */
 .st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
-.st-key-top_bar div[data-testid="stColumn"] { min-width: 0 !important; flex: 0 0 auto !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(1) { width: 190px !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(2) { width: 68px !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(3) { width: 68px !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(4) { width: 108px !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(5) { width: 42px !important; margin-left: auto !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(6) { width: 100px !important; }
-.st-key-top_bar div[data-testid="stColumn"]:nth-of-type(7) { width: 42px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; flex: 0 0 auto !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 190px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(2) { width: 68px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(3) { width: 68px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 108px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(5) { width: 42px !important; margin-left: auto !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(6) { width: 100px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(7) { width: 42px !important; }
 .st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
 div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky),
-div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) > div[data-testid="stColumn"],
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) > div,
 div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="stVerticalBlock"] {
     overflow: visible !important;
 }
@@ -85,8 +102,8 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 /* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
 div[role="radiogroup"] { gap: 0.5rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
 div[role="radiogroup"] > label {
-    background-color: var(--secondary-background-color); padding: 5px 15px; border-radius: 20px;
-    border: 1px solid rgba(128, 128, 128, 0.3); color: var(--text-color);
+    background-color: var(--app-secondary-bg); padding: 5px 15px; border-radius: 20px;
+    border: 1px solid rgba(128, 128, 128, 0.3); color: var(--app-text);
     white-space: nowrap; flex-shrink: 0;
 }
 
@@ -95,11 +112,11 @@ div[role="radiogroup"] > label {
 .badge-neutral { background-color: #fff3cd; color: #8a6100; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .badge-negative { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .badge-fail { background-color: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
-.chip-category { background-color: var(--secondary-background-color); color: var(--text-color); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; border: 1px solid rgba(128,128,128,0.3); }
+.chip-category { background-color: var(--app-secondary-bg); color: var(--app-text); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; border: 1px solid rgba(128,128,128,0.3); }
 .chip-tag-warn { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
 .chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
 .card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
-.reason-chip { display: inline-block; background-color: var(--secondary-background-color); color: var(--text-color); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
 .stButton button { white-space: nowrap; }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
@@ -117,27 +134,27 @@ div[role="radiogroup"] > label {
 
 /* 통계 타일 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
-.stat-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
-.stat-card .label { font-size: 0.8em; color: var(--text-color); opacity: 0.65; margin-bottom: 4px; }
-.stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--text-color); }
-.stat-card .sub { font-size: 0.72em; color: var(--text-color); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
+.stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
+.stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--app-text); }
+.stat-card .sub { font-size: 0.72em; color: var(--app-text); opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 카테고리별 주요뉴스 (창 크기에 맞춰 박스가 줄어들며 항상 한 줄 유지) */
 .cat-news-grid { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 15px; overflow-x: auto; }
-.cat-news-card { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px; flex: 1 1 0; min-width: 70px; }
-.cat-news-card .cat-name { color: var(--primary-color); font-weight: bold; font-size: 0.8em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cat-news-card .cat-issue { color: var(--text-color); font-size: 0.85em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-.cat-news-card .cat-score { color: var(--text-color); opacity: 0.6; font-size: 0.75em; white-space: nowrap; }
+.cat-news-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px; flex: 1 1 0; min-width: 70px; }
+.cat-news-card .cat-name { color: var(--app-primary); font-weight: bold; font-size: 0.8em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-news-card .cat-issue { color: var(--app-text); font-size: 0.85em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
+.cat-news-card .cat-score { color: var(--app-text); opacity: 0.6; font-size: 0.75em; white-space: nowrap; }
 
 /* 사이드바 공통 패널 */
-.sidebar-panel { background-color: var(--secondary-background-color); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-.sidebar-panel .panel-title { font-weight: bold; color: var(--text-color); margin-bottom: 8px; }
+.sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+.sidebar-panel .panel-title { font-weight: bold; color: var(--app-text); margin-bottom: 8px; }
 
 .kw-row { margin-bottom: 10px; }
-.kw-row .kw-label { display: flex; justify-content: space-between; font-size: 0.85em; color: var(--text-color); font-weight: bold; margin-bottom: 4px; }
+.kw-row .kw-label { display: flex; justify-content: space-between; font-size: 0.85em; color: var(--app-text); font-weight: bold; margin-bottom: 4px; }
 .kw-row .kw-count { opacity: 0.65; font-weight: normal; }
 .kw-track { background-color: rgba(128,128,128,0.25); border-radius: 6px; height: 6px; overflow: hidden; }
-.kw-fill { background-color: var(--primary-color); height: 100%; border-radius: 6px; }
+.kw-fill { background-color: var(--app-primary); height: 100%; border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -224,7 +241,7 @@ with st.container(key="top_bar"):
             st.rerun()
     with d_text:
         date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; padding-top: 6px; color: var(--text-color); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; padding-top: 6px; color: var(--app-text); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
     with d_next:
         if st.button("▶", key="date_next", use_container_width=True):
             st.session_state.current_date += timedelta(days=1)
