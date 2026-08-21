@@ -360,7 +360,7 @@ st.markdown("".join(cat_cards), unsafe_allow_html=True)
 st.divider()
 
 # 데스크탑: 본문(3) + 사이드바(1) 2단 구성. 화면이 좁아지면 Streamlit이 자동으로 세로 1단으로 쌓는다.
-main_col, side_col = st.columns([2.4, 1.3], gap="medium")
+main_col, side_col = st.columns([2.7, 1.15], gap="medium")
 
 with main_col:
     # 검색 및 필터
