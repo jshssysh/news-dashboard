@@ -147,7 +147,7 @@ div[role="radiogroup"] > label {
 .cat-news-card .cat-score { color: var(--app-text); opacity: 0.6; font-size: 0.75em; white-space: nowrap; }
 
 /* 사이드바 공통 패널 */
-.sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+.sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px 10px; margin-bottom: 14px; }
 .sidebar-panel .panel-title { font-weight: bold; color: var(--app-text); margin-bottom: 8px; }
 
 .kw-row { margin-bottom: 20px; }
@@ -360,7 +360,7 @@ st.markdown("".join(cat_cards), unsafe_allow_html=True)
 st.divider()
 
 # 데스크탑: 본문(3) + 사이드바(1) 2단 구성. 화면이 좁아지면 Streamlit이 자동으로 세로 1단으로 쌓는다.
-main_col, side_col = st.columns([2.7, 1.15], gap="medium")
+main_col, side_col = st.columns([2.85, 1.0], gap="medium")
 
 with main_col:
     # 검색 및 필터
