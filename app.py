@@ -61,7 +61,7 @@ st.markdown("""
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
    컬럼 비율(st.columns) 대신 내용 크기에 맞춰 붙여 배치하고, 날짜 네비게이션만 오른쪽 끝으로 밀어냄 */
-.st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 10px; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
 .st-key-top_bar div[data-testid="column"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
 .st-key-top_bar div[data-testid="column"]:nth-of-type(5) { margin-left: auto !important; }
 .st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; }
