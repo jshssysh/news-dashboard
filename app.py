@@ -110,7 +110,7 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 
 /* 카테고리별 주요뉴스 칩: 이름만 표시하고, 대표 이슈/중요도/건수는 마우스를 올리면 툴팁으로 보임.
    넘치면 가로 스크롤 대신 다음 줄로 자동 줄바꿈 */
-.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: wrap !important; gap: 8px !important; }
+.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; }
 .st-key-cat_chip_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
 .st-key-cat_chip_row button { border-radius: 20px !important; white-space: nowrap !important; padding: 6px 16px !important; width: auto !important; }
 
@@ -119,7 +119,7 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
    남는 폭은 전부 검색창이 가져감 */
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important; }
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; flex: 0 0 auto !important; }
-.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 170px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 230px !important; }
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { width: 100px !important; }
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(3) { width: 100px !important; }
 .st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 110px !important; }
