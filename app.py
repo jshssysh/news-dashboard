@@ -415,7 +415,7 @@ with st.container(key="cat_chip_row"):
 selected_category = st.session_state.selected_category
 
 # 기본 st.divider()는 위아래 여백이 너무 커서, 기사 카드 사이 간격 정도로 줄인 얇은 선으로 대체
-st.markdown("<hr style='margin: 8px 0; border-color: rgba(128,128,128,0.3);'>", unsafe_allow_html=True)
+st.markdown("<hr style='margin: 4px 0; border-color: rgba(128,128,128,0.3);'>", unsafe_allow_html=True)
 
 # 데스크탑: 본문(3) + 사이드바(1) 2단 구성. 화면이 좁아지면 Streamlit이 자동으로 세로 1단으로 쌓는다.
 main_col, side_col = st.columns([2.85, 1.0], gap="medium")
