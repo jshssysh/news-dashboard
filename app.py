@@ -98,6 +98,9 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 }
 .st-key-side_sticky { position: sticky !important; top: 20px; align-self: flex-start; z-index: 1; }
 
+/* 기사 목록만 자체 스크롤바로 내리게: 사이드바/상단 필터는 그대로 있고 목록만 이 안에서 스크롤됨 */
+.st-key-article_list_scroll { max-height: 78vh; overflow-y: auto; padding-right: 10px; }
+
 /* 표시 개수/페이지 번호 버튼: 글자를 더 두껍게, 중앙 정렬, 세로 높이를 줄임 */
 .st-key-side_pagination button {
     font-weight: 800 !important;
@@ -541,45 +544,46 @@ with main_col:
         start = (page - 1) * page_size
         issue_groups = issue_groups[start:start + page_size]
 
-    for g in issue_groups:
-        bc = badge_class(g['sentiment'])
-        reasons = selection_reasons(g)
-        fine_tag = extract_fine_amount(f"{g['title']} {g['summary']}")
-        domain = extract_domain(g['rep_link'])
-        # 실제 발행 시각이 있으면 우선 표시, 없으면(구버전 데이터) 수집 시각으로 대체
-        card_dt = g['rep_pub_dt'] if pd.notna(g['rep_pub_dt']) else g['rep_dt']
-        dt_display = card_dt.strftime('%m.%d %H:%M') if pd.notna(card_dt) else ''
-
-        tags_html = f"<span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span>"
-        if '제재·심결 신호' in reasons:
-            tags_html += " <span class='chip-tag-warn'>제재·규제</span>"
-        if fine_tag:
-            tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
-
-        toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
-        is_open = st.session_state.get(toggle_key, False)
-
-        with st.container(border=True, key=f"article_card_{toggle_key}"):
-            st.markdown(
-                f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> "
-                f"<span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span> "
-                f"<span class='card-meta-inline'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(f"<a href='{g['rep_link']}' target='_blank' style='text-decoration:none; color:inherit; display:block;'><div class='summary-box-blue'>{g['summary']}</div></a>", unsafe_allow_html=True)
-
-            with st.container(key=f"toggle_row_{toggle_key}"):
-                toggle_col, reason_col = st.columns([1, 3])
-                with toggle_col:
-                    arrow = "▲" if is_open else "▼"
-                    if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
-                        st.session_state[toggle_key] = not is_open
-                        st.rerun()
-                with reason_col:
-                    if reasons:
-                        reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
-                        st.markdown(f"<div class='reason-box'>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
-
-            if is_open:
-                for _, row in g['rows'].iterrows():
-                    st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
+    with st.container(key="article_list_scroll"):
+        for g in issue_groups:
+            bc = badge_class(g['sentiment'])
+            reasons = selection_reasons(g)
+            fine_tag = extract_fine_amount(f"{g['title']} {g['summary']}")
+            domain = extract_domain(g['rep_link'])
+            # 실제 발행 시각이 있으면 우선 표시, 없으면(구버전 데이터) 수집 시각으로 대체
+            card_dt = g['rep_pub_dt'] if pd.notna(g['rep_pub_dt']) else g['rep_dt']
+            dt_display = card_dt.strftime('%m.%d %H:%M') if pd.notna(card_dt) else ''
+    
+            tags_html = f"<span class='{bc}'>{g['sentiment']}</span> <span class='chip-category'>{g['category']}</span>"
+            if '제재·심결 신호' in reasons:
+                tags_html += " <span class='chip-tag-warn'>제재·규제</span>"
+            if fine_tag:
+                tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
+    
+            toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
+            is_open = st.session_state.get(toggle_key, False)
+    
+            with st.container(border=True, key=f"article_card_{toggle_key}"):
+                st.markdown(
+                    f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> "
+                    f"<span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span> "
+                    f"<span class='card-meta-inline'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(f"<a href='{g['rep_link']}' target='_blank' style='text-decoration:none; color:inherit; display:block;'><div class='summary-box-blue'>{g['summary']}</div></a>", unsafe_allow_html=True)
+    
+                with st.container(key=f"toggle_row_{toggle_key}"):
+                    toggle_col, reason_col = st.columns([1, 3])
+                    with toggle_col:
+                        arrow = "▲" if is_open else "▼"
+                        if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
+                            st.session_state[toggle_key] = not is_open
+                            st.rerun()
+                    with reason_col:
+                        if reasons:
+                            reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                            st.markdown(f"<div class='reason-box'>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
+    
+                if is_open:
+                    for _, row in g['rows'].iterrows():
+                        st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
