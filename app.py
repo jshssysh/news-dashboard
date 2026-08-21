@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 CRITICAL_KEYWORDS = ["과징금", "시정명령", "고발", "동의의결", "담합", "사익편취", "일감몰아주기", "기술탈취"]
 FINE_AMOUNT_PATTERN = re.compile(r"과징금\s*([0-9][0-9,\.]*)\s*(억|만)\s*원?")
 
+# 앱 화면에서 숨길 분야 (수집·분류는 main.py에서 그대로 하되, 화면에는 노출하지 않음)
+HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산"]
+
 
 def extract_domain(url):
     try:
@@ -131,6 +134,8 @@ def load_data():
         df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5)
         # 실제 기사 발행 시각 (구버전 데이터엔 없음 → NaT, 카드에서 수집 시각으로 대체 표시)
         df['pub_dt'] = pd.to_datetime(df['발행일시'], errors='coerce') if '발행일시' in df.columns else pd.NaT
+        # 앱 화면에서는 삼성그룹·삼성물산 분야를 숨김 (수집·분류 자체는 main.py에서 그대로 유지)
+        df = df[~df['분야'].isin(HIDDEN_CATEGORIES)]
         return df
     except Exception:
         return pd.DataFrame()
