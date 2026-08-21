@@ -53,7 +53,7 @@ st.set_page_config(page_title="Daily Brief", layout="wide", initial_sidebar_stat
 # 색상은 Streamlit 테마 변수(var(--...))를 사용해 라이트/다크(시스템 설정) 전환에 자동으로 맞춘다
 st.markdown("""
 <style>
-.block-container { max-width: 1100px; padding-top: 2rem; }
+.block-container { max-width: 1100px; padding-top: 3rem; }
 
 .app-header { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .app-logo { background-color: var(--primary-color); color: #fff; font-weight: bold; width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; flex-shrink: 0; }
@@ -62,7 +62,7 @@ st.markdown("""
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게 */
 .st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 4px; }
 .st-key-top_bar div[data-testid="column"] { min-width: 0 !important; }
-.st-key-top_bar button { padding: 2px 8px !important; font-size: 0.75em !important; white-space: nowrap; }
+.st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
@@ -206,7 +206,7 @@ with st.container(key="top_bar"):
     for label, col in [('뉴스', tab_news), ('입법', tab_law), ('공정위 조직', tab_org)]:
         with col:
             is_active = st.session_state.active_tab == label
-            if st.button(label, key=f"tab_{label}", use_container_width=True, type="primary" if is_active else "secondary"):
+            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
                 st.session_state.active_tab = label
 
     with d_prev:
