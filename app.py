@@ -108,10 +108,14 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .st-key-side_pagination div[data-baseweb="select"] { font-weight: 800; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* 카테고리별 주요뉴스 칩(클릭하면 필터링): 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
-.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 8px !important; overflow-x: auto !important; padding-bottom: 6px; }
-.st-key-cat_chip_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
-.st-key-cat_chip_row button { border-radius: 20px !important; white-space: nowrap !important; padding: 6px 16px !important; width: auto !important; }
+/* 카테고리별 주요뉴스 카드(라디오 버튼): 클릭하면 필터링되고, 기존 라디오의 동그라미 표시가 그대로 선택 표시 역할을 함.
+   라벨에 줄바꿈(\n)을 넣어 카테고리명/대표이슈/중요도 3줄을 카드처럼 보이게 함 */
+div[role="radiogroup"] { gap: 8px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; align-items: stretch; }
+div[role="radiogroup"] > label {
+    background-color: var(--app-secondary-bg); padding: 10px 14px; border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3); color: var(--app-text);
+    white-space: pre-line; flex-shrink: 0; min-width: 120px; line-height: 1.5; font-size: 0.85em;
+}
 
 /* 배지 및 칩 (라이트/다크 공통 — 배지 자체는 항상 옅은 색 배경 + 짙은 텍스트라 어느 테마에서도 읽힘) */
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
@@ -359,30 +363,26 @@ category_counts = scoped_df['분야'].value_counts()
 categories = ['전체'] + list(category_counts.index)
 chip_counts = {'전체': len(scoped_df), **{c: category_counts[c] for c in category_counts.index}}
 
-# 카테고리별 오늘의 대표 이슈(중요도 1위) - 칩에 마우스를 올리면 툴팁으로 표시
+# 카테고리별 오늘의 대표 이슈(중요도 1위) - 카드 안에 그대로 표시
 top_issue_by_cat = {}
 for g in all_issue_groups:
     if g['category'] not in top_issue_by_cat:
         top_issue_by_cat[g['category']] = g
 
-if 'selected_category' not in st.session_state:
-    st.session_state.selected_category = '전체'
-if st.session_state.selected_category not in categories:
-    st.session_state.selected_category = '전체'
 
-with st.container(key="cat_chip_row"):
-    chip_cols = st.columns(len(categories))
-    for i, cat in enumerate(categories):
-        with chip_cols[i]:
-            tip = None
-            if cat in top_issue_by_cat:
-                tg = top_issue_by_cat[cat]
-                tip = f"{tg['title']} · 중요도 {tg['importance']}/10"
-            is_selected = st.session_state.selected_category == cat
-            if st.button(f"{cat} {chip_counts[cat]}", key=f"catchip_{cat}", type=("primary" if is_selected else "secondary"), help=tip):
-                st.session_state.selected_category = cat
-                st.rerun()
-selected_category = st.session_state.selected_category
+def cat_card_label(cat):
+    if cat in top_issue_by_cat:
+        tg = top_issue_by_cat[cat]
+        return f"{cat}\n{tg['title']}\n중요도 {tg['importance']}"
+    return f"{cat}\n{chip_counts[cat]}건"
+
+
+selected_idx = st.radio(
+    "카테고리 선택", options=range(len(categories)),
+    format_func=lambda i: cat_card_label(categories[i]),
+    horizontal=True, label_visibility="collapsed",
+)
+selected_category = categories[selected_idx]
 
 st.divider()
 
