@@ -55,13 +55,15 @@ st.markdown("""
 <style>
 .block-container { max-width: 1100px; padding-top: 3rem; }
 
-.app-header { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
-.app-logo { background-color: var(--primary-color); color: #fff; font-weight: bold; width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; flex-shrink: 0; }
-.app-title { font-size: 1.05em; font-weight: bold; color: var(--text-color); }
+.app-header { display: flex; align-items: center; gap: 9px; padding: 2px 0; }
+.app-logo { background: linear-gradient(135deg, var(--primary-color), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
+.app-title { font-size: 1.2em; font-weight: 800; letter-spacing: -0.2px; color: var(--text-color); }
 
-/* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게 */
-.st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 4px; }
-.st-key-top_bar div[data-testid="column"] { min-width: 0 !important; }
+/* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
+   컬럼 비율(st.columns) 대신 내용 크기에 맞춰 붙여 배치하고, 날짜 네비게이션만 오른쪽 끝으로 밀어냄 */
+.st-key-top_bar div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; align-items: center !important; gap: 10px; }
+.st-key-top_bar div[data-testid="column"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(5) { margin-left: auto !important; }
 .st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
@@ -105,6 +107,7 @@ div[role="radiogroup"] > label {
 .signal-item-body { color: #cbd5e1; font-size: 0.85em; margin-top: 4px; line-height: 1.4; }
 .chip-category-dark { background-color: #24406e; color: #8ab4f8; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; margin: 0 4px; }
 .signal-score { color: #f6c453; font-size: 0.8em; margin-left: 6px; }
+.reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; margin-top: 6px; }
 
 /* 통계 타일 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
@@ -284,12 +287,17 @@ st.caption("논조 분포 · " + " · ".join(caption_parts))
 
 # 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
 top3 = all_issue_groups[:3]
-signal_items = "".join(f"""
+signal_items = ""
+for i, g in enumerate(top3, start=1):
+    top3_reasons = selection_reasons(g)
+    top3_reason_chips = " ".join(f"<span class='reason-chip-dark'>{r}</span>" for r in top3_reasons)
+    signal_items += f"""
 <div class="signal-item">
-    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a><span class="signal-score">중요도 {g['importance']}/10</span></div>
-    <div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div>
+    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a></div>
+    <a href="{g['rep_link']}" target="_blank" style="text-decoration:none; color:inherit; display:block;"><div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div></a>
+    <div>{top3_reason_chips}</div>
 </div>
-""" for i, g in enumerate(top3, start=1))
+"""
 
 st.markdown(f"""
 <div class="signal-box">
@@ -430,7 +438,7 @@ with main_col:
         with st.container(border=True):
             st.markdown(f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='summary-box-blue'>{g['summary']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<a href='{g['rep_link']}' target='_blank' style='text-decoration:none; color:inherit; display:block;'><div class='summary-box-blue'>{g['summary']}</div></a>", unsafe_allow_html=True)
             toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
             is_open = st.session_state.get(toggle_key, False)
 
