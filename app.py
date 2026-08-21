@@ -43,7 +43,7 @@ def selection_reasons(g):
         reasons.append(f"반복 보도 {g['press_count']}건")
     kw, count = g["kw_repeat"]
     if kw and count >= 2:
-        reasons.append(f"'{kw}' 키워드 {count}회 반복")
+        reasons.append(f"'{kw}' {count}회 반복")
     if g["category"] == "제재·심결":
         reasons.append("제재·심결 신호")
     return reasons
@@ -126,6 +126,7 @@ div[role="radiogroup"] > label {
 .chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
 .card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
 .reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; height: 100%; box-sizing: border-box; }
 .stButton button { white-space: nowrap; }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
@@ -527,14 +528,16 @@ with main_col:
             toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
             is_open = st.session_state.get(toggle_key, False)
 
-            if reasons:
-                reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
-                st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
-
-            arrow = "▲" if is_open else "▼"
-            if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
-                st.session_state[toggle_key] = not is_open
-                st.rerun()
+            toggle_col, reason_col = st.columns([1, 3])
+            with toggle_col:
+                arrow = "▲" if is_open else "▼"
+                if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
+                    st.session_state[toggle_key] = not is_open
+                    st.rerun()
+            with reason_col:
+                if reasons:
+                    reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                    st.markdown(f"<div class='reason-box'>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
 
             if is_open:
                 for _, row in g['rows'].iterrows():
