@@ -60,11 +60,17 @@ st.markdown("""
 .app-title { font-size: 1.2em; font-weight: 800; letter-spacing: -0.2px; color: var(--text-color); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
-   컬럼 비율(st.columns) 대신 내용 크기에 맞춰 붙여 배치하고, 날짜 네비게이션만 오른쪽 끝으로 밀어냄 */
+   내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
 .st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
-.st-key-top_bar div[data-testid="column"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
-.st-key-top_bar div[data-testid="column"]:nth-of-type(5) { margin-left: auto !important; }
-.st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; }
+.st-key-top_bar div[data-testid="column"] { min-width: 0 !important; flex: 0 0 auto !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(1) { width: 190px !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(2) { width: 68px !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(3) { width: 68px !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(4) { width: 108px !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(5) { width: 42px !important; margin-left: auto !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(6) { width: 100px !important; }
+.st-key-top_bar div[data-testid="column"]:nth-of-type(7) { width: 42px !important; }
+.st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
