@@ -123,9 +123,12 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .chip-tag-warn { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
 .chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
 .card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
-.reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
-.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; height: 100%; box-sizing: border-box; }
+.card-meta-inline { font-size: 0.8em; opacity: 0.6; margin-left: 8px; }
+.reason-chip { display: inline-block; background-color: var(--app-secondary-bg); color: var(--app-text); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.85em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 3px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; height: 100%; box-sizing: border-box; }
 .stButton button { white-space: nowrap; }
+/* 유사 기사 토글 버튼: 선별 근거 칩(제재·규제 등)과 비슷한 크기로 맞춰 줄 높이를 줄임 */
+div[class*="st-key-toggle_row_"] button { font-size: 0.85em !important; padding: 3px 10px !important; }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
 .summary-box-blue { background-color: #0d1e36; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 0.95em; color: #8ab4f8; }
@@ -377,7 +380,7 @@ with st.container(key="cat_chip_row"):
         with chip_cols[i]:
             if cat in top_issue_by_cat:
                 tg = top_issue_by_cat[cat]
-                tip = f"{tg['title']} · 중요도 {tg['importance']}/10 · {chip_counts[cat]}건"
+                tip = f"**{tg['title']}** · 중요도 {tg['importance']}/10 · {chip_counts[cat]}건"
             else:
                 tip = f"{chip_counts[cat]}건"
             is_selected = st.session_state.selected_category == cat
@@ -521,22 +524,27 @@ with main_col:
             tags_html += f" <span class='chip-alert'>{fine_tag}</span>"
 
         with st.container(border=True):
-            st.markdown(f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> <span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='card-meta'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div>{tags_html} <strong><a href='{g['rep_link']}' target='_blank' style='color:inherit; text-decoration:none;'>{g['title']}</a></strong> "
+                f"<span style='color:#b8860b; font-size:0.85em;'>중요도 {g['importance']}/10</span> "
+                f"<span class='card-meta-inline'>{dt_display} · {domain} · 총 보도 매체 {g['press_count']}개</span></div>",
+                unsafe_allow_html=True,
+            )
             st.markdown(f"<a href='{g['rep_link']}' target='_blank' style='text-decoration:none; color:inherit; display:block;'><div class='summary-box-blue'>{g['summary']}</div></a>", unsafe_allow_html=True)
             toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
             is_open = st.session_state.get(toggle_key, False)
 
-            toggle_col, reason_col = st.columns([1, 3])
-            with toggle_col:
-                arrow = "▲" if is_open else "▼"
-                if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
-                    st.session_state[toggle_key] = not is_open
-                    st.rerun()
-            with reason_col:
-                if reasons:
-                    reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
-                    st.markdown(f"<div class='reason-box'>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
+            with st.container(key=f"toggle_row_{toggle_key}"):
+                toggle_col, reason_col = st.columns([1, 3])
+                with toggle_col:
+                    arrow = "▲" if is_open else "▼"
+                    if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
+                        st.session_state[toggle_key] = not is_open
+                        st.rerun()
+                with reason_col:
+                    if reasons:
+                        reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                        st.markdown(f"<div class='reason-box'>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
 
             if is_open:
                 for _, row in g['rows'].iterrows():
