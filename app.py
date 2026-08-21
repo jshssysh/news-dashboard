@@ -114,6 +114,14 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .st-key-cat_chip_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
 .st-key-cat_chip_row button { border-radius: 20px !important; white-space: nowrap !important; padding: 6px 16px !important; width: auto !important; }
 
+/* 카테고리별 주요뉴스 제목 옆 필터 줄: 기간/정렬/논조 칩은 글자 크기에 딱 맞게 줄이고,
+   검색창이 그만큼 줄어든 폭을 가져가 넓어지도록 함 */
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
+.st-key-news_filter_row div[data-testid="stHorizontalBlock"] > div:last-child { flex: 1 1 auto !important; }
+.st-key-news_filter_row div[data-baseweb="select"] { width: fit-content !important; }
+.st-key-news_filter_row div[data-baseweb="select"] > div { min-width: 0 !important; }
+
 /* 배지 및 칩 (라이트/다크 공통 — 배지 자체는 항상 옅은 색 배경 + 짙은 텍스트라 어느 테마에서도 읽힘) */
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
 .badge-neutral { background-color: #fff3cd; color: #8a6100; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px;}
@@ -350,11 +358,19 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # 카테고리별 주요뉴스 + 카테고리 필터 칩을 하나로 병합 (클릭하면 아래 목록이 그 카테고리로 필터링됨)
-head_col1, head_col2 = st.columns([3, 1])
-with head_col1:
-    st.markdown("##### 카테고리별 주요뉴스")
-with head_col2:
-    period_choice = st.selectbox("기간", options=['오늘만', '최근 7일', '최근 30일'], label_visibility="collapsed")
+# 검색/논조/정렬/기간 필터도 이 제목 줄 우측에 모아 배치
+with st.container(key="news_filter_row"):
+    head_col1, head_col2, head_col3, head_col4, head_col5 = st.columns([2, 1, 1, 1, 2])
+    with head_col1:
+        st.markdown("##### 카테고리별 주요뉴스")
+    with head_col2:
+        period_choice = st.selectbox("기간", options=['오늘만', '최근 7일', '최근 30일'], label_visibility="collapsed")
+    with head_col3:
+        sort_option = st.selectbox("정렬", options=['중요도순', '보도량순', '최신순'], label_visibility="collapsed")
+    with head_col4:
+        sentiment_filter = st.selectbox("논조", options=['논조 전체', '긍정', '중립', '부정', '판단 실패'], label_visibility="collapsed")
+    with head_col5:
+        search_text = st.text_input("검색", placeholder="제목, 요약에서 검색", label_visibility="collapsed")
 
 # 기간 선택에 따라 검색 대상 범위를 넓힘 (상단 통계·오늘의 신호는 항상 선택된 날짜 하루 기준 유지)
 period_days = {'오늘만': 0, '최근 7일': 6, '최근 30일': 29}[period_choice]
@@ -400,18 +416,7 @@ st.divider()
 main_col, side_col = st.columns([2.85, 1.0], gap="medium")
 
 with main_col:
-    # 검색 및 필터 (카테고리·기간은 위로 이동)
-    f_col1, f_col2, f_col3 = st.columns([2, 1, 1])
-    with f_col1:
-        search_text = st.text_input("검색", placeholder="제목, 요약에서 검색", label_visibility="collapsed")
-    with f_col2:
-        sentiment_filter = st.selectbox("논조", options=['논조 전체', '긍정', '중립', '부정', '판단 실패'], label_visibility="collapsed")
-    with f_col3:
-        sort_option = st.selectbox("정렬", options=['중요도순', '보도량순', '최신순'], label_visibility="collapsed")
-
-    st.write("")
-
-    # 필터 적용
+    # 필터 적용 (검색/논조/정렬/기간은 위 "카테고리별 주요뉴스" 줄로 이동)
     filtered_df = scoped_df if selected_category == '전체' else scoped_df[scoped_df['분야'] == selected_category]
     if sentiment_filter != '논조 전체':
         filtered_df = filtered_df[filtered_df['논조'] == sentiment_filter]
