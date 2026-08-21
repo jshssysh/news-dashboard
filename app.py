@@ -83,6 +83,7 @@ div[role="radiogroup"] > label {
 .chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
 .card-meta { font-size: 0.8em; opacity: 0.6; margin: 4px 0 10px 0; }
 .reason-chip { display: inline-block; background-color: var(--secondary-background-color); color: var(--text-color); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.78em; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.stButton button { white-space: nowrap; }
 
 /* AI 요약 / 오늘 주요 내용은 항상 짙은 네이비 강조 카드로 고정 (테마와 무관한 브랜드 악센트) */
 .summary-box-blue { background-color: #0d1e36; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 0.95em; color: #8ab4f8; }
@@ -276,7 +277,7 @@ st.caption("논조 분포 · " + " · ".join(caption_parts))
 top3 = all_issue_groups[:3]
 signal_items = "".join(f"""
 <div class="signal-item">
-    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><b>{g['title']}</b><span class="signal-score">중요도 {g['importance']}/10</span></div>
+    <div class="signal-item-head"><span class="signal-num">{i}</span><span class="chip-category-dark">{g['category']}</span><a href="{g['rep_link']}" target="_blank" style="color:inherit; text-decoration:none;"><b>{g['title']}</b></a><span class="signal-score">중요도 {g['importance']}/10</span></div>
     <div class="signal-item-body">{g['summary']} (관련 보도 {g['press_count']}건)</div>
 </div>
 """ for i, g in enumerate(top3, start=1))
@@ -402,16 +403,14 @@ with main_col:
             toggle_key = f"show_related_{g['title']}_{g['rep_link']}"
             is_open = st.session_state.get(toggle_key, False)
 
-            r_col1, r_col2 = st.columns([4, 1])
-            with r_col1:
-                if reasons:
-                    reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
-                    st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
-            with r_col2:
-                arrow = "▲" if is_open else "▼"
-                if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}", use_container_width=True):
-                    st.session_state[toggle_key] = not is_open
-                    st.rerun()
+            if reasons:
+                reason_chips = " ".join(f"<span class='reason-chip'>{r}</span>" for r in reasons)
+                st.markdown(f"<div>선별 근거 {reason_chips}</div>", unsafe_allow_html=True)
+
+            arrow = "▲" if is_open else "▼"
+            if st.button(f"유사 기사 {g['press_count']}건 {arrow}", key=f"toggle_btn_{toggle_key}"):
+                st.session_state[toggle_key] = not is_open
+                st.rerun()
 
             if is_open:
                 for _, row in g['rows'].iterrows():
