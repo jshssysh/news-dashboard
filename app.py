@@ -415,43 +415,83 @@ with main_col:
         issue_groups.sort(key=lambda g: g['press_count'], reverse=True)
     # '중요도순'은 build_issue_groups가 이미 그 순서로 정렬해서 반환함
 
-    if not issue_groups:
-        st.info("조건에 맞는 기사가 없습니다.")
-    else:
-        total_count = len(issue_groups)
-        page_size_options = [10, 20, 50]
-        if "list_page" not in st.session_state:
-            st.session_state.list_page = 1
+total_count = len(issue_groups)
+page_size_options = [10, 20, 50]
+if "list_page" not in st.session_state:
+    st.session_state.list_page = 1
 
-        # 표시 개수 선택 + 페이지 번호 버튼(◀ 1 2 3 4 5 ▶)을 한 줄에 배치
-        WINDOW = 5
-        pg_cols = st.columns([1] + [0.4] * (WINDOW + 2))
-        with pg_cols[0]:
-            page_size = st.selectbox("표시 개수", options=page_size_options, index=1, label_visibility="collapsed")
+
+def sentiment_seg_html(pct, css_class):
+    if pct <= 0:
+        return ""
+    return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{pct}%</div>"
+
+
+with side_col, st.container(key="side_sticky"):
+    # 카테고리별 수집 현황 - 부정/중립/긍정 비율을 한 줄 막대로 표시 (스크롤해도 화면에 붙어 따라오도록 고정)
+    kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
+    for cat, cat_total in daily_category_counts.items():
+        cat_rows = daily_df[daily_df['분야'] == cat]
+        neg = int((cat_rows['논조'] == '부정').sum())
+        neu = int((cat_rows['논조'] == '중립').sum())
+        pos = int((cat_rows['논조'] == '긍정').sum())
+        total_s = neg + neu + pos
+        if total_s == 0:
+            neg_pct = neu_pct = pos_pct = 0
+        else:
+            neg_pct = round(neg / total_s * 100)
+            pos_pct = round(pos / total_s * 100)
+            neu_pct = 100 - neg_pct - pos_pct  # 나머지를 중립에 배정해 항상 합계 100%가 되도록 함
+        kw_html.append(
+            f"<div class='kw-row'><div class='kw-label'>{cat} "
+            f"<span class='kw-total'>{cat_total}건</span> / "
+            f"<span class='cnt-neg'>{neg}</span> <span class='cnt-neu'>{neu}</span> <span class='cnt-pos'>{pos}</span>"
+            f"</div>"
+            f"<div class='sentiment-track'>"
+            f"{sentiment_seg_html(neg_pct, 'sentiment-neg')}"
+            f"{sentiment_seg_html(neu_pct, 'sentiment-neu')}"
+            f"{sentiment_seg_html(pos_pct, 'sentiment-pos')}"
+            f"</div></div>"
+        )
+    kw_html.append("</div>")
+    st.markdown("".join(kw_html), unsafe_allow_html=True)
+
+# 표시 개수 선택 + 페이지 번호 버튼은 카테고리별 수집 현황 밑, 사이드바에 배치 (폭도 그 칸과 동일)
+with side_col, st.container(key="side_pagination"):
+    if issue_groups:
+        page_size = st.selectbox("표시 개수", options=page_size_options, index=0, label_visibility="collapsed")
 
         total_pages = max(1, -(-total_count // page_size))  # 올림 나눗셈
         if st.session_state.list_page > total_pages:
             st.session_state.list_page = 1
         page = st.session_state.list_page
 
+        WINDOW = 5
         start_p = max(1, min(page - WINDOW // 2, total_pages - WINDOW + 1))
         end_p = min(total_pages, start_p + WINDOW - 1)
         page_numbers = list(range(start_p, end_p + 1))
 
-        with pg_cols[1]:
+        pg_cols = st.columns(2 + len(page_numbers))
+        with pg_cols[0]:
             if st.button("◀", key="page_prev_btn", disabled=(page <= 1), use_container_width=True):
                 st.session_state.list_page = max(1, page - 1)
                 st.rerun()
         for i, p in enumerate(page_numbers):
-            with pg_cols[2 + i]:
+            with pg_cols[1 + i]:
                 if st.button(str(p), key=f"page_btn_{p}", type=("primary" if p == page else "secondary"), use_container_width=True):
                     st.session_state.list_page = p
                     st.rerun()
-        with pg_cols[2 + WINDOW]:
+        with pg_cols[1 + len(page_numbers)]:
             if st.button("▶", key="page_next_btn", disabled=(page >= total_pages), use_container_width=True):
                 st.session_state.list_page = min(total_pages, page + 1)
                 st.rerun()
+    else:
+        page_size, page, total_pages = page_size_options[0], 1, 1
 
+with main_col:
+    if not issue_groups:
+        st.info("조건에 맞는 기사가 없습니다.")
+    else:
         start = (page - 1) * page_size
         st.caption(f"전체 {total_count}건 중 {start + 1}~{min(start + page_size, total_count)}건 표시 (총 {total_pages}쪽)")
         issue_groups = issue_groups[start:start + page_size]
@@ -490,38 +530,3 @@ with main_col:
             if is_open:
                 for _, row in g['rows'].iterrows():
                     st.markdown(f"- [{row['언론사']}] <a href='{row['기사링크']}' target='_blank' style='text-decoration:none; color:#1565c0;'>{row['제목']}</a>", unsafe_allow_html=True)
-
-def sentiment_seg_html(pct, css_class):
-    if pct <= 0:
-        return ""
-    return f"<div class='sentiment-seg {css_class}' style='width:{pct}%;'>{pct}%</div>"
-
-
-with side_col, st.container(key="side_sticky"):
-    # 카테고리별 수집 현황 - 부정/중립/긍정 비율을 한 줄 막대로 표시 (스크롤해도 화면에 붙어 따라오도록 고정)
-    kw_html = ["<div class='sidebar-panel'><div class='panel-title'>카테고리별 수집 현황</div>"]
-    for cat, cat_total in daily_category_counts.items():
-        cat_rows = daily_df[daily_df['분야'] == cat]
-        neg = int((cat_rows['논조'] == '부정').sum())
-        neu = int((cat_rows['논조'] == '중립').sum())
-        pos = int((cat_rows['논조'] == '긍정').sum())
-        total_s = neg + neu + pos
-        if total_s == 0:
-            neg_pct = neu_pct = pos_pct = 0
-        else:
-            neg_pct = round(neg / total_s * 100)
-            pos_pct = round(pos / total_s * 100)
-            neu_pct = 100 - neg_pct - pos_pct  # 나머지를 중립에 배정해 항상 합계 100%가 되도록 함
-        kw_html.append(
-            f"<div class='kw-row'><div class='kw-label'>{cat} "
-            f"<span class='kw-total'>{cat_total}건</span> / "
-            f"<span class='cnt-neg'>{neg}</span> <span class='cnt-neu'>{neu}</span> <span class='cnt-pos'>{pos}</span>"
-            f"</div>"
-            f"<div class='sentiment-track'>"
-            f"{sentiment_seg_html(neg_pct, 'sentiment-neg')}"
-            f"{sentiment_seg_html(neu_pct, 'sentiment-neu')}"
-            f"{sentiment_seg_html(pos_pct, 'sentiment-pos')}"
-            f"</div></div>"
-        )
-    kw_html.append("</div>")
-    st.markdown("".join(kw_html), unsafe_allow_html=True)
