@@ -110,7 +110,7 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 
 /* 카테고리별 주요뉴스 카드(라디오 버튼): 클릭하면 필터링되고, 기존 라디오의 동그라미 표시가 그대로 선택 표시 역할을 함.
    라벨에 줄바꿈(\n)을 넣어 카테고리명/대표이슈/중요도 3줄을 카드처럼 보이게 함 */
-div[role="radiogroup"] { gap: 8px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; align-items: stretch; }
+div[role="radiogroup"] { gap: 8px; flex-wrap: wrap; align-items: stretch; }
 div[role="radiogroup"] > label {
     background-color: var(--app-secondary-bg); padding: 10px 14px; border-radius: 10px;
     border: 1px solid rgba(128, 128, 128, 0.3); color: var(--app-text);
