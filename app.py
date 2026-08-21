@@ -97,6 +97,15 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
     overflow: visible !important;
 }
 .st-key-side_sticky { position: sticky !important; top: 20px; align-self: flex-start; z-index: 1; }
+
+/* 표시 개수/페이지 번호 버튼: 글자를 더 두껍게, 중앙 정렬, 세로 높이를 줄임 */
+.st-key-side_pagination button {
+    font-weight: 800 !important;
+    padding: 2px 4px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    text-align: center !important;
+}
+.st-key-side_pagination div[data-baseweb="select"] { font-weight: 800; }
 .app-header { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 카테고리 라디오 버튼: 개수가 많아도 줄바꿈 없이 한 줄, 넘치면 가로 스크롤 */
