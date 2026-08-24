@@ -72,7 +72,7 @@ st.markdown("""
 
 .app-header { display: flex; align-items: center; gap: 9px; padding: 2px 0; }
 .app-logo { background: linear-gradient(135deg, var(--app-primary), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
-.app-title { font-size: 1.2em; font-weight: 800; letter-spacing: -0.2px; color: var(--app-text); }
+.app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; color: var(--app-text); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
    내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
@@ -313,11 +313,11 @@ sentiment_mini_html = " · ".join(sentiment_mini_items)
 
 # ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
 with st.container(key="top_stat_row"):
-    tile_cols = st.columns([2, 1, 1, 1], gap="small")
+    tile_cols = st.columns([2.4, 1, 1, 1], gap="small")
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
-            db_left, db_right = st.columns([1, 2])
+            db_left, db_right = st.columns([1.4, 1.6])
             with db_left:
                 st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
             with db_right:
