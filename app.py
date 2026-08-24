@@ -99,7 +99,7 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="s
 .st-key-side_sticky { position: sticky !important; top: 20px; align-self: flex-start; z-index: 1; }
 
 /* 기사 목록만 자체 스크롤바로 내리게: 사이드바/상단 필터는 그대로 있고 목록만 이 안에서 스크롤됨 */
-.st-key-article_list_scroll { max-height: 78vh; overflow-y: auto; padding-right: 10px; }
+.st-key-article_list_scroll { max-height: 78vh !important; overflow-y: auto !important; display: block !important; padding-right: 10px; }
 
 /* 표시 개수/페이지 번호 버튼: 글자를 더 두껍게, 중앙 정렬, 세로 높이를 줄임 */
 .st-key-side_pagination button {
