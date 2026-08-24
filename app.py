@@ -78,16 +78,16 @@ st.markdown("""
    내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
 /* data-testid 값은 Streamlit 버전마다 달라질 수 있어(column/stColumn 등) 이름에 의존하지 않고
    "가로 블록의 직계 자식 div"라는 구조만으로 컬럼을 지정한다 */
-.st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; flex: 0 0 auto !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 190px !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(2) { width: 68px !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(3) { width: 68px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 108px !important; }
+.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 114px !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(5) { width: 42px !important; margin-left: auto !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(6) { width: 100px !important; }
 .st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(7) { width: 42px !important; }
-.st-key-top_bar button { padding: 4px 14px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important; }
+.st-key-top_bar button { padding: 6px 16px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
