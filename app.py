@@ -103,7 +103,8 @@ st.markdown("""
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; display: flex !important; align-items: center !important; }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important; line-height: 1.6 !important;
+    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important;
+    width: 100% !important; line-height: 1.6 !important; background-color: transparent !important; color: var(--app-text) !important;
 }
 .date-pill { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 1px 10px; box-sizing: border-box; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
