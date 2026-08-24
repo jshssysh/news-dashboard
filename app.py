@@ -91,11 +91,12 @@ st.markdown("""
 
 /* 탭 3개: 뉴스/입법/공정위 조직을 각각 독립된 칩으로 완전히 분리 */
 .st-key-db_tabs_row { margin-bottom: 4px; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: stretch !important; gap: 4px !important; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; display: flex !important; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
+/* height:100%/stretch가 버튼에는 안 먹혀서, 고정 min-height로 세 칩의 높이를 직접 통일 */
 .st-key-db_tabs_row button {
     padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important;
-    border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important; height: 100% !important;
+    border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important; min-height: 38px !important;
 }
 
 /* 날짜 이동: 왼쪽 화살표 / 날짜 / 오른쪽 화살표를 각각 독립된 칩으로 분리 */
