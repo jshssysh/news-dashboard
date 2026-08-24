@@ -117,7 +117,18 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 
 .layout { display: flex; gap: 28px; align-items: flex-start; }
 .main-col { flex: 2.85 1 0; min-width: 0; }
-.side-col { flex: 1 1 0; min-width: 220px; }
+.side-col {
+  flex: 1 1 0; min-width: 220px;
+  position: sticky; top: 20px; align-self: flex-start;
+  max-height: calc(100vh - 40px); overflow-y: auto;
+  scrollbar-width: thin;
+}
+.side-col::-webkit-scrollbar { width: 6px; }
+.side-col::-webkit-scrollbar-thumb { background: var(--app-border-strong); border-radius: 4px; }
+.side-col::-webkit-scrollbar-track { background: transparent; }
+@media (max-width: 800px) {
+  .side-col { position: static; max-height: none; overflow-y: visible; }
+}
 @media (max-width: 800px) { .layout { flex-direction: column; } .news-filter-row { flex-wrap: wrap; } .news-filter-row h5 { width: auto; } }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
