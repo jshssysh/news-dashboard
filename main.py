@@ -257,18 +257,27 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
 [최근 14일간 이미 사용 중인 기존 이슈명] (참고용)
 {json.dumps(existing_titles, ensure_ascii=False)}
 
-'오늘 새로 발견된 이슈명' 각 항목에 대해, 같은 사건을 다루는 기존 이슈명이 있으면
-반드시 새 이름을 만들지 말고 그 기존 이슈명을 merged 값으로 그대로 재사용하세요.
-(여러 날에 걸쳐 보도되는 사건이 매일 다른 이슈명으로 쪼개지는 것을 막기 위함입니다.)
-같은 사건을 다루는 기존 이슈명이 없을 때만 새로운 '통합 대표 이슈명(10자 이내 명사형)'을 만드세요.
+병합 기준: 등장하는 기업명/기관명이 같고 다루는 사건(예: 같은 소송, 같은 제재 처분, 같은 정책 발표)이
+사실상 동일하면, 이슈명의 표현(예: "확정" vs "패소" vs "규제" vs "전가")이 서로 달라도 같은 사건으로 보고 병합하세요.
+예: "GS리테일 과징금 확정", "GS리테일 판촉비 전가", "GS리테일 과징금 패소", "공정위 규제"가 모두 같은 대법원 판결을
+다루고 있다면 전부 하나의 이슈로 병합해야 합니다.
+
+작업 순서:
+1. 먼저 '오늘 새로 발견된 이슈명' 안에서 서로 같은 사건을 다루는 항목들을 하나로 묶으세요.
+2. 그렇게 묶인(또는 단독인) 각 사건에 대해, '기존 이슈명' 중 같은 사건을 다루는 것이 있다면
+   반드시 새 이름을 만들지 말고 그 기존 이슈명을 merged 값으로 그대로 재사용하세요.
+   (여러 날에 걸쳐 보도되는 사건이 매일 다른 이슈명으로 쪼개지는 것을 막기 위함입니다.)
+3. 일치하는 기존 이슈명이 없을 때만 새로운 '통합 대표 이슈명(10자 이내 명사형)'을 만드세요.
+
 응답은 '오늘 새로 발견된 이슈명' 각 항목에 대해서만, 아래 형식의 JSON 배열로 출력하세요:
 [
   {{"original": "오늘이슈명1", "merged": "재사용된 기존 이슈명 또는 새 이슈명"}}
 ]
 """
-    # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
-    # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
+    # 이 호출은 하루 1번, 짧은 이슈명 목록만 처리하므로 thinkingLevel을 올려도 비용 영향이 미미하다.
+    # (반면 analyze_batch_with_gemini는 배치마다 반복 호출되므로 low를 유지해 비용을 억제한다.)
+    # "같은 사건, 다른 표현"을 알아보는 의미적 추론이 필요한 단계라 low로는 병합 누락이 잦았다.
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "medium"}}}
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
