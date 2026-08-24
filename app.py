@@ -89,12 +89,13 @@ st.markdown("""
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
 .st-key-db_tile .app-header { padding: 0; margin: 0; }
 
-/* 탭 3개 = 수집기사 칩과 같은 테두리 스타일(둥근 사각형 하나), 안의 버튼들은 테두리 없이 3등분 세그먼트로 */
-.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; overflow: hidden; margin-bottom: 4px; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 0 !important; }
+/* 탭 3개: 뉴스/입법/공정위 조직을 각각 독립된 칩으로 완전히 분리 */
+.st-key-db_tabs_row { margin-bottom: 4px; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
 .st-key-db_tabs_row button {
-    padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important; border: none !important; border-radius: 0 !important; width: 100% !important;
+    padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important;
+    border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important;
 }
 
 /* 날짜 이동: 왼쪽 화살표 / 날짜 / 오른쪽 화살표를 각각 독립된 칩으로 분리 */
