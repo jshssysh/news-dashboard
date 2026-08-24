@@ -87,6 +87,7 @@ st.markdown("""
 /* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
 .st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px 12px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
+.st-key-db_title_row div[data-testid="stHorizontalBlock"] { gap: 1px !important; }
 /* 탭 3개는 글자를 감싸는 크기로(내용에 맞춤), 사이 간격은 1px */
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 1px !important; margin-bottom: 6px; justify-content: flex-start; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
@@ -323,7 +324,8 @@ with st.container(key="top_stat_row"):
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
-            db_left, db_right = st.columns([1.4, 1.6])
+            with st.container(key="db_title_row"):
+                db_left, db_right = st.columns([1.4, 1.6])
             with db_left:
                 st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
             with db_right:
