@@ -70,8 +70,7 @@ st.markdown("""
 }
 .block-container { max-width: 1100px; padding-top: 3rem; }
 
-.app-header { display: flex; align-items: center; gap: 9px; padding: 2px 0; }
-.app-logo { background: linear-gradient(135deg, var(--app-primary), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
+.app-header { display: flex; align-items: center; padding: 0; margin: 0; }
 .app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; line-height: 1.15; color: var(--app-text); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
@@ -84,26 +83,29 @@ st.markdown("""
 .st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div { display: flex !important; }
 .st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div > div { width: 100%; }
 
-/* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
+/* Daily Brief 타일: 카드 모양 통일. 왼쪽은 제목(로고 없이 좌측 밀착),
+   오른쪽 위는 탭 3개를 하나의 칩으로, 오른쪽 아래는 날짜 이동을 하나의 칩으로 */
 .st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
-.st-key-db_title_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; gap: 1px !important; }
-.st-key-db_title_row div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; }
-.st-key-db_title_row div[data-testid="stHorizontalBlock"] > div:first-child { flex: 0 0 auto !important; width: 82px !important; }
-.st-key-db_title_row div[data-testid="stHorizontalBlock"] > div:last-child { flex: 1 1 auto !important; width: auto !important; }
-/* 탭 3개는 글자를 감싸는 크기로(내용에 맞춤), 사이 간격은 1px */
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 1px !important; margin-bottom: 8px; justify-content: flex-start; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
+.st-key-db_tile .app-header { padding: 0; margin: 0; }
+
+/* 탭 3개 = 하나의 칩(둥근 테두리 하나), 안의 버튼들은 테두리 없이 3등분 세그먼트로 */
+.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; margin-bottom: 8px; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 0 !important; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
 .st-key-db_tabs_row button {
-    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: auto !important;
+    padding: 4px 6px !important; font-size: 0.7em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
 }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; justify-content: flex-start; }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
+
+/* 날짜 이동 = 하나의 칩. 화살표 2개 + 날짜 텍스트가 같은 칩 안의 구간 */
+.st-key-db_date_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 0 !important; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important;
+    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
 }
-/* 날짜 텍스트도 화살표 버튼과 같은 타원 모양으로, 가운데 정렬 */
-.date-pill { display: flex; align-items: center; justify-content: center; background-color: rgba(128,128,128,0.18); border-radius: 20px; padding: 4px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
+.date-pill { display: flex; align-items: center; justify-content: center; padding: 4px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
@@ -189,6 +191,11 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 
 /* 통계 타일 */
 .stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; }
+/* 주요뉴스/보도확산 칩(3, 4번째 타일)은 우측 여백을 절반으로 줄여 폭을 다시 맞춤 */
+.st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div:nth-child(3) .stat-card,
+.st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div:nth-child(4) .stat-card {
+    padding-right: 8px;
+}
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.75em; font-weight: 800; color: var(--app-text); letter-spacing: -0.3px; }
@@ -328,31 +335,30 @@ with st.container(key="top_stat_row"):
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
-            with st.container(key="db_title_row"):
-                db_left, db_right = st.columns([1.4, 1.6])
-                with db_left:
-                    st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
-                with db_right:
-                    with st.container(key="db_tabs_row"):
-                        tab_cols = st.columns(3)
-                        for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
-                            with col:
-                                is_active = st.session_state.active_tab == label
-                                if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
-                                    st.session_state.active_tab = label
-                    with st.container(key="db_date_row"):
-                        d_prev, d_text, d_next = st.columns([1, 2, 1])
-                        with d_prev:
-                            if st.button("◀", key="date_prev", use_container_width=True):
-                                st.session_state.current_date -= timedelta(days=1)
-                                st.rerun()
-                        with d_text:
-                            date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-                            st.markdown(f"<div class='date-pill'>{date_display}</div>", unsafe_allow_html=True)
-                        with d_next:
-                            if st.button("▶", key="date_next", use_container_width=True):
-                                st.session_state.current_date += timedelta(days=1)
-                                st.rerun()
+            db_left, db_right = st.columns([1, 2])
+            with db_left:
+                st.markdown("<div class='app-header'><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+            with db_right:
+                with st.container(key="db_tabs_row"):
+                    tab_cols = st.columns(3)
+                    for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
+                        with col:
+                            is_active = st.session_state.active_tab == label
+                            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary", use_container_width=True):
+                                st.session_state.active_tab = label
+                with st.container(key="db_date_row"):
+                    d_prev, d_text, d_next = st.columns([1, 2, 1])
+                    with d_prev:
+                        if st.button("◀", key="date_prev", use_container_width=True):
+                            st.session_state.current_date -= timedelta(days=1)
+                            st.rerun()
+                    with d_text:
+                        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
+                        st.markdown(f"<div class='date-pill'>{date_display}</div>", unsafe_allow_html=True)
+                    with d_next:
+                        if st.button("▶", key="date_next", use_container_width=True):
+                            st.session_state.current_date += timedelta(days=1)
+                            st.rerun()
 
     with tile_cols[1]:
         st.markdown(f"""
