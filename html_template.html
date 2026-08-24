@@ -69,8 +69,9 @@ button:active { transform: translateY(1px); }
 hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; }
 
 .badge-positive, .badge-neutral, .badge-negative, .badge-fail, .badge-skipped, .chip-category, .chip-tag-warn, .chip-alert {
-  display: inline-block; padding: 3px 9px; border-radius: 5px; font-weight: 700; font-size: 0.8em; letter-spacing: 0.1px; margin-right: 6px;
+  display: inline-block; padding: 3px 9px; border-radius: 5px; font-weight: 700; font-size: 0.8em; letter-spacing: 0.1px; margin-right: 6px; text-decoration: none;
 }
+a.badge-skipped:hover { text-decoration: underline; }
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; }
 .badge-neutral { background-color: #fff3cd; color: #8a6100; }
 .badge-negative { background-color: #fdecea; color: #c62828; }
@@ -409,7 +410,10 @@ function renderOrg() {
     g.people.forEach(p => {
       const isCurrent = !p.end;
       const badge = isCurrent ? "<span class='badge-positive'>현재</span> " : "";
-      html += `<div class="org-person-row">${badge}<b>${p.name}</b> · ${p.start||'?'} ~ ${isCurrent?'현재':p.end}</div>`;
+      const unverifiedBadge = p.verified === false
+        ? ` <a href="${p.source||'#'}" target="_blank" class="badge-skipped" title="뉴스 기사에서 자동 감지된 인사입니다. 확인 후 personnel.csv의 확인상태를 '확인됨'으로 바꿔주세요.">미확인(자동감지)</a>`
+        : "";
+      html += `<div class="org-person-row">${badge}<b>${p.name}</b> · ${p.start||'?'} ~ ${isCurrent?'현재':p.end}${unverifiedBadge}</div>`;
     });
   });
   el.innerHTML = html;

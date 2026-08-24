@@ -55,7 +55,7 @@ NAVER_PRESS_CODES = {
 CATEGORY_LIST = [
     "공정거래", "내부거래", "지배구조", "상생", "하도급", "상법",
     "시민단체", "노동", "기타",
-    "그린·AI워싱", "삼성그룹", "삼성물산",
+    "그린·AI워싱", "삼성그룹", "삼성물산", "공정위인사",
 ]
 
 def extract_press_from_link(link):
@@ -145,6 +145,111 @@ def verify_and_adjust_category(category, title, description):
         if any(kw in text_content for kw in ["삼성", "웰스토리", "삼우종합건축", "레이크사이드"]): return "삼성그룹"
         else: return "공정거래"
     return category
+
+PERSONNEL_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "personnel.csv")
+
+def extract_personnel_appointments(candidates):
+    """'공정위인사' 카테고리로 잡힌 기사에서 (부서, 직책, 담당자, 발령일)을 추출한다.
+    실제 과장급 이상 인사 발령 기사가 아니면 결과에서 제외된다."""
+    if not GEMINI_API_KEY or not candidates:
+        return []
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    input_data = [{"idx": i, "title": c["title"], "description": c["description"]} for i, c in enumerate(candidates)]
+    prompt = f"""당신은 공정거래위원회 인사 발령 기사를 정리하는 담당자입니다.
+입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
+
+각 기사에 대해, 공정거래위원회(본부 및 서울/부산/광주/대구/대전사무소 등 소속기관 포함) 소속
+"과장급 이상"(과장, 팀장, 심의관, 국장, 처장, 사무소장, 관리관, 대변인, 사무처장, 위원장, 부위원장 등)
+공무원의 인사 발령(임명·승진·전보)을 구체적인 이름과 함께 다루는 기사인지 판단하세요.
+
+해당되면 다음 필드로 응답:
+- is_appointment: true
+- dept: 소속 부서명 (기사 원문 표현 그대로, 예: "사무처", "조사처", "서울사무소")
+- role: 직책명 (예: "카르텔조사국장")
+- name: 담당자 실명
+- start_date: 발령일(YYYY-MM-DD), 기사에 날짜가 없으면 null
+
+해당 안 되면(단순 동정 기사, 과장급 미만, 공정위 소속 아님, 이름이 불명확한 경우 등):
+- is_appointment: false (다른 필드는 생략)
+
+응답은 입력 기사 개수만큼, 각 항목에 idx를 포함해 아래 형식의 JSON 배열로만 출력하세요:
+[
+  {{"idx": 0, "is_appointment": true, "dept": "...", "role": "...", "name": "...", "start_date": "2026-08-20"}},
+  {{"idx": 1, "is_appointment": false}}
+]
+"""
+    # 하루 몇 건 안 되는 기사만 처리하는 호출이라 thinkingLevel을 low로 둬도 비용 부담이 적다
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
+    try:
+        res = requests.post(url, json=payload, timeout=30)
+        if res.status_code == 200:
+            res_json = res.json()
+            log_gemini_usage(res_json, "공정위인사감지")
+            raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+            if raw_text.startswith("```json"): raw_text = raw_text[7:]
+            if raw_text.startswith("```"): raw_text = raw_text[3:]
+            if raw_text.endswith("```"): raw_text = raw_text[:-3]
+            parsed_list = json.loads(raw_text.strip())
+            results = []
+            for item in parsed_list:
+                if not item.get("is_appointment"):
+                    continue
+                i = item.get("idx")
+                if i is None or not (0 <= i < len(candidates)):
+                    continue
+                dept = (item.get("dept") or "").strip()
+                role = (item.get("role") or "").strip()
+                name = (item.get("name") or "").strip()
+                if not (dept and role and name):
+                    continue
+                results.append({
+                    "dept": dept, "role": role, "name": name,
+                    "start_date": item.get("start_date") or "",
+                    "link": candidates[i]["link"],
+                })
+            return results
+        else:
+            print(f"[공정위 인사감지 오류] status={res.status_code} body={res.text[:300]}")
+    except Exception as e:
+        print(f"[공정위 인사감지 예외] {e}")
+    return []
+
+def update_personnel_csv(detected):
+    """감지된 인사 발령을 config/personnel.csv에 추가한다.
+    이미 같은 (부서, 직책, 담당자) 조합이 있으면 건너뛴다 - 사람이 검토 후
+    확인상태를 "확인됨"으로 바꾸고 필요하면 이전 재임자의 종료일도 채워야 한다."""
+    if not detected:
+        return
+    try:
+        with open(PERSONNEL_CSV_PATH, "r", encoding="utf-8") as f:
+            original_lines = f.readlines()
+        df = pd.read_csv(PERSONNEL_CSV_PATH, comment="#")
+    except Exception as e:
+        print(f"[personnel.csv 로드 실패] {e}")
+        return
+
+    existing = set(zip(df["부서"], df["직책"], df["담당자"]))
+    new_rows = []
+    for d in detected:
+        key = (d["dept"], d["role"], d["name"])
+        if key in existing:
+            continue
+        new_rows.append({
+            "부서": d["dept"], "직책": d["role"], "담당자": d["name"],
+            "시작일": d["start_date"], "종료일": "",
+            "출처링크": d["link"], "확인상태": "자동감지",
+        })
+        existing.add(key)
+
+    if not new_rows:
+        return
+
+    updated = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+    comment_lines = [line for line in original_lines if line.startswith("#")]
+    with open(PERSONNEL_CSV_PATH, "w", encoding="utf-8", newline="") as f:
+        f.writelines(comment_lines)
+        updated.to_csv(f, index=False)
+    print(f"[공정위 인사 자동 감지] {len(new_rows)}건 personnel.csv에 추가 (확인상태=자동감지, 검토 필요)")
 
 def force_merge_by_keywords(title, original_group_title):
     t_lower = title.replace(" ", "")
@@ -259,10 +364,14 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
 [최근 14일간 이미 사용 중인 기존 이슈명] (참고용)
 {json.dumps(existing_titles, ensure_ascii=False)}
 
-병합 기준: 등장하는 기업명/기관명이 같고 다루는 사건(예: 같은 소송, 같은 제재 처분, 같은 정책 발표)이
+병합 기준: 등장하는 기업명/기관명이 "같고" 다루는 사건(예: 같은 소송, 같은 제재 처분, 같은 정책 발표)이
 사실상 동일하면, 이슈명의 표현(예: "확정" vs "패소" vs "규제" vs "전가")이 서로 달라도 같은 사건으로 보고 병합하세요.
 예: "GS리테일 과징금 확정", "GS리테일 판촉비 전가", "GS리테일 과징금 패소", "공정위 규제"가 모두 같은 대법원 판결을
 다루고 있다면 전부 하나의 이슈로 병합해야 합니다.
+
+주의: "담합", "과징금", "제재" 같은 사건 유형(카테고리)이 같다는 이유만으로 병합하면 안 됩니다.
+반드시 등장하는 기업/기관명이 일치해야 병합 대상입니다. 예: "정유사 담합"과 "삼겹살 카르텔"은 둘 다
+담합 사건이지만 서로 다른 업종·기업의 별개 사건이므로 병합하지 마세요.
 
 작업 순서:
 1. 먼저 '오늘 새로 발견된 이슈명' 안에서 서로 같은 사건을 다루는 항목들을 하나로 묶으세요.
@@ -439,6 +548,16 @@ def main():
                 item["today_str"], category, group_title, item["title"],
                 press_display_name(item["known_press"], item["link"]), summary, sentiment, score, item["link"], item["pub_date"]
             ])
+
+    if not SKIP_AI_ANALYSIS:
+        # 대시보드 관련도 점수와 무관하게, 키워드 단계에서 이미 '공정위인사'로 잡힌 기사만
+        # 대상으로 한다 (all_articles 기준 - rows에 들어가기 전 단계라 관련도 필터링의 영향을 안 받음)
+        personnel_candidates = [
+            {"title": a["title"], "description": a["description"], "link": a["link"]}
+            for a in all_articles if a["category"] == "공정위인사"
+        ]
+        detected = extract_personnel_appointments(personnel_candidates)
+        update_personnel_csv(detected)
 
     save_and_merge_data(rows)
 

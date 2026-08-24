@@ -10,7 +10,7 @@ CRITICAL_KEYWORDS = ["과징금", "시정명령", "고발", "동의의결", "담
 FINE_AMOUNT_PATTERN = re.compile(r"과징금\s*([0-9][0-9,\.]*)\s*(억|만)\s*원?")
 
 # 앱 화면에서 숨길 분야 (수집·분류는 main.py에서 그대로 하되, 화면에는 노출하지 않음)
-HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산"]
+HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 
 
 def extract_domain(url):

@@ -16,7 +16,7 @@ KST = timezone(timedelta(hours=9))
 
 CRITICAL_KEYWORDS = ["과징금", "시정명령", "고발", "동의의결", "담합", "사익편취", "일감몰아주기", "기술탈취"]
 FINE_AMOUNT_PATTERN = re.compile(r"과징금\s*([0-9][0-9,\.]*)\s*(억|만)\s*원?")
-HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산"]
+HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 
 OUT_DIR = "docs"
 OUT_PATH = os.path.join(OUT_DIR, "index.html")
@@ -65,6 +65,8 @@ def load_personnel():
             "name": row.get("담당자", ""),
             "start": None if pd.isna(row.get("시작일")) else str(row.get("시작일")),
             "end": None if pd.isna(row.get("종료일")) else str(row.get("종료일")),
+            "source": None if pd.isna(row.get("출처링크")) else str(row.get("출처링크")),
+            "verified": pd.isna(row.get("확인상태")) or str(row.get("확인상태")) != "자동감지",
         })
     return records
 
