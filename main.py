@@ -150,6 +150,15 @@ def force_merge_by_keywords(title, original_group_title):
         return "삼성전자 RX사업추진실 신설"
     return original_group_title
 
+def log_gemini_usage(res_json, label):
+    """비용 확인용: 호출마다 입력/출력/thinking 토큰 수를 GitHub Actions 로그에 남긴다."""
+    usage = res_json.get("usageMetadata", {})
+    prompt_t = usage.get("promptTokenCount", 0)
+    output_t = usage.get("candidatesTokenCount", 0)
+    thoughts_t = usage.get("thoughtsTokenCount", 0)
+    total_t = usage.get("totalTokenCount", 0)
+    print(f"[Gemini 토큰 사용량:{label}] 입력={prompt_t} 출력={output_t} thinking={thoughts_t} 합계={total_t}")
+
 def analyze_batch_with_gemini(batch_items):
     """기사 배치를 Gemini에 보내 (idx, 관련도, 대표이슈명, 요약, 논조, 분야)를 한 번에 판정받는다."""
     if not GEMINI_API_KEY:
@@ -185,7 +194,9 @@ def analyze_batch_with_gemini(batch_items):
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
-            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            res_json = res.json()
+            log_gemini_usage(res_json, "batch분석")
+            raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
             if raw_text.startswith("```json"): raw_text = raw_text[7:]
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
@@ -238,7 +249,9 @@ def master_cluster_with_gemini(unique_issue_titles):
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
-            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            res_json = res.json()
+            log_gemini_usage(res_json, "이슈통합")
+            raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
             if raw_text.startswith("```json"): raw_text = raw_text[7:]
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
