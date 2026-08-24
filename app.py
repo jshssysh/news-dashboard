@@ -44,7 +44,7 @@ def selection_reasons(g):
     kw, count = g["kw_repeat"]
     if kw and count >= 2:
         reasons.append(f"'{kw}' {count}회 반복")
-    if g["category"] == "제재·심결":
+    if g["category"] == "공정거래":
         reasons.append("제재·심결 신호")
     return reasons
 

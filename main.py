@@ -51,9 +51,11 @@ NAVER_PRESS_CODES = {
 }
 
 # 키워드 검색으로 붙는 분야는 임시 힌트일 뿐이며, Gemini가 기사 본문 기준으로 최종 확정한다
+# (사용자가 정리한 감시 분류표 기준 - config/keywords.yaml 상단 주석 참고)
 CATEGORY_LIST = [
-    "삼성그룹", "삼성물산", "공정위/정책", "부당지원", "갑을관계",
-    "동반성장", "지배구조", "산업동향", "제재·심결", "그린·AI워싱",
+    "공정거래", "내부거래", "지배구조", "상생", "하도급", "상법",
+    "시민단체", "노동", "기타",
+    "그린·AI워싱", "삼성그룹", "삼성물산",
 ]
 
 def extract_press_from_link(link):
@@ -141,7 +143,7 @@ def verify_and_adjust_category(category, title, description):
     if "삼성물산" in text_content: return "삼성물산"
     if category == "삼성그룹":
         if any(kw in text_content for kw in ["삼성", "웰스토리", "삼우종합건축", "레이크사이드"]): return "삼성그룹"
-        else: return "공정위/정책"
+        else: return "공정거래"
     return category
 
 def force_merge_by_keywords(title, original_group_title):
