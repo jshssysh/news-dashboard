@@ -100,8 +100,8 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
-.cat-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.cat-chip-row button { border-radius: 20px; white-space: nowrap; padding: 7px 16px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.88em; font-weight: 600; }
+.cat-chip-row { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 12px; }
+.cat-chip-row button { border-radius: 20px; white-space: nowrap; padding: 6px 13px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.84em; font-weight: 600; }
 .cat-chip-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
 
@@ -132,15 +132,18 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 .sentiment-neu { background-color: #e0a940; color: #d99a2b; }
 .sentiment-pos { background-color: #4caf82; color: #43a047; }
 
-.pagination-row { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-.pagination-row select { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 5px 8px; font-size: 0.85em; }
-.pagination-row button { font-weight: 700; padding: 4px 5px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-secondary-bg); min-width: 30px; }
-.pagination-row button:hover:not(.active):not(:disabled) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
-.pagination-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
-.pagination-row button:disabled { opacity: 0.35; cursor: default; }
+.pagination-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.pg-top { display: flex; justify-content: flex-end; }
+.pg-top select { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 5px 8px; font-size: 0.85em; }
+.pg-nav { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.pg-nav button { font-weight: 700; padding: 3px 4px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-secondary-bg); min-width: 27px; font-size: 0.88em; }
+.pg-nav button:hover:not(.active):not(:disabled) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
+.pg-nav button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.pg-nav button:disabled { opacity: 0.35; cursor: default; }
 
 .article-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: var(--app-shadow); transition: box-shadow .15s var(--ease), border-color .15s var(--ease); }
 .article-card:hover { box-shadow: var(--app-shadow-hover); border-color: var(--app-border-strong); }
+.card-head { line-height: 1.7; margin-bottom: 10px; }
 .article-title { font-weight: 700; text-decoration: none; line-height: 1.4; }
 .article-title:hover { text-decoration: underline; }
 .importance-tag { color: #b8860b; font-size: 0.84em; font-weight: 600; }
@@ -488,7 +491,7 @@ function renderMainList(scoped, allGroups) {
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
       const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
       return `<div class="article-card">
-        <div>${tags} <a class="article-title" href="${g.repLink}" target="_blank">${g.title}</a>
+        <div class="card-head">${tags} <a class="article-title" href="${g.repLink}" target="_blank">${g.title}</a>
         <span class="importance-tag">중요도 ${g.importance}/10</span>
         <span class="card-meta-inline">${dt} · ${domain} · 총 보도 매체 ${g.pressCount}개</span></div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
@@ -510,11 +513,13 @@ function renderMainList(scoped, allGroups) {
   const endP = Math.min(totalPages, startP + WINDOW - 1);
   const pageNums = [];
   for (let p = startP; p <= endP; p++) pageNums.push(p);
-  let pgHtml = `<select id="pageSizeSel"><option value="10" ${state.pageSize===10?'selected':''}>10개</option><option value="20" ${state.pageSize===20?'selected':''}>20개</option><option value="50" ${state.pageSize===50?'selected':''}>50개</option></select>`;
-  pgHtml += `<button id="pgPrev" ${state.page<=1?'disabled':''}>◀</button>`;
-  pageNums.forEach(p => { pgHtml += `<button class="pg-num ${p===state.page?'active':''}" data-p="${p}">${p}</button>`; });
-  pgHtml += `<button id="pgNext" ${state.page>=totalPages?'disabled':''}>▶</button>`;
-  pg.innerHTML = pgHtml;
+  let navHtml = `<button id="pgPrev" ${state.page<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.page?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="pgNext" ${state.page>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = `
+    <div class="pg-top"><select id="pageSizeSel"><option value="10" ${state.pageSize===10?'selected':''}>10개</option><option value="20" ${state.pageSize===20?'selected':''}>20개</option><option value="50" ${state.pageSize===50?'selected':''}>50개</option></select></div>
+    <div class="pg-nav">${navHtml}</div>
+  `;
   document.getElementById('pageSizeSel').addEventListener('change', e => { state.pageSize = parseInt(e.target.value,10); state.page = 1; renderMainList(scoped, allGroups); });
   document.getElementById('pgPrev').addEventListener('click', () => { if (state.page>1) { state.page--; renderMainList(scoped, allGroups); } });
   document.getElementById('pgNext').addEventListener('click', () => { if (state.page<totalPages) { state.page++; renderMainList(scoped, allGroups); } });
