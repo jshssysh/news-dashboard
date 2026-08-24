@@ -78,16 +78,21 @@ st.markdown("""
    내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
 /* data-testid 값은 Streamlit 버전마다 달라질 수 있어(column/stColumn 등) 이름에 의존하지 않고
    "가로 블록의 직계 자식 div"라는 구조만으로 컬럼을 지정한다 */
-.st-key-top_bar div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; flex: 0 0 auto !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(1) { width: 190px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(2) { width: 68px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(3) { width: 68px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(4) { width: 114px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(5) { width: 42px !important; margin-left: auto !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(6) { width: 100px !important; }
-.st-key-top_bar div[data-testid="stHorizontalBlock"] > div:nth-child(7) { width: 42px !important; }
-.st-key-top_bar button { padding: 6px 16px !important; font-size: 0.75em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important; }
+
+/* 상단 통계 줄(Daily Brief 타일 + 수집기사/주요뉴스/보도확산 타일): 네 칸 높이를 통일 */
+.st-key-top_stat_row div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
+.st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div { display: flex !important; }
+.st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div > div { width: 100%; }
+
+/* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
+.st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px 12px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
+.st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 4px !important; margin-bottom: 6px; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; }
+.st-key-db_tabs_row button, .st-key-db_date_row button {
+    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important;
+}
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
@@ -172,14 +177,12 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
 
 /* 통계 타일 */
-/* 수집 기사 칩이 논조 분포까지 한 줄에 담도록 나머지 두 칩을 균등하게 줄여 폭을 몰아줌 */
-.stat-grid { display: grid; grid-template-columns: 3fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
-.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; }
+.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px; height: 100%; box-sizing: border-box; }
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.6em; font-weight: bold; color: var(--app-text); }
 .stat-card .sub-inline { font-size: 0.72em; color: var(--app-text); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; white-space: nowrap; }
+.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; margin-top: 4px; }
 .stat-card .sentiment-mini .sm-pos { color: #43a047; font-weight: 700; }
 .stat-card .sentiment-mini .sm-neu { color: #d99a2b; font-weight: 700; }
 .stat-card .sentiment-mini .sm-neg { color: #e05353; font-weight: 700; }
@@ -275,29 +278,82 @@ if 'current_date' not in st.session_state:
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = '뉴스'
 
-with st.container(key="top_bar"):
-    title_col, tab_news, tab_law, tab_org, d_prev, d_text, d_next = st.columns([2.4, 0.8, 0.8, 1.2, 0.4, 1.1, 0.4])
+daily_df = df[df['date_str'] == st.session_state.current_date.strftime('%Y/%m/%d')] if not df.empty else pd.DataFrame()
 
-    with title_col:
-        st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+if not daily_df.empty:
+    all_issue_groups = build_issue_groups(daily_df)
+    major_count = int((daily_df['중요도'] >= 6).sum())
+    spread_groups = [g for g in all_issue_groups if g['press_count'] >= 5]
+    spread_count = len(spread_groups)
+    sentiment_all_counts = daily_df['논조'].value_counts()
+    daily_category_counts = daily_df['분야'].value_counts()
+    # 수집기사 = 오늘 수집된 전체 기사 수, 중복 = 같은 이슈로 묶여 반복 보도된 기사 수(전체 - 고유 이슈 수)
+    dup_count = len(daily_df) - len(all_issue_groups)
+    # 보도확산 타일에 표시할, 가장 많은 매체가 다룬 이슈 한 줄 요약
+    most_spread = max(all_issue_groups, key=lambda g: g['press_count'])
+    spread_caption = most_spread['title']
+    if len(spread_caption) > 16:
+        spread_caption = spread_caption[:16] + '…'
+else:
+    all_issue_groups = []
+    major_count = spread_count = dup_count = 0
+    sentiment_all_counts = pd.Series(dtype='int64')
+    daily_category_counts = pd.Series(dtype='int64')
+    spread_caption = ""
 
-    for label, col in [('뉴스', tab_news), ('입법', tab_law), ('공정위 조직', tab_org)]:
-        with col:
-            is_active = st.session_state.active_tab == label
-            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
-                st.session_state.active_tab = label
+sentiment_mini_items = [
+    f"<span class='sm-pos'>긍정 {sentiment_all_counts.get('긍정', 0)}</span>",
+    f"<span class='sm-neu'>중립 {sentiment_all_counts.get('중립', 0)}</span>",
+    f"<span class='sm-neg'>부정 {sentiment_all_counts.get('부정', 0)}</span>",
+    f"<span class='sm-fail'>판단실패 {sentiment_all_counts.get('판단 실패', 0)}</span>",
+]
+if sentiment_all_counts.get('미분석', 0):
+    sentiment_mini_items.append(f"<span class='sm-fail'>미분석 {sentiment_all_counts.get('미분석', 0)}</span>")
+sentiment_mini_html = " · ".join(sentiment_mini_items)
 
-    with d_prev:
-        if st.button("◀", key="date_prev", use_container_width=True):
-            st.session_state.current_date -= timedelta(days=1)
-            st.rerun()
-    with d_text:
-        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; padding-top: 6px; color: var(--app-text); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
-    with d_next:
-        if st.button("▶", key="date_next", use_container_width=True):
-            st.session_state.current_date += timedelta(days=1)
-            st.rerun()
+# ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
+with st.container(key="top_stat_row"):
+    tile_cols = st.columns([2, 1, 1, 1], gap="small")
+
+    with tile_cols[0]:
+        with st.container(key="db_tile"):
+            db_left, db_right = st.columns([1, 2])
+            with db_left:
+                st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+            with db_right:
+                with st.container(key="db_tabs_row"):
+                    tab_cols = st.columns(3)
+                    for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
+                        with col:
+                            is_active = st.session_state.active_tab == label
+                            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
+                                st.session_state.active_tab = label
+                with st.container(key="db_date_row"):
+                    d_prev, d_text, d_next = st.columns([1, 2, 1])
+                    with d_prev:
+                        if st.button("◀", key="date_prev", use_container_width=True):
+                            st.session_state.current_date -= timedelta(days=1)
+                            st.rerun()
+                    with d_text:
+                        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
+                        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; color: var(--app-text); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
+                    with d_next:
+                        if st.button("▶", key="date_next", use_container_width=True):
+                            st.session_state.current_date += timedelta(days=1)
+                            st.rerun()
+
+    with tile_cols[1]:
+        st.markdown(f"""
+<div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span></div><div class="sentiment-mini">{sentiment_mini_html}</div></div>
+""", unsafe_allow_html=True)
+    with tile_cols[2]:
+        st.markdown(f"""
+<div class="stat-card"><div class="label">주요 뉴스</div><div class="value-line"><span class="value">{major_count}건</span><span class="sub-inline">AI 판단 기준</span></div></div>
+""", unsafe_allow_html=True)
+    with tile_cols[3]:
+        st.markdown(f"""
+<div class="stat-card"><div class="label">보도 확산</div><div class="value-line"><span class="value">{spread_count}건</span><span class="sub-inline">{spread_caption} 등</span></div></div>
+""", unsafe_allow_html=True)
 
 if st.session_state.active_tab == '공정위 조직':
     st.caption("부서·직책별 담당자 재임 이력 (수동 기록 · config/personnel.csv에서 직접 추가/수정 가능)")
@@ -320,46 +376,11 @@ elif st.session_state.active_tab != '뉴스':
     st.info(f"'{st.session_state.active_tab}' 섹션은 준비 중입니다. 곧 추가될 예정입니다.")
     st.stop()
 
-st.divider()
-
-daily_df = df[df['date_str'] == st.session_state.current_date.strftime('%Y/%m/%d')] if not df.empty else pd.DataFrame()
-
 if daily_df.empty:
     st.info("해당 날짜에 수집된 기사 데이터가 없습니다.")
     st.stop()
 
-all_issue_groups = build_issue_groups(daily_df)
-major_count = int((daily_df['중요도'] >= 6).sum())
-spread_groups = [g for g in all_issue_groups if g['press_count'] >= 5]
-spread_count = len(spread_groups)
-sentiment_all_counts = daily_df['논조'].value_counts()
-daily_category_counts = daily_df['분야'].value_counts()
-
-# 수집기사 = 오늘 수집된 전체 기사 수, 중복 = 같은 이슈로 묶여 반복 보도된 기사 수(전체 - 고유 이슈 수)
-dup_count = len(daily_df) - len(all_issue_groups)
-# 보도확산 타일에 표시할, 가장 많은 매체가 다룬 이슈 한 줄 요약
-most_spread = max(all_issue_groups, key=lambda g: g['press_count'])
-spread_caption = most_spread['title']
-if len(spread_caption) > 16:
-    spread_caption = spread_caption[:16] + '…'
-
-sentiment_mini_items = [
-    f"<span class='sm-pos'>긍정 {sentiment_all_counts.get('긍정', 0)}</span>",
-    f"<span class='sm-neu'>중립 {sentiment_all_counts.get('중립', 0)}</span>",
-    f"<span class='sm-neg'>부정 {sentiment_all_counts.get('부정', 0)}</span>",
-    f"<span class='sm-fail'>판단실패 {sentiment_all_counts.get('판단 실패', 0)}</span>",
-]
-if sentiment_all_counts.get('미분석', 0):
-    sentiment_mini_items.append(f"<span class='sm-fail'>미분석 {sentiment_all_counts.get('미분석', 0)}</span>")
-sentiment_mini_html = " · ".join(sentiment_mini_items)
-
-st.markdown(f"""
-<div class="stat-grid">
-    <div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span><span class="sentiment-mini">논조 분포 · {sentiment_mini_html}</span></div></div>
-    <div class="stat-card"><div class="label">주요 뉴스</div><div class="value-line"><span class="value">{major_count}건</span><span class="sub-inline">AI 판단 기준</span></div></div>
-    <div class="stat-card"><div class="label">보도 확산</div><div class="value-line"><span class="value">{spread_count}건</span><span class="sub-inline">{spread_caption} 등</span></div></div>
-</div>
-""", unsafe_allow_html=True)
+st.divider()
 
 # 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
 top3 = all_issue_groups[:3]
