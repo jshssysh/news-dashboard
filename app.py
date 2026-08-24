@@ -330,29 +330,29 @@ with st.container(key="top_stat_row"):
         with st.container(key="db_tile"):
             with st.container(key="db_title_row"):
                 db_left, db_right = st.columns([1.4, 1.6])
-            with db_left:
-                st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
-            with db_right:
-                with st.container(key="db_tabs_row"):
-                    tab_cols = st.columns(3)
-                    for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
-                        with col:
-                            is_active = st.session_state.active_tab == label
-                            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
-                                st.session_state.active_tab = label
-                with st.container(key="db_date_row"):
-                    d_prev, d_text, d_next = st.columns([1, 2, 1])
-                    with d_prev:
-                        if st.button("◀", key="date_prev", use_container_width=True):
-                            st.session_state.current_date -= timedelta(days=1)
-                            st.rerun()
-                    with d_text:
-                        date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-                        st.markdown(f"<div class='date-pill'>{date_display}</div>", unsafe_allow_html=True)
-                    with d_next:
-                        if st.button("▶", key="date_next", use_container_width=True):
-                            st.session_state.current_date += timedelta(days=1)
-                            st.rerun()
+                with db_left:
+                    st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
+                with db_right:
+                    with st.container(key="db_tabs_row"):
+                        tab_cols = st.columns(3)
+                        for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
+                            with col:
+                                is_active = st.session_state.active_tab == label
+                                if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary"):
+                                    st.session_state.active_tab = label
+                    with st.container(key="db_date_row"):
+                        d_prev, d_text, d_next = st.columns([1, 2, 1])
+                        with d_prev:
+                            if st.button("◀", key="date_prev", use_container_width=True):
+                                st.session_state.current_date -= timedelta(days=1)
+                                st.rerun()
+                        with d_text:
+                            date_display = st.session_state.current_date.strftime('%Y/%m/%d')
+                            st.markdown(f"<div class='date-pill'>{date_display}</div>", unsafe_allow_html=True)
+                        with d_next:
+                            if st.button("▶", key="date_next", use_container_width=True):
+                                st.session_state.current_date += timedelta(days=1)
+                                st.rerun()
 
     with tile_cols[1]:
         st.markdown(f"""
