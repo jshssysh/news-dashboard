@@ -355,14 +355,6 @@ function renderTabsAndDate() {
   tabsRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; renderAll(); });
   });
-  document.getElementById('datePrev').addEventListener('click', () => {
-    const i = allDates.indexOf(state.currentDate);
-    if (i > 0) { state.currentDate = allDates[i-1]; renderAll(); }
-  });
-  document.getElementById('dateNext').addEventListener('click', () => {
-    const i = allDates.indexOf(state.currentDate);
-    if (i !== -1 && i < allDates.length - 1) { state.currentDate = allDates[i+1]; renderAll(); }
-  });
 }
 
 function renderOrg() {
@@ -545,6 +537,14 @@ function renderAll() {
   }
 }
 
+document.getElementById('datePrev').addEventListener('click', () => {
+  const i = allDates.indexOf(state.currentDate);
+  if (i > 0) { state.currentDate = allDates[i-1]; renderAll(); }
+});
+document.getElementById('dateNext').addEventListener('click', () => {
+  const i = allDates.indexOf(state.currentDate);
+  if (i !== -1 && i < allDates.length - 1) { state.currentDate = allDates[i+1]; renderAll(); }
+});
 document.getElementById('periodSelect').addEventListener('change', e => { state.period = parseInt(e.target.value,10); state.selectedCategory = '전체'; state.page = 1; renderAll(); });
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
