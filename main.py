@@ -370,7 +370,7 @@ def main():
                 g_title = force_merge_by_keywords(original_item["title"], g_title)
                 final_category = category or original_item["category"]
                 analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
-            time.sleep(0.3)  # 유료 Tier 1은 분당 한도가 넉넉해 1초씩 쉴 필요 없음
+            time.sleep(4.5)  # 무료 등급은 분당 15회 제한 (60/15=4초) - 여유 있게 4.5초씩 대기
 
         # 유사 제목 그룹의 나머지(대표가 아닌) 기사들도 대표와 같은 분석 결과를 그대로 사용
         for nt, leader_nt in title_cluster_map.items():
