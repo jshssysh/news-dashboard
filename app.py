@@ -90,22 +90,22 @@ st.markdown("""
 .st-key-db_tile .app-header { padding: 0; margin: 0; }
 
 /* 탭 3개 = 하나의 칩(둥근 테두리 하나), 안의 버튼들은 테두리 없이 3등분 세그먼트로 */
-.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; margin-bottom: 8px; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 0 !important; }
+.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; margin-bottom: 1px; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 0 !important; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
 .st-key-db_tabs_row button {
-    padding: 4px 6px !important; font-size: 0.7em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
+    padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important; border: none !important; border-radius: 0 !important; width: 100% !important;
 }
 
-/* 날짜 이동 = 하나의 칩. 화살표 2개 + 날짜 텍스트가 같은 칩 안의 구간 */
+/* 날짜 이동 = 하나의 칩. 화살표 2개 + 날짜 텍스트가 같은 칩 안의 구간. 높이를 낮추고 가운데 정렬 */
 .st-key-db_date_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 0 !important; }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 0 !important; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; display: flex !important; align-items: center !important; }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
+    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important; line-height: 1.6 !important;
 }
-.date-pill { display: flex; align-items: center; justify-content: center; padding: 4px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
+.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 1px 10px; box-sizing: border-box; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
@@ -341,11 +341,12 @@ with st.container(key="top_stat_row"):
             with db_right:
                 with st.container(key="db_tabs_row"):
                     tab_cols = st.columns(3)
-                    for label, col in zip(['뉴스', '입법', '공정위 조직'], tab_cols):
+                    tab_defs = [('뉴스', '뉴스'), ('입법', '입법'), ('공정위\n조직', '공정위 조직')]
+                    for (display_label, value), col in zip(tab_defs, tab_cols):
                         with col:
-                            is_active = st.session_state.active_tab == label
-                            if st.button(label, key=f"tab_{label}", type="primary" if is_active else "secondary", use_container_width=True):
-                                st.session_state.active_tab = label
+                            is_active = st.session_state.active_tab == value
+                            if st.button(display_label, key=f"tab_{value}", type="primary" if is_active else "secondary", use_container_width=True):
+                                st.session_state.active_tab = value
                 with st.container(key="db_date_row"):
                     d_prev, d_text, d_next = st.columns([1, 2, 1])
                     with d_prev:
