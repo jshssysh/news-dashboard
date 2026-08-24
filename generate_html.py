@@ -33,12 +33,14 @@ def load_data():
         df = pd.read_csv("news_list.csv")
     except Exception:
         return pd.DataFrame()
-    df['dt'] = pd.to_datetime(df['수집일자'], errors='coerce')
+    # format을 명시하지 않으면, 옛 데이터의 발행일시="" 같은 불규칙한 값 때문에 pandas가
+    # 빠른 벡터 파싱 대신 행 단위 dateutil 파싱으로 전환되어 3만행 이상에서 수 분씩 걸릴 수 있다.
+    df['dt'] = pd.to_datetime(df['수집일자'], format='%Y-%m-%d %H:%M', errors='coerce')
     df['date_str'] = df['dt'].dt.strftime('%Y/%m/%d')
     if '중요도' not in df.columns:
         df['중요도'] = 5
     df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5).astype(int)
-    df['pub_dt'] = pd.to_datetime(df['발행일시'], errors='coerce') if '발행일시' in df.columns else pd.NaT
+    df['pub_dt'] = pd.to_datetime(df['발행일시'], format='%Y-%m-%d %H:%M', errors='coerce') if '발행일시' in df.columns else pd.NaT
     df = df[~df['분야'].isin(HIDDEN_CATEGORIES)]
 
     cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=RECENT_DAYS_WINDOW)

@@ -321,7 +321,7 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     combined_df = combined_df.sort_values("_priority", kind="stable").drop(columns=["_priority"])
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
-        combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], errors="coerce", utc=True)
+        combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce", utc=True)
         cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=30)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
