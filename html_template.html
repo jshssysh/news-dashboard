@@ -80,8 +80,12 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 5px 12px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
 .toggle-btn:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow); }
 
-.summary-box-blue { background-color: rgba(255,255,255,0.05); padding: 12px 14px; border-radius: 8px; margin-bottom: 2px; font-size: 0.93em; color: #a9c6f5; display: block; text-decoration: none; line-height: 1.5; transition: background-color .15s var(--ease); }
-.summary-box-blue:hover { background-color: rgba(255,255,255,0.09); }
+.summary-box-blue { background-color: #eaf1fc; padding: 12px 14px; border-radius: 8px; margin-bottom: 2px; font-size: 0.93em; color: #1a4d8f; display: block; text-decoration: none; line-height: 1.5; transition: background-color .15s var(--ease); }
+.summary-box-blue:hover { background-color: #dbe8fa; }
+@media (prefers-color-scheme: dark) {
+  .summary-box-blue { background-color: rgba(255,255,255,0.05); color: #a9c6f5; }
+  .summary-box-blue:hover { background-color: rgba(255,255,255,0.09); }
+}
 .signal-box { background-color: #12203a; border: 1px solid #1b2e50; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; }
 .signal-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); }
@@ -100,8 +104,14 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
-.cat-chip-row { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 12px; }
-.cat-chip-row button { border-radius: 20px; white-space: nowrap; padding: 6px 13px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.84em; font-weight: 600; }
+.cat-chip-row {
+  display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px;
+}
+.cat-chip-row::-webkit-scrollbar { height: 5px; }
+.cat-chip-row::-webkit-scrollbar-thumb { background: var(--app-border-strong); border-radius: 4px; }
+.cat-chip-row::-webkit-scrollbar-track { background: transparent; }
+.cat-chip-row button { flex-shrink: 0; border-radius: 20px; white-space: nowrap; padding: 6px 13px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.84em; font-weight: 600; }
 .cat-chip-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
 
@@ -146,7 +156,14 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
 .article-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: var(--app-shadow); transition: box-shadow .15s var(--ease), border-color .15s var(--ease); }
 .article-card:hover { box-shadow: var(--app-shadow-hover); border-color: var(--app-border-strong); }
-.card-head { line-height: 1.7; margin-bottom: 10px; }
+.card-head { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 6px; line-height: 1.5; margin-bottom: 10px; }
+.card-tags { flex-shrink: 0; white-space: nowrap; }
+.article-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta-group { flex-shrink: 0; white-space: nowrap; display: flex; align-items: baseline; gap: 6px; }
+@media (max-width: 700px) {
+  .card-head { flex-wrap: wrap; line-height: 1.7; }
+  .article-title { white-space: normal; overflow: visible; text-overflow: unset; flex-basis: 100%; }
+}
 .article-title { font-weight: 700; text-decoration: none; line-height: 1.4; }
 .article-title:hover { text-decoration: underline; }
 .importance-tag { color: #b8860b; font-size: 0.84em; font-weight: 600; }
@@ -290,7 +307,7 @@ function selectionReasons(g) {
   const reasons = [];
   if (g.pressCount >= 5) reasons.push("반복 보도 " + g.pressCount + "건");
   if (g.kwRepeat[0] && g.kwRepeat[1] >= 2) reasons.push("'" + g.kwRepeat[0] + "' " + g.kwRepeat[1] + "회 반복");
-  if (g.category === "제재·심결") reasons.push("제재·심결 신호");
+  if (g.category === "공정거래") reasons.push("제재·심결 신호");
   return reasons;
 }
 function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
@@ -487,10 +504,13 @@ function renderMainList(scoped, allGroups) {
       if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
       const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
+      const titleAttr = g.title.replace(/"/g, '&quot;');
       return `<div class="article-card">
-        <div class="card-head">${tags} <a class="article-title" href="${g.repLink}" target="_blank">${g.title}</a>
-        <span class="importance-tag">중요도 ${g.importance}/10</span>
-        <span class="card-meta-inline">${dt} · ${domain} · 총 보도 매체 ${g.pressCount}개</span></div>
+        <div class="card-head">
+          <span class="card-tags">${tags}</span>
+          <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
+          <span class="card-meta-group"><span class="importance-tag">중요도 ${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain} · 총 보도 매체 ${g.pressCount}개</span></span>
+        </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
         <div class="related-row">
           <div class="reason-box">${reasons.length? ("선별 근거 "+reasonChips) : ""}</div>
