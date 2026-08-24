@@ -89,23 +89,22 @@ st.markdown("""
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
 .st-key-db_tile .app-header { padding: 0; margin: 0; }
 
-/* 탭 3개 = 하나의 칩(둥근 테두리 하나), 안의 버튼들은 테두리 없이 3등분 세그먼트로 */
-.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; margin-bottom: 1px; }
+/* 탭 3개 = 수집기사 칩과 같은 테두리 스타일(둥근 사각형 하나), 안의 버튼들은 테두리 없이 3등분 세그먼트로 */
+.st-key-db_tabs_row { border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; overflow: hidden; margin-bottom: 4px; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 0 !important; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
 .st-key-db_tabs_row button {
     padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important; border: none !important; border-radius: 0 !important; width: 100% !important;
 }
 
-/* 날짜 이동 = 하나의 칩. 화살표 2개 + 날짜 텍스트가 같은 칩 안의 구간. 높이를 낮추고 가운데 정렬 */
-.st-key-db_date_row { border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; overflow: hidden; }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 0 !important; }
-.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; display: flex !important; align-items: center !important; }
+/* 날짜 이동: 왼쪽 화살표 / 날짜 / 오른쪽 화살표를 각각 독립된 칩으로 분리 */
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
+.st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
+    padding: 2px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: 1px solid rgba(128,128,128,0.35) !important; border-radius: 20px !important; width: 100% !important;
 }
-.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 1px 10px; box-sizing: border-box; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
+.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; border: 1px solid rgba(128,128,128,0.35); border-radius: 20px; padding: 2px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
