@@ -200,11 +200,7 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.75em; font-weight: 800; color: var(--app-text); letter-spacing: -0.3px; }
 .stat-card .sub-inline { font-size: 0.72em; color: var(--app-text); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-card .sentiment-mini { font-size: 0.68em; color: var(--app-text); opacity: 0.75; margin-top: 4px; }
-.stat-card .sentiment-mini .sm-pos { color: #43a047; font-weight: 700; }
-.stat-card .sentiment-mini .sm-neu { color: #d99a2b; font-weight: 700; }
-.stat-card .sentiment-mini .sm-neg { color: #e05353; font-weight: 700; }
-.stat-card .sentiment-mini .sm-fail { color: #7b1fa2; font-weight: 700; }
+.stat-card .sm-fail { font-size: 0.72em; color: #7b1fa2; font-weight: 700; }
 
 /* 사이드바 공통 패널 */
 .sidebar-panel { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px 10px; margin-bottom: 14px; }
@@ -319,15 +315,7 @@ else:
     daily_category_counts = pd.Series(dtype='int64')
     spread_caption = ""
 
-sentiment_mini_items = [
-    f"<span class='sm-pos'>긍정 {sentiment_all_counts.get('긍정', 0)}</span>",
-    f"<span class='sm-neu'>중립 {sentiment_all_counts.get('중립', 0)}</span>",
-    f"<span class='sm-neg'>부정 {sentiment_all_counts.get('부정', 0)}</span>",
-    f"<span class='sm-fail'>판단실패 {sentiment_all_counts.get('판단 실패', 0)}</span>",
-]
-if sentiment_all_counts.get('미분석', 0):
-    sentiment_mini_items.append(f"<span class='sm-fail'>미분석 {sentiment_all_counts.get('미분석', 0)}</span>")
-sentiment_mini_html = " · ".join(sentiment_mini_items)
+fail_count = sentiment_all_counts.get('판단 실패', 0) + sentiment_all_counts.get('미분석', 0)
 
 # ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
 with st.container(key="top_stat_row"):
@@ -363,7 +351,7 @@ with st.container(key="top_stat_row"):
 
     with tile_cols[1]:
         st.markdown(f"""
-<div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span></div><div class="sentiment-mini">{sentiment_mini_html}</div></div>
+<div class="stat-card"><div class="label">수집 기사</div><div class="value-line"><span class="value">{len(daily_df)}건</span><span class="sub-inline">중복 {dup_count}건</span><span class="sm-fail">판단실패 {fail_count}</span></div></div>
 """, unsafe_allow_html=True)
     with tile_cols[2]:
         st.markdown(f"""
