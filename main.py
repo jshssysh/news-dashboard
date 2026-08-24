@@ -178,7 +178,9 @@ def analyze_batch_with_gemini(batch_items):
 
 주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 생성 제외 (category는 항상 생성).
 """
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
+    # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
+    # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingBudget": 0}}}
 
     try:
         res = requests.post(url, json=payload, timeout=30)
@@ -230,7 +232,9 @@ def master_cluster_with_gemini(unique_issue_titles):
   {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}}
 ]
 """
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
+    # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
+    # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingBudget": 0}}}
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
