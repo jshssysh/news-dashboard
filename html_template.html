@@ -60,17 +60,22 @@ button:active { transform: translateY(1px); }
 .stat-card .value { font-size: 1.85em; font-weight: 800; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
 .stat-card .sub-inline { font-size: 0.72em; opacity: 0.58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-card .sm-fail { font-size: 0.72em; color: #9c4dcc; font-weight: 700; }
-@media (prefers-color-scheme: dark) { .stat-card .sm-fail { color: #c792ea; } }
+.stat-card .sm-skipped { font-size: 0.72em; color: #8a6100; font-weight: 700; opacity: 0.75; }
+@media (prefers-color-scheme: dark) {
+  .stat-card .sm-fail { color: #c792ea; }
+  .stat-card .sm-skipped { color: #d9a441; }
+}
 
 hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; }
 
-.badge-positive, .badge-neutral, .badge-negative, .badge-fail, .chip-category, .chip-tag-warn, .chip-alert {
+.badge-positive, .badge-neutral, .badge-negative, .badge-fail, .badge-skipped, .chip-category, .chip-tag-warn, .chip-alert {
   display: inline-block; padding: 3px 9px; border-radius: 5px; font-weight: 700; font-size: 0.8em; letter-spacing: 0.1px; margin-right: 6px;
 }
 .badge-positive { background-color: #e8f5e9; color: #2e7d32; }
 .badge-neutral { background-color: #fff3cd; color: #8a6100; }
 .badge-negative { background-color: #fdecea; color: #c62828; }
 .badge-fail { background-color: #f3e5f5; color: #7b1fa2; }
+.badge-skipped { background-color: rgba(128,128,128,0.18); color: var(--app-text); opacity: 0.7; }
 .chip-category { background: var(--app-secondary-bg); border: 1px solid var(--app-border); }
 .chip-tag-warn { background-color: #fdecea; color: #c62828; }
 .chip-alert { background-color: #c62828; color: #fff; font-size: 0.76em; }
@@ -156,11 +161,10 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .sentiment-neu { background-color: #e0a940; color: #d99a2b; }
 .sentiment-pos { background-color: #4caf82; color: #43a047; }
 
-.pagination-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.pg-top { display: flex; justify-content: flex-end; }
-.pg-top select { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 5px 8px; font-size: 0.85em; }
-.pg-nav { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
-.pg-nav button { font-weight: 700; padding: 3px 4px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-secondary-bg); min-width: 27px; font-size: 0.88em; }
+.pagination-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 10px; flex-wrap: nowrap; }
+.pg-top select { flex-shrink: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 4px 3px; font-size: 0.78em; }
+.pg-nav { display: flex; align-items: center; justify-content: center; gap: 3px; flex-wrap: nowrap; }
+.pg-nav button { flex-shrink: 0; font-weight: 700; padding: 3px 3px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-secondary-bg); min-width: 23px; font-size: 0.8em; }
 .pg-nav button:hover:not(.active):not(:disabled) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .pg-nav button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
 .pg-nav button:disabled { opacity: 0.35; cursor: default; }
@@ -321,7 +325,7 @@ function selectionReasons(g) {
   if (g.category === "공정거래") reasons.push("제재·심결 신호");
   return reasons;
 }
-function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
+function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail','미분석':'badge-skipped'}[sentiment] || 'badge-neutral'; }
 function fmtDt(ts) {
   if (!ts) return "";
   const d = new Date(ts);
@@ -358,7 +362,8 @@ function renderTopTiles() {
   const dupCount = dr.length - groups.length;
   const sentCounts = {};
   dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
-  const failCount = (sentCounts['판단 실패']||0) + (sentCounts['미분석']||0);
+  const failCount = sentCounts['판단 실패']||0;
+  const skippedCount = sentCounts['미분석']||0;
   let spreadCaption = "";
   if (groups.length) {
     let most = groups[0];
@@ -367,8 +372,9 @@ function renderTopTiles() {
     if (spreadCaption.length > 16) spreadCaption = spreadCaption.slice(0,16) + "…";
   }
 
+  const skippedTag = skippedCount > 0 ? `<span class="sm-skipped">미분석(테스트) ${skippedCount}</span>` : '';
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span></div>`;
+    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span>${skippedTag}</div>`;
   document.getElementById('statMajor').innerHTML =
     `<div class="label">주요 뉴스</div><div class="value-line"><span class="value">${majorCount}건</span><span class="sub-inline">AI 판단 기준</span></div>`;
   document.getElementById('statSpread').innerHTML =
@@ -536,7 +542,7 @@ function renderMainList(scoped, allGroups) {
   }
 
   const pg = document.getElementById('paginationRow');
-  const WINDOW = 5;
+  const WINDOW = 3;
   const startP = Math.max(1, Math.min(state.page - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
   const endP = Math.min(totalPages, startP + WINDOW - 1);
   const pageNums = [];
