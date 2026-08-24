@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily Brief</title>
+<style>
+:root { --app-primary: #ff4b4b; --app-secondary-bg: #f0f2f6; --app-text: #31333f; --app-bg: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  :root { --app-primary: #ff6b6b; --app-secondary-bg: #262730; --app-text: #fafafa; --app-bg: #0e1117; }
+}
+* { box-sizing: border-box; }
+body { background: var(--app-bg); color: var(--app-text); font-family: "Segoe UI","Malgun Gothic",-apple-system,sans-serif; margin: 0; }
+a { color: inherit; }
+button { font-family: inherit; cursor: pointer; background: var(--app-bg); color: var(--app-text); }
+.block-container { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+
+.app-header { display: flex; align-items: center; justify-content: center; padding: 4px 10px; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; height: 100%; }
+.app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; line-height: 1.15; }
+
+.top-stat-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 8px; }
+.tile-db { flex: 1.38 1 0; min-width: 0; }
+.tile-collect { flex: 1.3 1 0; min-width: 0; }
+.tile-major { flex: 0.92 1 0; min-width: 0; }
+.tile-spread { flex: 1 1 0; min-width: 0; }
+
+.db-tile { background: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; display: flex; gap: 6px; }
+.db-left { flex: 0.8 1 0; display: flex; }
+.db-right { flex: 2.2 1 0; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.db-tabs-row { display: flex; gap: 4px; }
+.db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 6px; font-size: 0.7em; white-space: pre-line; line-height: 1.15; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; min-height: 32px; }
+.db-tabs-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.db-date-row { display: flex; gap: 4px; align-items: center; }
+.db-date-row button { flex: 0 0 auto; padding: 1px 10px; font-size: 0.72em; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; }
+.date-pill { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 1px 10px; font-weight: 600; font-size: 0.72em; white-space: nowrap; }
+
+.stat-card { background: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; }
+.tile-major .stat-card, .tile-spread .stat-card { padding-right: 8px; }
+.stat-card .label { font-size: 0.8em; opacity: 0.65; margin-bottom: 4px; }
+.stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.stat-card .value { font-size: 1.75em; font-weight: 800; letter-spacing: -0.3px; }
+.stat-card .sub-inline { font-size: 0.72em; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card .sm-fail { font-size: 0.72em; color: #7b1fa2; font-weight: 700; }
+
+hr.thin { border: none; border-top: 1px solid rgba(128,128,128,0.3); margin: 4px 0; }
+
+.badge-positive { background-color: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.badge-neutral { background-color: #fff3cd; color: #8a6100; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.badge-negative { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.badge-fail { background-color: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.chip-category { background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; border: 1px solid rgba(128,128,128,0.3); }
+.chip-tag-warn { background-color: #fdecea; color: #c62828; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 8px; }
+.chip-alert { background-color: #c62828; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; margin-right: 8px; }
+.card-meta-inline { font-size: 0.8em; opacity: 0.6; margin-left: 8px; }
+.reason-chip { display: inline-block; background: var(--app-secondary-bg); opacity: 0.85; padding: 1px 7px; border-radius: 4px; font-size: 0.85em; font-weight: 700; margin-right: 4px; border: 1px solid rgba(128,128,128,0.25); }
+.reason-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 4px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; line-height: 1.3; }
+.toggle-btn { font-size: 0.85em; font-weight: 700; padding: 4px 10px; border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; background: var(--app-secondary-bg); white-space: nowrap; }
+
+.summary-box-blue { background-color: #0d1e36; padding: 12px; border-radius: 8px; margin-bottom: 4px; font-size: 0.95em; color: #8ab4f8; display: block; text-decoration: none; }
+.signal-box { background-color: #12203a; border: 1px solid #12203a; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
+.signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; }
+.signal-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
+.signal-item:first-of-type { margin-top: 10px; padding-top: 0; border-top: none; }
+.signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; text-align: center; font-size: 0.75em; line-height: 18px; margin-right: 4px; }
+.signal-item-head { color: #fff; font-size: 0.95em; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.signal-item-body { color: #cbd5e1; font-size: 0.85em; margin-top: 4px; line-height: 1.4; }
+.chip-category-dark { background-color: #24406e; color: #8ab4f8; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; margin: 0 4px; }
+.reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
+
+.news-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; margin-bottom: 8px; }
+.news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1em; }
+.news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 6px 4px; font-size: 0.85em; }
+.news-filter-row select.sel-sentiment { width: 110px; }
+.news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 6px 10px; font-size: 0.85em; }
+
+.cat-chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.cat-chip-row button { border-radius: 20px; white-space: nowrap; padding: 6px 16px; border: 1px solid rgba(128,128,128,0.3); background: var(--app-secondary-bg); font-size: 0.9em; }
+.cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+
+.layout { display: flex; gap: 24px; align-items: flex-start; }
+.main-col { flex: 2.85 1 0; min-width: 0; }
+.side-col { flex: 1 1 0; min-width: 220px; }
+@media (max-width: 800px) { .layout { flex-direction: column; } .news-filter-row { flex-wrap: wrap; } .news-filter-row h5 { width: auto; } }
+
+.result-caption { font-size: 0.8em; opacity: 0.65; margin-bottom: 10px; }
+.sidebar-panel { background: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px 10px; margin-bottom: 14px; position: sticky; top: 20px; }
+.sidebar-panel .panel-title { font-weight: bold; margin-bottom: 8px; }
+.kw-row { margin-bottom: 20px; }
+.kw-row .kw-label { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; }
+.kw-total { opacity: 0.65; font-weight: normal; }
+.cnt-neg { color: #e05353; font-weight: 700; }
+.cnt-neu { color: #d99a2b; font-weight: 700; }
+.cnt-pos { color: #43a047; font-weight: 700; }
+.sentiment-track { display: flex; width: 100%; height: 6px; border-radius: 6px; overflow: visible; background-color: rgba(128,128,128,0.2); }
+.sentiment-seg {
+    display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; white-space: nowrap;
+    -webkit-text-stroke: 3px #fff; paint-order: stroke fill;
+    text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 4px #fff;
+}
+.sentiment-neg { background-color: #e05353; color: #e05353; }
+.sentiment-neu { background-color: #e0a940; color: #d99a2b; }
+.sentiment-pos { background-color: #4caf82; color: #43a047; }
+
+.pagination-row { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.pagination-row select { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px 8px; font-size: 0.85em; }
+.pagination-row button { font-weight: 800; padding: 2px 4px; border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; background: var(--app-secondary-bg); min-width: 30px; }
+.pagination-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.pagination-row button:disabled { opacity: 0.4; cursor: default; }
+
+.article-card { border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.article-title { font-weight: 700; text-decoration: none; }
+.importance-tag { color: #b8860b; font-size: 0.85em; }
+.related-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.related-list { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(128,128,128,0.3); display: none; }
+.related-list.open { display: block; }
+.related-list div { margin-bottom: 4px; font-size: 0.9em; }
+.related-list a { color: #1565c0; text-decoration: none; }
+
+.org-dept-title { font-size: 0.95em; font-weight: 700; margin: 16px 0 8px; }
+.org-person-row { margin-bottom: 6px; font-size: 0.9em; }
+.info-box { background: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 14px; font-size: 0.9em; }
+.generated-note { font-size: 0.72em; opacity: 0.5; text-align: center; margin-top: 30px; }
+.view { display: none; }
+.view.active { display: block; }
+</style>
+</head>
+<body>
+<div class="block-container">
+
+  <div class="top-stat-row">
+    <div class="tile-db">
+      <div class="db-tile">
+        <div class="db-left"><div class="app-header"><span class="app-title">Daily<br>Brief</span></div></div>
+        <div class="db-right">
+          <div class="db-tabs-row" id="tabsRow"></div>
+          <div class="db-date-row">
+            <button id="datePrev">◀</button>
+            <div class="date-pill" id="dateText"></div>
+            <button id="dateNext">▶</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tile-collect"><div class="stat-card" id="statCollect"></div></div>
+    <div class="tile-major"><div class="stat-card" id="statMajor"></div></div>
+    <div class="tile-spread"><div class="stat-card" id="statSpread"></div></div>
+  </div>
+
+  <div id="view-news" class="view">
+    <hr class="thin">
+    <div class="signal-box">
+      <span class="signal-tag">오늘 주요 내용</span>
+      <div id="signalItems"></div>
+    </div>
+
+    <div class="news-filter-row">
+      <h5>카테고리별 주요뉴스</h5>
+      <select id="periodSelect">
+        <option value="0">오늘만</option>
+        <option value="6">최근 7일</option>
+        <option value="29">최근 30일</option>
+      </select>
+      <select id="sortSelect">
+        <option value="importance">중요도순</option>
+        <option value="press">보도량순</option>
+        <option value="latest">최신순</option>
+      </select>
+      <select id="sentimentSelect" class="sel-sentiment">
+        <option value="">논조 전체</option>
+        <option value="긍정">긍정</option>
+        <option value="중립">중립</option>
+        <option value="부정">부정</option>
+        <option value="판단 실패">판단 실패</option>
+      </select>
+      <input type="text" id="searchInput" placeholder="제목, 요약에서 검색">
+    </div>
+
+    <div class="cat-chip-row" id="catChipRow"></div>
+    <hr class="thin">
+
+    <div class="layout">
+      <div class="main-col">
+        <div id="mainListArea"></div>
+      </div>
+      <div class="side-col">
+        <div class="result-caption" id="resultCaption"></div>
+        <div class="sidebar-panel">
+          <div class="panel-title">카테고리별 수집 현황</div>
+          <div id="sidebarBars"></div>
+        </div>
+        <div class="pagination-row" id="paginationRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-law" class="view">
+    <hr class="thin">
+    <div class="info-box">'입법' 섹션은 준비 중입니다. 곧 추가될 예정입니다.</div>
+  </div>
+
+  <div id="view-org" class="view">
+    <hr class="thin">
+    <div class="info-box" style="margin-bottom:16px;">부서·직책별 담당자 재임 이력 (수동 기록 · config/personnel.csv에서 직접 추가/수정 가능)</div>
+    <div id="orgContent"></div>
+  </div>
+
+  <div id="view-empty" class="view">
+    <hr class="thin">
+    <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
+  </div>
+
+  <div class="generated-note">생성 시각: __GENERATED_AT__ (GitHub Actions에서 자동 생성됨)</div>
+</div>
+
+<script>
+const NEWS_DATA = __NEWS_DATA_JSON__;
+const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
+
+const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","담합","사익편취","일감몰아주기","기술탈취"];
+const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
+
+const allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
+
+const state = {
+  activeTab: '뉴스',
+  currentDate: allDates.length ? allDates[allDates.length - 1] : null,
+  selectedCategory: '전체',
+  period: 0,
+  sort: 'importance',
+  sentiment: '',
+  search: '',
+  pageSize: 10,
+  page: 1,
+  openIssues: {},
+};
+
+function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
+function extractFineAmount(text) { const m = FINE_AMOUNT_PATTERN.exec(text || ""); return m ? ("과징금 " + m[1] + m[2] + "원") : null; }
+function keywordRepeatInfo(rows) {
+  let bestKw = null, bestCount = 0;
+  CRITICAL_KEYWORDS.forEach(kw => {
+    const c = rows.filter(r => r.title.indexOf(kw) !== -1).length;
+    if (c > bestCount) { bestKw = kw; bestCount = c; }
+  });
+  return [bestKw, bestCount];
+}
+function selectionReasons(g) {
+  const reasons = [];
+  if (g.pressCount >= 5) reasons.push("반복 보도 " + g.pressCount + "건");
+  if (g.kwRepeat[0] && g.kwRepeat[1] >= 2) reasons.push("'" + g.kwRepeat[0] + "' " + g.kwRepeat[1] + "회 반복");
+  if (g.category === "제재·심결") reasons.push("제재·심결 신호");
+  return reasons;
+}
+function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
+function fmtDt(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const mm = String(d.getMonth()+1).padStart(2,"0"), dd = String(d.getDate()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2,"0"), mi = String(d.getMinutes()).padStart(2,"0");
+  return mm + "." + dd + " " + hh + ":" + mi;
+}
+
+function buildIssueGroups(rows) {
+  const byIssue = {};
+  rows.forEach(r => { (byIssue[r.issue] = byIssue[r.issue] || []).push(r); });
+  const groups = Object.keys(byIssue).map(title => {
+    const grows = byIssue[title].slice().sort((a,b) => b.importance - a.importance);
+    const rep = grows[0];
+    return {
+      title, importance: rep.importance, sentiment: rep.sentiment, category: rep.category, summary: rep.summary,
+      mainPress: rep.press, pressCount: grows.length, repTs: rep.ts, repPubTs: rep.pub_ts, repLink: rep.link,
+      kwRepeat: keywordRepeatInfo(grows), rows: grows,
+    };
+  });
+  groups.sort((a,b) => (b.importance - a.importance) || (b.kwRepeat[1] - a.kwRepeat[1]));
+  return groups;
+}
+
+function dailyRows() { return NEWS_DATA.filter(r => r.date === state.currentDate); }
+
+function renderTopTiles() {
+  const dr = dailyRows();
+  document.getElementById('dateText').textContent = state.currentDate || '-';
+
+  const groups = buildIssueGroups(dr);
+  const majorCount = dr.filter(r => r.importance >= 6).length;
+  const spreadGroups = groups.filter(g => g.pressCount >= 5);
+  const dupCount = dr.length - groups.length;
+  const sentCounts = {};
+  dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
+  const failCount = (sentCounts['판단 실패']||0) + (sentCounts['미분석']||0);
+  let spreadCaption = "";
+  if (groups.length) {
+    let most = groups[0];
+    groups.forEach(g => { if (g.pressCount > most.pressCount) most = g; });
+    spreadCaption = most.title;
+    if (spreadCaption.length > 16) spreadCaption = spreadCaption.slice(0,16) + "…";
+  }
+
+  document.getElementById('statCollect').innerHTML =
+    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span></div>`;
+  document.getElementById('statMajor').innerHTML =
+    `<div class="label">주요 뉴스</div><div class="value-line"><span class="value">${majorCount}건</span><span class="sub-inline">AI 판단 기준</span></div>`;
+  document.getElementById('statSpread').innerHTML =
+    `<div class="label">보도 확산</div><div class="value-line"><span class="value">${spreadGroups.length}건</span><span class="sub-inline">${spreadCaption} 등</span></div>`;
+
+  return { dr, groups, sentCounts };
+}
+
+function renderTabsAndDate() {
+  const tabsRow = document.getElementById('tabsRow');
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['공정위\n조직','공정위 조직']];
+  tabsRow.innerHTML = tabs.map(([label, value]) =>
+    `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
+  ).join('');
+  tabsRow.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; renderAll(); });
+  });
+  document.getElementById('datePrev').addEventListener('click', () => {
+    const i = allDates.indexOf(state.currentDate);
+    if (i > 0) { state.currentDate = allDates[i-1]; renderAll(); }
+  });
+  document.getElementById('dateNext').addEventListener('click', () => {
+    const i = allDates.indexOf(state.currentDate);
+    if (i !== -1 && i < allDates.length - 1) { state.currentDate = allDates[i+1]; renderAll(); }
+  });
+}
+
+function renderOrg() {
+  const el = document.getElementById('orgContent');
+  if (!PERSONNEL_DATA.length) { el.innerHTML = "<div class='info-box'>아직 등록된 인사 이력이 없습니다.</div>"; return; }
+  const groups = {};
+  PERSONNEL_DATA.forEach(p => {
+    const key = p.dept + '|||' + p.role;
+    (groups[key] = groups[key] || {dept:p.dept, role:p.role, people:[]}).people.push(p);
+  });
+  let html = "";
+  Object.values(groups).forEach(g => {
+    g.people.sort((a,b) => (b.start||"").localeCompare(a.start||""));
+    html += `<div class="org-dept-title">${g.dept} · ${g.role}</div>`;
+    g.people.forEach(p => {
+      const isCurrent = !p.end;
+      const badge = isCurrent ? "<span class='badge-positive'>현재</span> " : "";
+      html += `<div class="org-person-row">${badge}<b>${p.name}</b> · ${p.start||'?'} ~ ${isCurrent?'현재':p.end}</div>`;
+    });
+  });
+  el.innerHTML = html;
+}
+
+function scopedRows() {
+  if (state.period === 0) return dailyRows();
+  const idx = allDates.indexOf(state.currentDate);
+  const startIdx = Math.max(0, idx - state.period);
+  const rangeSet = new Set(allDates.slice(startIdx, idx + 1));
+  return NEWS_DATA.filter(r => rangeSet.has(r.date));
+}
+
+function renderNewsView(dr, allGroups) {
+  const top3 = allGroups.slice(0,3);
+  document.getElementById('signalItems').innerHTML = top3.map((g,i) => {
+    const reasons = selectionReasons(g);
+    const chips = reasons.map(r => `<span class='reason-chip-dark'>${r}</span>`).join(' ');
+    return `<div class="signal-item">
+      <div class="signal-item-head"><span class="signal-num">${i+1}</span><span class="chip-category-dark">${g.category}</span>
+      <a href="${g.repLink}" target="_blank" style="color:inherit;text-decoration:none;"><b>${g.title}</b></a> ${chips}</div>
+      <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;display:block;"><div class="signal-item-body">${g.summary} (관련 보도 ${g.pressCount}건)</div></a>
+    </div>`;
+  }).join('');
+
+  const scoped = scopedRows();
+  const catCounts = {};
+  scoped.forEach(r => { catCounts[r.category] = (catCounts[r.category]||0) + 1; });
+  const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => catCounts[b]-catCounts[a]));
+
+  const topIssueByCat = {};
+  allGroups.forEach(g => { if (!topIssueByCat[g.category]) topIssueByCat[g.category] = g; });
+
+  const chipRow = document.getElementById('catChipRow');
+  chipRow.innerHTML = cats.map(c => {
+    let tip = c in topIssueByCat ? `${topIssueByCat[c].title} · 중요도 ${topIssueByCat[c].importance}/10` : '';
+    const cnt = c === '전체' ? scoped.length : catCounts[c];
+    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
+  }).join('');
+  chipRow.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.selectedCategory = btn.dataset.cat;
+      state.page = 1;
+      chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
+      renderMainList(scoped, allGroups);
+    });
+  });
+
+  renderMainList(scoped, allGroups);
+
+  const dailyCatCounts = {};
+  dr.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
+  let sidebarHtml = "";
+  Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
+    const rows = dr.filter(r => r.category === cat);
+    const neg = rows.filter(r => r.sentiment==='부정').length;
+    const neu = rows.filter(r => r.sentiment==='중립').length;
+    const pos = rows.filter(r => r.sentiment==='긍정').length;
+    const totalS = neg+neu+pos;
+    let negPct=0, neuPct=0, posPct=0;
+    if (totalS > 0) { negPct = Math.round(neg/totalS*100); posPct = Math.round(pos/totalS*100); neuPct = 100-negPct-posPct; }
+    const seg = (pct, cls) => pct > 0 ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;">${pct}%</div>` : '';
+    sidebarHtml += `<div class="kw-row"><div class="kw-label">${cat} <span class="kw-total">${dailyCatCounts[cat]}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></div>
+      <div class="sentiment-track">${seg(negPct,'sentiment-neg')}${seg(neuPct,'sentiment-neu')}${seg(posPct,'sentiment-pos')}</div></div>`;
+  });
+  document.getElementById('sidebarBars').innerHTML = sidebarHtml;
+}
+
+function renderMainList(scoped, allGroups) {
+  let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
+  if (state.sentiment) filtered = filtered.filter(r => r.sentiment === state.sentiment);
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    filtered = filtered.filter(r => (r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q));
+  }
+  let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
+  if (state.sort === 'latest') {
+    groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
+  } else if (state.sort === 'press') {
+    groups.sort((a,b) => b.pressCount - a.pressCount);
+  }
+
+  const totalCount = groups.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.pageSize));
+  if (state.page > totalPages) state.page = totalPages;
+  if (state.page < 1) state.page = 1;
+  const startN = (state.page - 1) * state.pageSize;
+  const pageGroups = groups.slice(startN, startN + state.pageSize);
+
+  document.getElementById('resultCaption').textContent = totalCount === 0 ? "조건에 맞는 기사가 없습니다." :
+    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.pageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+
+  const listEl = document.getElementById('mainListArea');
+  if (!pageGroups.length) {
+    listEl.innerHTML = "<div class='info-box'>조건에 맞는 기사가 없습니다.</div>";
+  } else {
+    listEl.innerHTML = pageGroups.map(g => {
+      const bc = badgeClass(g.sentiment);
+      const reasons = selectionReasons(g);
+      const fineTag = extractFineAmount(g.title + " " + g.summary);
+      const domain = extractDomain(g.repLink);
+      const dt = fmtDt(g.repPubTs || g.repTs);
+      const issueKey = (g.title + "|" + g.repLink).replace(/"/g,'&quot;');
+      const isOpen = !!state.openIssues[issueKey];
+      let tags = `<span class="${bc}">${g.sentiment}</span> <span class="chip-category">${g.category}</span>`;
+      if (reasons.indexOf('제재·심결 신호') !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
+      if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
+      const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
+      const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
+      return `<div class="article-card">
+        <div>${tags} <a class="article-title" href="${g.repLink}" target="_blank">${g.title}</a>
+        <span class="importance-tag">중요도 ${g.importance}/10</span>
+        <span class="card-meta-inline">${dt} · ${domain} · 총 보도 매체 ${g.pressCount}개</span></div>
+        <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
+        <div class="related-row">
+          <div class="reason-box">${reasons.length? ("선별 근거 "+reasonChips) : ""}</div>
+          <button class="toggle-btn" data-key="${issueKey}">유사 기사 ${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
+        </div>
+        <div class="related-list ${isOpen?'open':''}">${related}</div>
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('.toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => { const k = btn.dataset.key; state.openIssues[k] = !state.openIssues[k]; renderMainList(scoped, allGroups); });
+    });
+  }
+
+  const pg = document.getElementById('paginationRow');
+  const WINDOW = 5;
+  const startP = Math.max(1, Math.min(state.page - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let pgHtml = `<select id="pageSizeSel"><option value="10" ${state.pageSize===10?'selected':''}>10개</option><option value="20" ${state.pageSize===20?'selected':''}>20개</option><option value="50" ${state.pageSize===50?'selected':''}>50개</option></select>`;
+  pgHtml += `<button id="pgPrev" ${state.page<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { pgHtml += `<button class="pg-num ${p===state.page?'active':''}" data-p="${p}">${p}</button>`; });
+  pgHtml += `<button id="pgNext" ${state.page>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = pgHtml;
+  document.getElementById('pageSizeSel').addEventListener('change', e => { state.pageSize = parseInt(e.target.value,10); state.page = 1; renderMainList(scoped, allGroups); });
+  document.getElementById('pgPrev').addEventListener('click', () => { if (state.page>1) { state.page--; renderMainList(scoped, allGroups); } });
+  document.getElementById('pgNext').addEventListener('click', () => { if (state.page<totalPages) { state.page++; renderMainList(scoped, allGroups); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
+}
+
+function renderAll() {
+  renderTabsAndDate();
+  const { dr, groups } = renderTopTiles();
+
+  ['view-news','view-law','view-org','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+
+  if (state.activeTab === '공정위 조직') {
+    document.getElementById('view-org').classList.add('active');
+    renderOrg();
+  } else if (state.activeTab !== '뉴스') {
+    document.getElementById('view-law').classList.add('active');
+  } else if (dr.length === 0) {
+    document.getElementById('view-empty').classList.add('active');
+  } else {
+    document.getElementById('view-news').classList.add('active');
+    renderNewsView(dr, groups);
+  }
+}
+
+document.getElementById('periodSelect').addEventListener('change', e => { state.period = parseInt(e.target.value,10); state.selectedCategory = '전체'; state.page = 1; renderAll(); });
+document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
+document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
+document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
+
+renderAll();
+</script>
+</body>
+</html>

@@ -38,13 +38,17 @@ jobs:
         run: |
           python main.py
 
-      - name: 결과 CSV 파일 깃허브에 커밋 및 푸시
+      - name: 정적 대시보드(docs/index.html) 생성
+        run: |
+          python generate_html.py
+
+      - name: 결과 CSV + 정적 대시보드 깃허브에 커밋 및 푸시
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add news_list.csv
+          git add news_list.csv docs/index.html
           if ! git diff --quiet || ! git diff --staged --quiet; then
             git commit -m "Update news data"
             # 이 스크립트가 실행되는 동안 다른 커밋(예: app.py 수정)이 먼저 푸시되어
