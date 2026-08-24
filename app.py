@@ -72,7 +72,7 @@ st.markdown("""
 
 .app-header { display: flex; align-items: center; gap: 9px; padding: 2px 0; }
 .app-logo { background: linear-gradient(135deg, var(--app-primary), #ff8a65); color: #fff; font-weight: 800; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; box-shadow: 0 2px 6px rgba(255,75,75,0.35); }
-.app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; color: var(--app-text); }
+.app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; line-height: 1.15; color: var(--app-text); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
    내용 크기 기반 자동 축소가 Streamlit 내부 스타일과 충돌해 안 먹혀서, 각 칸의 폭을 직접 고정값으로 지정 */
@@ -87,12 +87,18 @@ st.markdown("""
 /* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
 .st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px 12px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 4px !important; margin-bottom: 6px; }
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; }
-.st-key-db_tabs_row button, .st-key-db_date_row button {
-    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important;
+/* 탭 3개는 글자를 감싸는 크기로(내용에 맞춤), 사이 간격은 1px */
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 1px !important; margin-bottom: 6px; justify-content: flex-start; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
+.st-key-db_tabs_row button {
+    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: auto !important;
 }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
+.st-key-db_date_row button {
+    padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: 100% !important;
+}
+/* 날짜 텍스트도 화살표 버튼과 같은 타원 모양으로, 가운데 정렬 */
+.date-pill { display: flex; align-items: center; justify-content: center; background-color: rgba(128,128,128,0.18); border-radius: 20px; padding: 4px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
@@ -313,13 +319,13 @@ sentiment_mini_html = " · ".join(sentiment_mini_items)
 
 # ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
 with st.container(key="top_stat_row"):
-    tile_cols = st.columns([2.4, 1, 1, 1], gap="small")
+    tile_cols = st.columns([1.6, 1, 1, 1], gap="small")
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
             db_left, db_right = st.columns([1.4, 1.6])
             with db_left:
-                st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+                st.markdown("<div class='app-header'><span class='app-logo'>D</span><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
             with db_right:
                 with st.container(key="db_tabs_row"):
                     tab_cols = st.columns(3)
@@ -336,7 +342,7 @@ with st.container(key="top_stat_row"):
                             st.rerun()
                     with d_text:
                         date_display = st.session_state.current_date.strftime('%Y/%m/%d')
-                        st.markdown(f"<div style='text-align: center; font-weight: 600; font-size: 0.85em; color: var(--app-text); white-space: nowrap;'>{date_display}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='date-pill'>{date_display}</div>", unsafe_allow_html=True)
                     with d_next:
                         if st.button("▶", key="date_next", use_container_width=True):
                             st.session_state.current_date += timedelta(days=1)
@@ -380,7 +386,7 @@ if daily_df.empty:
     st.info("해당 날짜에 수집된 기사 데이터가 없습니다.")
     st.stop()
 
-st.divider()
+st.markdown("<hr style='margin: 4px 0; border-color: rgba(128,128,128,0.3);'>", unsafe_allow_html=True)
 
 # 오늘 주요 내용 (규칙 기반 — 중요도 상위 3개 이슈. 별도 AI 호출 없이 수집된 데이터로 자동 생성)
 top3 = all_issue_groups[:3]
