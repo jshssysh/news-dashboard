@@ -90,13 +90,14 @@ st.markdown("""
 .st-key-db_tile .app-header { padding: 0; margin: 0; }
 
 /* 탭 3개: 뉴스/입법/공정위 조직을 각각 독립된 칩으로 완전히 분리 */
-.st-key-db_tabs_row { margin-bottom: 4px; }
+.st-key-db_tabs_row { margin-bottom: 2px; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 4px !important; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 1 1 0 !important; min-width: 0 !important; }
-/* height:100%/stretch가 버튼에는 안 먹혀서, 고정 min-height로 세 칩의 높이를 직접 통일 */
+/* height:100%/stretch가 버튼에는 안 먹혀서, 고정 min-height로 세 칩의 높이를 직접 통일.
+   전체 Daily Brief 타일 높이가 수집기사 칩 높이를 넘지 않도록 살짝 더 낮춤 */
 .st-key-db_tabs_row button {
-    padding: 4px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.2 !important;
-    border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important; min-height: 38px !important;
+    padding: 2px 6px !important; font-size: 0.7em !important; white-space: pre-line !important; line-height: 1.15 !important;
+    border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important; min-height: 32px !important;
 }
 
 /* 날짜 이동: 왼쪽 화살표 / 날짜 / 오른쪽 화살표를 각각 독립된 칩으로 분리 */
@@ -104,9 +105,9 @@ st.markdown("""
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 2px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important;
+    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: 1px solid rgba(128,128,128,0.3) !important; border-radius: 10px !important; width: 100% !important;
 }
-.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 2px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
+.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 1px 10px; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
