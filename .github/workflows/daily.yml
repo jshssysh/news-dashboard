@@ -45,4 +45,10 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add news_list.csv
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update news data" && git push)
+          if ! git diff --quiet || ! git diff --staged --quiet; then
+            git commit -m "Update news data"
+            # 이 스크립트가 실행되는 동안 다른 커밋(예: app.py 수정)이 먼저 푸시되어
+            # main이 앞서 있으면 그냥 push하면 거부되므로, 먼저 최신 내용을 받아온 뒤 푸시한다
+            git pull --rebase --autostash origin main
+            git push
+          fi
