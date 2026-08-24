@@ -231,16 +231,39 @@ def analyze_batch_with_gemini(batch_items):
         print(f"[Gemini API 예외] {e}")
     return [(item["idx"], 0, "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
 
-def master_cluster_with_gemini(unique_issue_titles):
-    if not GEMINI_API_KEY or not unique_issue_titles: return {title: title for title in unique_issue_titles}
+def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
+    """최근 N일간 이미 저장된 대표이슈명을 반환한다 (등장 빈도 높은 순으로 최대 limit개).
+    여러 날에 걸쳐 보도되는 사건이 매일 실행되는 클러스터링에서 서로 다른 이슈명으로
+    쪼개지는 것을 막기 위해, master_cluster_with_gemini가 '기존 이슈명'을 참고할 수 있게 한다."""
+    if not os.path.exists(file_name):
+        return []
+    try:
+        df = pd.read_csv(file_name)
+        cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=days)
+        dt = pd.to_datetime(df["수집일자"], errors="coerce")
+        recent = df.loc[dt >= cutoff, "대표이슈"].dropna()
+        return recent.value_counts().head(limit).index.tolist()
+    except Exception as e:
+        print(f"[최근 이슈명 로드 예외] {e}")
+        return []
+
+def master_cluster_with_gemini(new_titles, existing_titles=None):
+    existing_titles = existing_titles or []
+    if not GEMINI_API_KEY or not new_titles: return {title: title for title in new_titles}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
-[초기 이슈명 목록]
-{json.dumps(unique_issue_titles, ensure_ascii=False)}
-의미가 같은 사건을 다루는 이슈들을 능동적으로 파악하여 하나의 '통합 대표 이슈명(10자 이내 명사형)'으로 묶어주세요.
-응답 JSON 배열 예시:
+[오늘 새로 발견된 이슈명]
+{json.dumps(new_titles, ensure_ascii=False)}
+[최근 14일간 이미 사용 중인 기존 이슈명] (참고용)
+{json.dumps(existing_titles, ensure_ascii=False)}
+
+'오늘 새로 발견된 이슈명' 각 항목에 대해, 같은 사건을 다루는 기존 이슈명이 있으면
+반드시 새 이름을 만들지 말고 그 기존 이슈명을 merged 값으로 그대로 재사용하세요.
+(여러 날에 걸쳐 보도되는 사건이 매일 다른 이슈명으로 쪼개지는 것을 막기 위함입니다.)
+같은 사건을 다루는 기존 이슈명이 없을 때만 새로운 '통합 대표 이슈명(10자 이내 명사형)'을 만드세요.
+응답은 '오늘 새로 발견된 이슈명' 각 항목에 대해서만, 아래 형식의 JSON 배열로 출력하세요:
 [
-  {{"original": "원본이슈명1", "merged": "통합대표이슈명A"}}
+  {{"original": "오늘이슈명1", "merged": "재사용된 기존 이슈명 또는 새 이슈명"}}
 ]
 """
     # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
@@ -256,12 +279,16 @@ def master_cluster_with_gemini(unique_issue_titles):
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
             parsed_list = json.loads(raw_text.strip())
-            return {item.get("original", ""): item.get("merged", "") for item in parsed_list}
+            mapping = {item.get("original", ""): item.get("merged", "") for item in parsed_list}
+            # 응답에서 빠진 항목은 원래 이름을 그대로 유지 (부분 실패가 전체를 깨지 않도록)
+            for t in new_titles:
+                mapping.setdefault(t, t)
+            return mapping
         else:
             print(f"[Gemini 클러스터링 오류] status={res.status_code} body={res.text[:300]}")
     except Exception as e:
         print(f"[Gemini 클러스터링 예외] {e}")
-    return {title: title for title in unique_issue_titles}
+    return {title: title for title in new_titles}
 
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
@@ -379,7 +406,8 @@ def main():
 
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
         if valid_group_titles:
-            master_mapping = master_cluster_with_gemini(valid_group_titles)
+            recent_existing_titles = [t for t in load_recent_issue_titles() if t not in valid_group_titles]
+            master_mapping = master_cluster_with_gemini(valid_group_titles, recent_existing_titles)
             for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
                 if score >= 5 and orig_gt in master_mapping:
                     analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment, category)
