@@ -85,11 +85,11 @@ st.markdown("""
 .st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div > div { width: 100%; }
 
 /* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
-.st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px 14px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
+.st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
 .st-key-db_title_row div[data-testid="stHorizontalBlock"] { gap: 1px !important; }
 /* 탭 3개는 글자를 감싸는 크기로(내용에 맞춤), 사이 간격은 1px */
-.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 1px !important; margin-bottom: 6px; justify-content: flex-start; }
+.st-key-db_tabs_row div[data-testid="stHorizontalBlock"] { display: flex !important; flex-wrap: nowrap !important; gap: 1px !important; margin-bottom: 8px; justify-content: flex-start; }
 .st-key-db_tabs_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }
 .st-key-db_tabs_row button {
     padding: 4px 10px !important; font-size: 0.72em !important; white-space: nowrap; border-radius: 20px !important; width: auto !important;
@@ -184,7 +184,7 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
 
 /* 통계 타일 */
-.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; height: 100%; box-sizing: border-box; }
+.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; }
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.75em; font-weight: 800; color: var(--app-text); letter-spacing: -0.3px; }
