@@ -70,7 +70,7 @@ st.markdown("""
 }
 .block-container { max-width: 1100px; padding-top: 3rem; }
 
-.app-header { display: flex; align-items: center; padding: 0; margin: 0; }
+.app-header { display: flex; align-items: center; justify-content: center; padding: 4px 10px; margin: 0; border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; box-sizing: border-box; height: 100%; }
 .app-title { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; line-height: 1.15; color: var(--app-text); }
 
 /* 상단 바(제목+탭+날짜) 한 줄: 좁은 화면에서도 줄바꿈 없이 유지, 버튼/텍스트는 작게
