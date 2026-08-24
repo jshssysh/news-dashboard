@@ -331,13 +331,13 @@ sentiment_mini_html = " · ".join(sentiment_mini_items)
 
 # ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
 with st.container(key="top_stat_row"):
-    tile_cols = st.columns([1.6, 1, 1, 1], gap="small")
+    tile_cols = st.columns([1.3, 1.3, 1, 1], gap="small")
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
-            db_left, db_right = st.columns([1, 2])
+            db_left, db_right = st.columns([0.8, 2.2])
             with db_left:
-                st.markdown("<div class='app-header'><span class='app-title'>Daily Brief</span></div>", unsafe_allow_html=True)
+                st.markdown("<div class='app-header'><span class='app-title'>Daily<br>Brief</span></div>", unsafe_allow_html=True)
             with db_right:
                 with st.container(key="db_tabs_row"):
                     tab_cols = st.columns(3)
