@@ -85,12 +85,7 @@ st.markdown("""
 .st-key-top_stat_row div[data-testid="stHorizontalBlock"] > div > div { width: 100%; }
 
 /* Daily Brief 타일: 카드 모양 통일, 왼쪽은 제목, 오른쪽 위는 탭, 오른쪽 아래는 날짜 */
-.st-key-db_tile {
-    background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-left: 3px solid var(--app-primary);
-    border-radius: 10px; padding: 10px 14px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
-.st-key-db_tile:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.25); transform: translateY(-1px); }
+.st-key-db_tile { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 10px 14px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .st-key-db_tile div[data-testid="stHorizontalBlock"] { align-items: center !important; }
 .st-key-db_title_row div[data-testid="stHorizontalBlock"] { gap: 1px !important; }
 /* 탭 3개는 글자를 감싸는 크기로(내용에 맞춤), 사이 간격은 1px */
@@ -189,12 +184,7 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 .reason-chip-dark { display: inline-block; background-color: #24406e; color: #8ab4f8; opacity: 0.9; padding: 1px 7px; border-radius: 4px; font-size: 0.75em; margin-right: 4px; }
 
 /* 통계 타일 */
-.stat-card {
-    background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-left: 3px solid var(--app-primary);
-    border-radius: 10px; padding: 14px; height: 100%; box-sizing: border-box;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
-.stat-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.25); transform: translateY(-1px); }
+.stat-card { background-color: var(--app-secondary-bg); border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; height: 100%; box-sizing: border-box; }
 .stat-card .label { font-size: 0.8em; color: var(--app-text); opacity: 0.65; margin-bottom: 4px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stat-card .value { font-size: 1.75em; font-weight: 800; color: var(--app-text); letter-spacing: -0.3px; }
