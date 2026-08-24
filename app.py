@@ -93,10 +93,21 @@ st.markdown("""
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
 div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky),
 div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) > div,
-div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="stVerticalBlock"] {
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) div[data-testid="stVerticalBlockBorderWrapper"] {
     overflow: visible !important;
+    height: auto !important;
 }
-.st-key-side_sticky { position: sticky !important; top: 20px; align-self: flex-start; z-index: 1; }
+div[data-testid="stHorizontalBlock"]:has(.st-key-side_sticky) {
+    align-items: stretch !important;
+}
+.st-key-side_sticky {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    top: 20px !important;
+    align-self: flex-start !important;
+    z-index: 1 !important;
+}
 
 
 /* 표시 개수/페이지 번호 버튼: 글자를 더 두껍게, 중앙 정렬, 세로 높이를 줄임 */
@@ -542,7 +553,7 @@ with main_col:
         start = (page - 1) * page_size
         issue_groups = issue_groups[start:start + page_size]
 
-    with st.container(height=700, key="article_list_scroll"):
+    with st.container(key="article_list_scroll"):
         for g in issue_groups:
             bc = badge_class(g['sentiment'])
             reasons = selection_reasons(g)
