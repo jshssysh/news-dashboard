@@ -115,6 +115,9 @@ hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; 
 .sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px; }
 .kw-row { margin-bottom: 18px; }
 .kw-row:last-child { margin-bottom: 0; }
+.kw-row-total .kw-label { font-size: 0.9em; }
+.kw-row-total .sentiment-track { height: 10px; }
+hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 0 0 16px; }
 .kw-row .kw-label { font-size: 0.84em; font-weight: 700; margin-bottom: 7px; display: flex; align-items: baseline; gap: 4px; }
 .kw-total { opacity: 0.6; font-weight: 500; }
 .cnt-neg { color: #e05353; font-weight: 700; }
@@ -425,9 +428,7 @@ function renderNewsView(dr, allGroups) {
 
   const dailyCatCounts = {};
   dr.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
-  let sidebarHtml = "";
-  Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
-    const rows = dr.filter(r => r.category === cat);
+  const renderKwRow = (label, rows, extraClass) => {
     const neg = rows.filter(r => r.sentiment==='부정').length;
     const neu = rows.filter(r => r.sentiment==='중립').length;
     const pos = rows.filter(r => r.sentiment==='긍정').length;
@@ -435,8 +436,12 @@ function renderNewsView(dr, allGroups) {
     let negPct=0, neuPct=0, posPct=0;
     if (totalS > 0) { negPct = Math.round(neg/totalS*100); posPct = Math.round(pos/totalS*100); neuPct = 100-negPct-posPct; }
     const seg = (pct, cls) => pct > 0 ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;">${pct}%</div>` : '';
-    sidebarHtml += `<div class="kw-row"><div class="kw-label">${cat} <span class="kw-total">${dailyCatCounts[cat]}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></div>
+    return `<div class="kw-row ${extraClass||''}"><div class="kw-label">${label} <span class="kw-total">${rows.length}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></div>
       <div class="sentiment-track">${seg(negPct,'sentiment-neg')}${seg(neuPct,'sentiment-neu')}${seg(posPct,'sentiment-pos')}</div></div>`;
+  };
+  let sidebarHtml = dr.length ? renderKwRow('전체', dr, 'kw-row-total') + '<hr class="kw-divider">' : '';
+  Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
+    sidebarHtml += renderKwRow(cat, dr.filter(r => r.category === cat));
   });
   document.getElementById('sidebarBars').innerHTML = sidebarHtml;
 }
