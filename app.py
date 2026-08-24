@@ -103,11 +103,9 @@ st.markdown("""
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div { flex: 0 0 auto !important; min-width: 0 !important; display: flex !important; align-items: center !important; }
 .st-key-db_date_row div[data-testid="stHorizontalBlock"] > div:nth-child(2) { flex: 1 1 auto !important; }
 .st-key-db_date_row button {
-    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important;
-    width: 100% !important; line-height: 1 !important; background-color: transparent !important; color: var(--app-text) !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
+    padding: 1px 10px !important; font-size: 0.72em !important; white-space: nowrap; border: none !important; border-radius: 0 !important; width: 100% !important;
 }
-.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 1px 10px; box-sizing: border-box; font-weight: 600; font-size: 0.72em; line-height: 1; color: var(--app-text); white-space: nowrap; }
+.date-pill { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 1px 10px; box-sizing: border-box; font-weight: 600; font-size: 0.72em; color: var(--app-text); white-space: nowrap; }
 
 /* 카테고리별 수집 현황 패널: 본문을 스크롤해도 화면에 붙어서 따라옴
    (Streamlit이 컬럼/블록에 자체적으로 overflow를 걸어두면 sticky가 무효화되므로 명시적으로 풀어줌) */
