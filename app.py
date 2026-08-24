@@ -331,7 +331,7 @@ sentiment_mini_html = " · ".join(sentiment_mini_items)
 
 # ---- 상단 한 줄: Daily Brief(탭+날짜) 타일 + 수집기사/주요뉴스/보도확산 타일 ----
 with st.container(key="top_stat_row"):
-    tile_cols = st.columns([1.3, 1.3, 1, 1], gap="small")
+    tile_cols = st.columns([1.38, 1.3, 0.92, 1], gap="small")
 
     with tile_cols[0]:
         with st.container(key="db_tile"):
