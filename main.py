@@ -189,7 +189,7 @@ def analyze_batch_with_gemini(batch_items):
 """
     # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
     # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
 
     try:
         res = requests.post(url, json=payload, timeout=30)
@@ -245,7 +245,7 @@ def master_cluster_with_gemini(unique_issue_titles):
 """
     # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
     # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
-    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json"}}
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
     try:
         res = requests.post(url, json=payload, timeout=30)
         if res.status_code == 200:
