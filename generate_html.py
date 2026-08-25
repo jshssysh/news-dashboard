@@ -42,6 +42,9 @@ def load_data():
     df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5).astype(int)
     df['pub_dt'] = pd.to_datetime(df['발행일시'], format='%Y-%m-%d %H:%M', errors='coerce') if '발행일시' in df.columns else pd.NaT
     df = df[~df['분야'].isin(HIDDEN_CATEGORIES)]
+    # "미분석"은 skip_ai 개발/테스트 실행이 남긴 더미 데이터라 대시보드에 절대 노출하지 않는다
+    # (건수 집계에도 안 잡히게, 애초에 여기서 걸러낸다)
+    df = df[df['논조'] != '미분석']
 
     cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=RECENT_DAYS_WINDOW)
     df = df[df['dt'] >= cutoff]

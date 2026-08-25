@@ -60,10 +60,8 @@ button:active { transform: translateY(1px); }
 .stat-card .value { font-size: 1.85em; font-weight: 800; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
 .stat-card .sub-inline { font-size: 0.72em; opacity: 0.58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-card .sm-fail { font-size: 0.72em; color: #9c4dcc; font-weight: 700; }
-.stat-card .sm-skipped { font-size: 0.72em; color: #8a6100; font-weight: 700; opacity: 0.75; }
 @media (prefers-color-scheme: dark) {
   .stat-card .sm-fail { color: #c792ea; }
-  .stat-card .sm-skipped { color: #d9a441; }
 }
 
 hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; }
@@ -360,7 +358,7 @@ function selectionReasons(g) {
   if (g.category === "공정거래") reasons.push("제재·심결 신호");
   return reasons;
 }
-function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail','미분석':'badge-skipped'}[sentiment] || 'badge-neutral'; }
+function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
 function fmtDt(ts) {
   if (!ts) return "";
   const d = new Date(ts);
@@ -398,7 +396,6 @@ function renderTopTiles() {
   const sentCounts = {};
   dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
   const failCount = sentCounts['판단 실패']||0;
-  const skippedCount = sentCounts['미분석']||0;
   let spreadCaption = "";
   if (groups.length) {
     let most = groups[0];
@@ -407,9 +404,8 @@ function renderTopTiles() {
     if (spreadCaption.length > 16) spreadCaption = spreadCaption.slice(0,16) + "…";
   }
 
-  const skippedTag = skippedCount > 0 ? `<span class="sm-skipped">미분석(테스트) ${skippedCount}</span>` : '';
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span>${skippedTag}</div>`;
+    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span></div>`;
   document.getElementById('statMajor').innerHTML =
     `<div class="label">주요 뉴스</div><div class="value-line"><span class="value">${majorCount}건</span><span class="sub-inline">AI 판단 기준</span></div>`;
   document.getElementById('statSpread').innerHTML =
