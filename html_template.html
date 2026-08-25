@@ -769,9 +769,19 @@ function committeePriorityRank(name) {
 // 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다.
 function proposerHtml(raw) {
   if (!raw) return '';
-  const m = raw.match(/^(.*?)(\([^)]*\))(.*)$/);
-  if (!m) return `<span class="meta-dim">${raw}</span>`;
-  const [, before, detail, after] = m;
+  const openIdx = raw.indexOf('(');
+  if (openIdx === -1) return `<span class="meta-dim">${raw}</span>`;
+  // 정당 부분에 "(前 이전정당)"처럼 괄호가 한 번 더 들어가 있을 수 있어서, 정규식
+  // 대신 괄호 깊이를 세어 실제로 닫히는 지점(바깥쪽 괄호)을 찾는다.
+  let depth = 0, closeIdx = -1;
+  for (let i = openIdx; i < raw.length; i++) {
+    if (raw[i] === '(') depth++;
+    else if (raw[i] === ')') { depth--; if (depth === 0) { closeIdx = i; break; } }
+  }
+  if (closeIdx === -1) return `<span class="meta-dim">${raw}</span>`;
+  const before = raw.slice(0, openIdx);
+  const detail = raw.slice(openIdx, closeIdx + 1);
+  const after = raw.slice(closeIdx + 1);
   return `<span class="proposer-detail">${before}${detail}</span><span class="meta-dim">${after}</span>`;
 }
 
@@ -792,7 +802,12 @@ function billStepperHtml(b) {
     const rank = BILL_STEP_STAGES.indexOf(s.stage);
     let cls, date, result;
     if (rank < curRank) { cls = 'step-done'; date = s.doneDt || s.startDt; result = s.result; }
-    else if (rank === curRank) { cls = 'step-active'; date = s.startDt; result = null; }
+    else if (rank === curRank) {
+      // 지금 단계인데 이미 결과가 나와 있으면(대안반영폐기/부결/철회 등) 다음 단계로
+      // 넘어가지 않고 여기서 끝난 것이므로, "진행중"이 아니라 "완료"로 표시한다.
+      if (s.result) { cls = 'step-done'; date = s.doneDt || s.startDt; result = s.result; }
+      else { cls = 'step-active'; date = s.startDt; result = null; }
+    }
     else { cls = 'step-future'; date = null; result = null; }
     const resultHtml = result ? ` · ${result}` : '';
     const dateHtml = date ? `<span class="step-date">${date}</span>` : '';

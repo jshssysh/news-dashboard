@@ -188,7 +188,9 @@ def fetch_member_info():
                 info[name] = {
                     "party": parties[-1] if parties else "",
                     "prev_party": parties[-2] if len(parties) >= 2 else "",
-                    "district": (row.get("ELECD_NM") or "").split("/")[-1].strip(),
+                    # 지역구가 비어있으면(API가 안 채워준 경우도 포함) 지역구 없는
+                    # 의원은 곧 비례대표라는 뜻이라 "비례대표"라고 명시한다.
+                    "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
                     "term": row.get("RLCT_DIV_NM") or "",
                 }
             if len(rows) < 100:
