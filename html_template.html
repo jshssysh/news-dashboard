@@ -38,8 +38,7 @@ button:active { transform: translateY(1px); }
 .top-stat-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; }
 .tile-db { flex: 1.38 1 0; min-width: 0; }
 .tile-collect { flex: 1.3 1 0; min-width: 0; }
-.tile-major { flex: 0.92 1 0; min-width: 0; }
-.tile-spread { flex: 1 1 0; min-width: 0; }
+.tile-law { flex: 1.92 1 0; min-width: 0; }
 
 .db-tile { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 12px 16px; height: 100%; display: flex; gap: 6px; }
 .db-left { flex: 0.8 1 0; display: flex; }
@@ -54,7 +53,8 @@ button:active { transform: translateY(1px); }
 .date-pill { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; border: 1px solid var(--app-border); border-radius: 10px; padding: 1px 10px; font-weight: 600; font-size: 0.72em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .stat-card { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 14px 16px; height: 100%; box-sizing: border-box; }
-.tile-major .stat-card, .tile-spread .stat-card { padding-right: 8px; }
+.tile-law .stat-card { padding-right: 8px; }
+.law-substats { font-size: 0.72em; opacity: 0.62; margin-top: 4px; }
 .stat-card .label { font-size: 0.76em; font-weight: 600; opacity: 0.62; margin-bottom: 6px; letter-spacing: 0.2px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; row-gap: 2px; }
 .stat-card .value { font-size: 1.85em; font-weight: 800; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
@@ -120,17 +120,23 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.filter-section-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .filter-section-toggle {
-  display: flex; align-items: center; justify-content: space-between; width: 100%;
-  border: none; background: none; padding: 0; margin-bottom: 10px; color: var(--app-text);
+  display: flex; align-items: center; gap: 6px;
+  border: none; background: none; padding: 0; color: var(--app-text);
   font-size: 1.05em; font-weight: 800; letter-spacing: -0.1px; text-align: left;
 }
 .filter-section-toggle:hover { opacity: 0.75; }
 .filter-section-toggle .toggle-caret { opacity: 0.5; font-size: 0.72em; transition: transform .15s var(--ease); }
-.filter-section.collapsed .filter-section-toggle { margin-bottom: 0; }
+.filter-section.collapsed .filter-section-header { margin-bottom: 0; }
 .filter-section.collapsed .filter-section-toggle .toggle-caret { transform: rotate(-90deg); }
 .filter-section.collapsed .filter-section-body { display: none; }
 .filter-section .filter-section-body { margin-bottom: 0; }
+.committee-all-btn { padding: 6px 12px; font-size: 0.84em; }
+#billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
+
+.bill-result-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.bill-result-row .result-caption { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
 
 .bill-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-bottom: 0; }
 .flow-chevron {
@@ -274,8 +280,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       </div>
     </div>
     <div class="tile-collect"><div class="stat-card" id="statCollect"></div></div>
-    <div class="tile-major"><div class="stat-card" id="statMajor"></div></div>
-    <div class="tile-spread"><div class="stat-card" id="statSpread"></div></div>
+    <div class="tile-law"><div class="stat-card" id="statLaw"></div></div>
   </div>
 
   <div id="view-news" class="view">
@@ -334,18 +339,28 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
       </div>
       <div class="filter-section" id="committeeFilterSection">
-        <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
+          <button id="billCommitteeAllBtn" class="flow-plain committee-all-btn"></button>
+        </div>
         <div class="cat-chip-row filter-section-body" id="billCommitteeChipRow"></div>
       </div>
       <div class="filter-section" id="stageFilterSection">
-        <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+        </div>
         <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
       </div>
+      <hr class="thin">
+      <div class="bill-result-row">
+        <div class="result-caption" id="billResultCaption"></div>
+        <div class="pg-top"><select id="billPageSizeSel">
+          <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+        </select></div>
+        <div class="pg-nav" id="billPgNav"></div>
+      </div>
     </div>
-    <hr class="thin">
-    <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
-    <div class="pagination-row" id="billPaginationRow"></div>
   </div>
 
   <div id="view-org" class="view">
@@ -409,6 +424,7 @@ const state = {
   billStarredOnly: false,
   billSearch: '',
   billPage: 1,
+  billPageSize: 10,
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -460,26 +476,24 @@ function renderTopTiles() {
   document.getElementById('dateText').textContent = state.currentDate || '-';
 
   const groups = buildIssueGroups(dr);
-  const majorCount = dr.filter(r => r.importance >= 6).length;
-  const spreadGroups = groups.filter(g => g.pressCount >= 5);
   const dupCount = dr.length - groups.length;
   const sentCounts = {};
   dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
   const failCount = sentCounts['판단 실패']||0;
-  let spreadCaption = "";
-  if (groups.length) {
-    let most = groups[0];
-    groups.forEach(g => { if (g.pressCount > most.pressCount) most = g; });
-    spreadCaption = most.title;
-    if (spreadCaption.length > 16) spreadCaption = spreadCaption.slice(0,16) + "…";
-  }
 
   document.getElementById('statCollect').innerHTML =
     `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span></div>`;
-  document.getElementById('statMajor').innerHTML =
-    `<div class="label">주요 뉴스</div><div class="value-line"><span class="value">${majorCount}건</span><span class="sub-inline">AI 판단 기준</span></div>`;
-  document.getElementById('statSpread').innerHTML =
-    `<div class="label">보도 확산</div><div class="value-line"><span class="value">${spreadGroups.length}건</span><span class="sub-inline">${spreadCaption} 등</span></div>`;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const todayCount = BILL_DATA.filter(b => b.proposeDate === todayStr).length;
+  const committeeCount = BILL_DATA.filter(b => b.stage === '상임위 심사').length;
+  const lawCount = BILL_DATA.filter(b => b.stage === '법사위 심사').length;
+  const plenaryCount = BILL_DATA.filter(b => b.stage === '본회의 의결').length;
+  document.getElementById('statLaw').innerHTML =
+    `<div class="label">입법 현황 <span class="era-tag">제22대</span></div>
+     <div class="value-line"><span class="value">${BILL_DATA.length}건</span><span class="sub-inline">오늘 신규 ${todayCount}건</span></div>
+     <div class="law-substats">상임위 ${committeeCount} · 법사위 ${lawCount} · 본회의 ${plenaryCount}</div>`;
 
   return { dr, groups, sentCounts };
 }
@@ -740,29 +754,39 @@ function resultRank(v) {
   return idx === -1 ? RESULT_ORDER.length : idx;
 }
 
-function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect) {
+function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect, allBtnId) {
   displayFn = displayFn || (v => v);
   const source = filterFn ? BILL_DATA.filter(filterFn) : BILL_DATA;
   const counts = {};
   source.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
   if (filterFn && state[stateKey] !== '전체' && !(state[stateKey] in counts)) state[stateKey] = '전체';
   const sorter = sortFn || ((a,b) => counts[b]-counts[a]);
-  const values = ['전체'].concat(Object.keys(counts).sort(sorter));
   const row = document.getElementById(elId);
+  const allBtn = allBtnId ? document.getElementById(allBtnId) : null;
+  // "전체"를 별도 버튼(allBtnId)으로 빼면 소관위원회 제목 옆에 붙여둘 수 있고,
+  // 아래 칩 행에는 실제 위원회들만 남아 두 줄로 정리하기 쉬워진다.
+  const values = allBtn ? Object.keys(counts).sort(sorter) : ['전체'].concat(Object.keys(counts).sort(sorter));
+  const setActive = (val) => {
+    row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+    if (allBtn) allBtn.classList.toggle('active', val === '전체');
+  };
+  const select = (val) => {
+    state[stateKey] = val;
+    state.billPage = 1;
+    setActive(val);
+    if (onSelect) onSelect();
+    renderBillList();
+  };
   row.innerHTML = values.map(v => {
-    const cnt = v === '전체' ? source.length : counts[v];
-    const label = v === '전체' ? v : displayFn(v);
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${label} ${cnt}</button>`;
+    const cnt = counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${displayFn(v)} ${cnt}</button>`;
   }).join('');
-  row.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state[stateKey] = btn.dataset.val;
-      state.billPage = 1;
-      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === state[stateKey]));
-      if (onSelect) onSelect();
-      renderBillList();
-    });
-  });
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => select(btn.dataset.val)));
+  if (allBtn) {
+    allBtn.textContent = `전체 ${source.length}`;
+    allBtn.classList.toggle('active', state[stateKey] === '전체');
+    allBtn.onclick = () => select('전체');
+  }
 }
 
 // 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
@@ -770,7 +794,7 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
 function renderCommitteeChipRow() {
   const starred = getStarredBills();
   const filterFn = state.billStarredOnly ? (b => starred.has(b.id)) : null;
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow);
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn');
 }
 
 // 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 흐름을, 위원회
@@ -855,14 +879,15 @@ function renderBillList() {
   filtered.sort((a,b) => (b.changed - a.changed) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
   const totalCount = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / state.pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.billPageSize));
   if (state.billPage > totalPages) state.billPage = totalPages;
   if (state.billPage < 1) state.billPage = 1;
-  const startN = (state.billPage - 1) * state.pageSize;
-  const pageBills = filtered.slice(startN, startN + state.pageSize);
+  const startN = (state.billPage - 1) * state.billPageSize;
+  const pageBills = filtered.slice(startN, startN + state.billPageSize);
 
   document.getElementById('billResultCaption').textContent = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
-    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.pageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.billPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  document.getElementById('billPageSizeSel').value = String(state.billPageSize);
 
   const listEl = document.getElementById('billListArea');
   if (!pageBills.length) {
@@ -902,8 +927,8 @@ function renderBillList() {
 }
 
 function renderBillPagination(totalPages) {
-  const pg = document.getElementById('billPaginationRow');
-  const WINDOW = 3;
+  const pg = document.getElementById('billPgNav');
+  const WINDOW = 10;
   const startP = Math.max(1, Math.min(state.billPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
   const endP = Math.min(totalPages, startP + WINDOW - 1);
   const pageNums = [];
@@ -911,7 +936,7 @@ function renderBillPagination(totalPages) {
   let navHtml = `<button id="billPgPrev" ${state.billPage<=1?'disabled':''}>◀</button>`;
   pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.billPage?'active':''}" data-p="${p}">${p}</button>`; });
   navHtml += `<button id="billPgNext" ${state.billPage>=totalPages?'disabled':''}>▶</button>`;
-  pg.innerHTML = `<div class="pg-nav">${navHtml}</div>`;
+  pg.innerHTML = navHtml;
   document.getElementById('billPgPrev').addEventListener('click', () => { if (state.billPage>1) { state.billPage--; renderBillList(); } });
   document.getElementById('billPgNext').addEventListener('click', () => { if (state.billPage<totalPages) { state.billPage++; renderBillList(); } });
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.billPage = parseInt(b.dataset.p,10); renderBillList(); }));
@@ -962,6 +987,11 @@ document.querySelectorAll('.filter-section-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById(btn.dataset.target).classList.toggle('collapsed');
   });
+});
+document.getElementById('billPageSizeSel').addEventListener('change', e => {
+  state.billPageSize = parseInt(e.target.value, 10);
+  state.billPage = 1;
+  renderBillList();
 });
 
 renderAll();
