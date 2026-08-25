@@ -278,13 +278,11 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <hr class="thin">
     <div class="news-filter-row">
       <h5>공정위 소관 계류 법안</h5>
-      <select id="billStatusSelect">
-        <option value="">처리상태 전체</option>
-      </select>
       <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
       <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
     </div>
-    <div class="cat-chip-row" id="billChipRow"></div>
+    <div class="cat-chip-row" id="billCommitteeChipRow"></div>
+    <div class="cat-chip-row" id="billStatusChipRow"></div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
@@ -338,8 +336,8 @@ const state = {
   pageSize: 10,
   page: 1,
   openIssues: {},
-  billCategory: '전체',
-  billStatus: '',
+  billCommittee: '전체',
+  billStatus: '전체',
   billStarredOnly: false,
   billSearch: '',
   billPage: 1,
@@ -600,38 +598,35 @@ function renderMainList(scoped, allGroups) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
 }
 
-function renderBills() {
-  const catCounts = {};
-  BILL_DATA.forEach(b => { catCounts[b.category] = (catCounts[b.category]||0) + 1; });
-  const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => catCounts[b]-catCounts[a]));
-
-  const chipRow = document.getElementById('billChipRow');
-  chipRow.innerHTML = cats.map(c => {
-    const cnt = c === '전체' ? BILL_DATA.length : catCounts[c];
-    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.billCategory===c?'active':''}">${c} ${cnt}</button>`;
+function renderBillChipRow(elId, field, stateKey) {
+  const counts = {};
+  BILL_DATA.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  const row = document.getElementById(elId);
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? BILL_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${v} ${cnt}</button>`;
   }).join('');
-  chipRow.querySelectorAll('button').forEach(btn => {
+  row.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.billCategory = btn.dataset.cat;
+      state[stateKey] = btn.dataset.val;
       state.billPage = 1;
-      chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.billCategory));
+      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === state[stateKey]));
       renderBillList();
     });
   });
+}
 
-  const statusSel = document.getElementById('billStatusSelect');
-  const statuses = Array.from(new Set(BILL_DATA.map(b => b.status))).sort();
-  statusSel.innerHTML = '<option value="">처리상태 전체</option>' + statuses.map(s =>
-    `<option value="${s}" ${state.billStatus===s?'selected':''}>${s}</option>`
-  ).join('');
-
+function renderBills() {
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee');
+  renderBillChipRow('billStatusChipRow', 'status', 'billStatus');
   renderBillList();
 }
 
 function renderBillList() {
   const starred = getStarredBills();
-  let filtered = state.billCategory === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => b.category === state.billCategory);
-  if (state.billStatus) filtered = filtered.filter(b => b.status === state.billStatus);
+  let filtered = state.billCommittee === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => (b.committee || '(미정)') === state.billCommittee);
+  if (state.billStatus !== '전체') filtered = filtered.filter(b => b.status === state.billStatus);
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
@@ -723,7 +718,6 @@ document.getElementById('periodSelect').addEventListener('change', e => { state.
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
-document.getElementById('billStatusSelect').addEventListener('change', e => { state.billStatus = e.target.value; state.billPage = 1; renderBillList(); });
 document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBillList(); });
 document.getElementById('billStarredToggle').addEventListener('click', () => {
   state.billStarredOnly = !state.billStarredOnly;
