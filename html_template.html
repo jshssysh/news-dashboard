@@ -713,7 +713,9 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
 // 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
 // 위 단계 선택이 아래 단계의 칩 건수를 다시 계산하게 만든다.
 function renderCommitteeChipRow() {
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, null, renderStageFlowRow);
+  const starred = getStarredBills();
+  const filterFn = state.billStarredOnly ? (b => starred.has(b.id)) : null;
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, filterFn, renderStageFlowRow);
 }
 
 // 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 -> 정부 이송 흐름을,
@@ -721,8 +723,11 @@ function renderCommitteeChipRow() {
 // 본회의 박스 안에는 그 단계의 세부 결과(원안가결/수정가결/폐기 등)를 클릭
 // 가능한 소그리드로 넣는다. 정부 이송은 이 API로는 알 수 없는 단계라 장식용.
 function renderStageFlowRow() {
-  const filterFn = state.billCommittee === '전체' ? (b => true) : (b => b.committee === state.billCommittee);
-  const source = BILL_DATA.filter(filterFn);
+  const starred = getStarredBills();
+  const source = BILL_DATA.filter(b =>
+    (state.billCommittee === '전체' || b.committee === state.billCommittee) &&
+    (!state.billStarredOnly || starred.has(b.id))
+  );
   const stageCounts = {};
   source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
   if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
@@ -897,7 +902,7 @@ document.getElementById('billStarredToggle').addEventListener('click', () => {
   const btn = document.getElementById('billStarredToggle');
   btn.classList.toggle('active', state.billStarredOnly);
   btn.textContent = state.billStarredOnly ? '★ 즐겨찾기만' : '☆ 즐겨찾기만';
-  renderBillList();
+  renderBills(); // 위원회/처리단계 칩 건수도 즐겨찾기 기준으로 다시 계산
 });
 
 renderAll();
