@@ -86,6 +86,12 @@ a.badge-skipped:hover { text-decoration: underline; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 5px 12px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
 .toggle-btn:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow); }
 
+.star-btn { flex-shrink: 0; border: none; background: none; font-size: 1.2em; line-height: 1; padding: 0 4px 0 0; color: #d9a441; }
+.star-btn.starred { color: #f0b429; }
+.star-filter-btn { flex-shrink: 0; padding: 7px 12px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); font-size: 0.85em; white-space: nowrap; }
+.star-filter-btn.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.bill-card .card-head { margin-bottom: 6px; }
+
 .summary-box-blue { background-color: #eaf1fc; padding: 12px 14px; border-radius: 8px; margin-bottom: 2px; font-size: 0.93em; color: #1a4d8f; display: block; text-decoration: none; line-height: 1.5; transition: background-color .15s var(--ease); }
 .summary-box-blue:hover { background-color: #dbe8fa; }
 @media (prefers-color-scheme: dark) {
@@ -270,7 +276,19 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-law" class="view">
     <hr class="thin">
-    <div class="info-box">'입법' 섹션은 준비 중입니다. 곧 추가될 예정입니다.</div>
+    <div class="news-filter-row">
+      <h5>공정위 소관 계류 법안</h5>
+      <select id="billStatusSelect">
+        <option value="">처리상태 전체</option>
+      </select>
+      <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
+      <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
+    </div>
+    <div class="cat-chip-row" id="billChipRow"></div>
+    <hr class="thin">
+    <div class="result-caption" id="billResultCaption"></div>
+    <div id="billListArea"></div>
+    <div class="pagination-row" id="billPaginationRow"></div>
   </div>
 
   <div id="view-org" class="view">
@@ -290,6 +308,19 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 <script>
 const NEWS_DATA = __NEWS_DATA_JSON__;
 const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
+const BILL_DATA = __BILL_DATA_JSON__;
+
+const STARRED_BILLS_KEY = 'starredBills';
+function getStarredBills() {
+  try { return new Set(JSON.parse(localStorage.getItem(STARRED_BILLS_KEY) || '[]')); }
+  catch(e) { return new Set(); }
+}
+function toggleStarredBill(id) {
+  const s = getStarredBills();
+  if (s.has(id)) s.delete(id); else s.add(id);
+  try { localStorage.setItem(STARRED_BILLS_KEY, JSON.stringify(Array.from(s))); } catch(e) {}
+  return s;
+}
 
 const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","담합","사익편취","일감몰아주기","기술탈취"];
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
@@ -307,6 +338,11 @@ const state = {
   pageSize: 10,
   page: 1,
   openIssues: {},
+  billCategory: '전체',
+  billStatus: '',
+  billStarredOnly: false,
+  billSearch: '',
+  billPage: 1,
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -564,6 +600,97 @@ function renderMainList(scoped, allGroups) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
 }
 
+function renderBills() {
+  const catCounts = {};
+  BILL_DATA.forEach(b => { catCounts[b.category] = (catCounts[b.category]||0) + 1; });
+  const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => catCounts[b]-catCounts[a]));
+
+  const chipRow = document.getElementById('billChipRow');
+  chipRow.innerHTML = cats.map(c => {
+    const cnt = c === '전체' ? BILL_DATA.length : catCounts[c];
+    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.billCategory===c?'active':''}">${c} ${cnt}</button>`;
+  }).join('');
+  chipRow.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.billCategory = btn.dataset.cat;
+      state.billPage = 1;
+      chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.billCategory));
+      renderBillList();
+    });
+  });
+
+  const statusSel = document.getElementById('billStatusSelect');
+  const statuses = Array.from(new Set(BILL_DATA.map(b => b.status))).sort();
+  statusSel.innerHTML = '<option value="">처리상태 전체</option>' + statuses.map(s =>
+    `<option value="${s}" ${state.billStatus===s?'selected':''}>${s}</option>`
+  ).join('');
+
+  renderBillList();
+}
+
+function renderBillList() {
+  const starred = getStarredBills();
+  let filtered = state.billCategory === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => b.category === state.billCategory);
+  if (state.billStatus) filtered = filtered.filter(b => b.status === state.billStatus);
+  if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
+  if (state.billSearch) {
+    const q = state.billSearch.toLowerCase();
+    filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q));
+  }
+  filtered.sort((a,b) => (b.changed - a.changed) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.pageSize));
+  if (state.billPage > totalPages) state.billPage = totalPages;
+  if (state.billPage < 1) state.billPage = 1;
+  const startN = (state.billPage - 1) * state.pageSize;
+  const pageBills = filtered.slice(startN, startN + state.pageSize);
+
+  document.getElementById('billResultCaption').textContent = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
+    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.pageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+
+  const listEl = document.getElementById('billListArea');
+  if (!pageBills.length) {
+    listEl.innerHTML = "<div class='info-box'>조건에 맞는 법안이 없습니다.</div>";
+  } else {
+    listEl.innerHTML = pageBills.map(b => {
+      const isStarred = starred.has(b.id);
+      const changedTag = b.changed ? `<span class="chip-alert">상태변경</span>` : '';
+      const metaParts = [b.no ? `의안번호 ${b.no}` : '', b.committee || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
+      const titleAttr = (b.name||'').replace(/"/g,'&quot;');
+      return `<div class="article-card bill-card">
+        <div class="card-head">
+          <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
+          <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${b.status}</span>${changedTag}</span>
+          <a class="article-title" href="${b.link}" target="_blank" title="${titleAttr}">${b.name}</a>
+        </div>
+        <div class="card-meta-inline" style="margin-left:0;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('.star-btn').forEach(btn => {
+      btn.addEventListener('click', () => { toggleStarredBill(btn.dataset.id); renderBillList(); });
+    });
+  }
+
+  renderBillPagination(totalPages);
+}
+
+function renderBillPagination(totalPages) {
+  const pg = document.getElementById('billPaginationRow');
+  const WINDOW = 3;
+  const startP = Math.max(1, Math.min(state.billPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let navHtml = `<button id="billPgPrev" ${state.billPage<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.billPage?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="billPgNext" ${state.billPage>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = `<div class="pg-nav">${navHtml}</div>`;
+  document.getElementById('billPgPrev').addEventListener('click', () => { if (state.billPage>1) { state.billPage--; renderBillList(); } });
+  document.getElementById('billPgNext').addEventListener('click', () => { if (state.billPage<totalPages) { state.billPage++; renderBillList(); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.billPage = parseInt(b.dataset.p,10); renderBillList(); }));
+}
+
 function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
@@ -573,8 +700,9 @@ function renderAll() {
   if (state.activeTab === '공정위 조직') {
     document.getElementById('view-org').classList.add('active');
     renderOrg();
-  } else if (state.activeTab !== '뉴스') {
+  } else if (state.activeTab === '입법') {
     document.getElementById('view-law').classList.add('active');
+    renderBills();
   } else if (dr.length === 0) {
     document.getElementById('view-empty').classList.add('active');
   } else {
@@ -595,6 +723,16 @@ document.getElementById('periodSelect').addEventListener('change', e => { state.
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
+document.getElementById('billStatusSelect').addEventListener('change', e => { state.billStatus = e.target.value; state.billPage = 1; renderBillList(); });
+document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBillList(); });
+document.getElementById('billStarredToggle').addEventListener('click', () => {
+  state.billStarredOnly = !state.billStarredOnly;
+  state.billPage = 1;
+  const btn = document.getElementById('billStarredToggle');
+  btn.classList.toggle('active', state.billStarredOnly);
+  btn.textContent = state.billStarredOnly ? '★ 즐겨찾기만' : '☆ 즐겨찾기만';
+  renderBillList();
+});
 
 renderAll();
 </script>

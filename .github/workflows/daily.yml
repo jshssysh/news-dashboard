@@ -38,6 +38,12 @@ jobs:
         run: |
           python main.py
 
+      - name: 계류 법안 수집 (국회 열린국회정보 Open API)
+        env:
+          ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+        run: |
+          python collect_bills.py
+
       - name: 정적 대시보드(docs/index.html) 생성
         run: |
           python generate_html.py
@@ -48,7 +54,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add news_list.csv docs/index.html
+          git add news_list.csv bill_list.csv docs/index.html
           if ! git diff --quiet || ! git diff --staged --quiet; then
             git commit -m "Update news data"
             # 이 스크립트가 실행되는 동안 다른 커밋(예: app.py 수정)이 먼저 푸시되어

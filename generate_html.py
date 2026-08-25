@@ -71,6 +71,32 @@ def load_personnel():
     return records
 
 
+def load_bills():
+    path = "bill_list.csv"
+    if not os.path.exists(path):
+        return []
+    try:
+        bdf = pd.read_csv(path)
+    except Exception:
+        return []
+    records = []
+    for _, row in bdf.iterrows():
+        records.append({
+            "id": row.get("의안ID", ""),
+            "no": row.get("의안번호", ""),
+            "name": row.get("법안명", ""),
+            "category": row.get("카테고리", ""),
+            "proposer": row.get("제안자", ""),
+            "repProposer": row.get("대표발의자", ""),
+            "proposeDate": None if pd.isna(row.get("제안일")) else str(row.get("제안일")),
+            "committee": None if pd.isna(row.get("소관위원회")) else str(row.get("소관위원회")),
+            "status": row.get("처리상태", ""),
+            "changed": str(row.get("상태변경", "")) == "변경",
+            "link": row.get("상세링크", ""),
+        })
+    return records
+
+
 def keyword_repeat_info(titles):
     best_kw, best_count = None, 0
     for kw in CRITICAL_KEYWORDS:
@@ -105,24 +131,27 @@ def build():
     df = load_data()
     news_rows = [row_to_dict(r) for _, r in df.iterrows()] if not df.empty else []
     personnel = load_personnel()
+    bills = load_bills()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
     data_json = json.dumps(news_rows, ensure_ascii=False)
     personnel_json = json.dumps(personnel, ensure_ascii=False)
+    bills_json = json.dumps(bills, ensure_ascii=False)
 
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
 
     html = template.replace("__NEWS_DATA_JSON__", data_json.replace("</", "<\\/"))
     html = html.replace("__PERSONNEL_DATA_JSON__", personnel_json.replace("</", "<\\/"))
+    html = html.replace("__BILL_DATA_JSON__", bills_json.replace("</", "<\\/"))
     html = html.replace("__GENERATED_AT__", now_kst)
 
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
     size_kb = os.path.getsize(OUT_PATH) / 1024
-    print(f"[정적 HTML 생성 완료] {OUT_PATH} (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건, 인사 {len(personnel)}명, 파일 크기 {size_kb:.1f}KB)")
+    print(f"[정적 HTML 생성 완료] {OUT_PATH} (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건, 인사 {len(personnel)}명, 법안 {len(bills)}건, 파일 크기 {size_kb:.1f}KB)")
 
 
 if __name__ == "__main__":
