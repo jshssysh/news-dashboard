@@ -6,6 +6,8 @@
   응답에 이미 포함돼 있어서, 법안마다 상세조회를 따로 할 필요가 없다(공포/본회의
   의결 필드는 없는데, 애초에 "계류"(아직 안 끝난) 법안만 주는 API라 그 단계까지
   간 법안은 여기 안 나온다 - 그래서 없어도 문제 없음).
+- 국회의원 인적사항(ALLNAMEMBER): 대표발의자 이름으로 정당/선수/지역구를 찾아서
+  "제안자" 표시 문구에 괄호로 덧붙인다 (예: "황운하의원(조국혁신당, 재선, 비례대표) 등 10인").
 
 법안명이 config/bill_keywords.yaml에 있는 법률명을 포함하면 그 카테고리로,
 아니면 "기타"로 분류한다 (더 이상 검색 필터로는 안 씀 - 전체를 다 가져온 뒤 분류만 함).
@@ -37,6 +39,7 @@ BILL_LIST_PATH = "bill_list.csv"
 
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
+MEMBER_INFO_API = "ALLNAMEMBER"  # 국회의원 인적사항 (정당/선수/지역구)
 BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
 
 # 전체 법안이 수만 건이라, 이 기간 이내 발의된 것만 AI 한줄요약을 만든다
@@ -120,6 +123,56 @@ def fetch_all_pending_bills():
             print(f"[계류의안 전체조회 예외] {p_index}페이지: {e}")
             break
     return results
+
+
+def fetch_member_info():
+    """국회의원 인적사항 API에서 이름 -> {정당, 지역구, 선수} 사전을 만든다.
+    한 사람당 한 행에 그동안 거쳐온 소속정당/지역구가 '/'로 이어져 있어서,
+    최신 임기 정보를 얻으려면 마지막 조각만 쓴다 (예: "더불어민주당/조국혁신당" -> 조국혁신당)."""
+    info = {}
+    p_index = 1
+    while p_index <= 50:  # 안전장치: 전체 역대 의원 약 3300명 수준이면 충분
+        params = {"Type": "json", "pIndex": p_index, "pSize": 100}
+        if ASSEMBLY_API_KEY:
+            params["KEY"] = ASSEMBLY_API_KEY
+        try:
+            res = requests.get(f"{BASE_URL}/{MEMBER_INFO_API}", params=params, timeout=15)
+            rows = _extract_rows(res.json(), MEMBER_INFO_API)
+            if not rows:
+                break
+            for row in rows:
+                name = row.get("NAAS_NM")
+                if not name:
+                    continue
+                info[name] = {
+                    "party": (row.get("PLPT_NM") or "").split("/")[-1].strip(),
+                    "district": (row.get("ELECD_NM") or "").split("/")[-1].strip(),
+                    "term": row.get("RLCT_DIV_NM") or "",
+                }
+            if len(rows) < 100:
+                break
+            p_index += 1
+            time.sleep(0.1)
+        except Exception as e:
+            print(f"[국회의원 인적사항 조회 예외] {p_index}페이지: {e}")
+            break
+    return info
+
+
+def format_proposer(raw_proposer, rep_name, member_info):
+    """제안자 표시 문구("OOO의원 등 N인")의 대표발의자 이름 뒤에 정당/선수/지역구를
+    괄호로 덧붙인다. 인적사항을 못 찾으면 원래 문구를 그대로 둔다."""
+    if not rep_name:
+        return raw_proposer
+    info = member_info.get(rep_name)
+    if not info:
+        return raw_proposer
+    detail = ", ".join(v for v in [info["party"], info["term"], info["district"]] if v)
+    if not detail:
+        return raw_proposer
+    m = re.search(r"(\s*등\s*\d+인)\s*$", raw_proposer or "")
+    suffix = m.group(1) if m else ""
+    return f"{rep_name}의원({detail}){suffix}"
 
 
 def normalize_result(code):
@@ -261,6 +314,9 @@ def main():
     rows = fetch_all_pending_bills()
     print(f"[계류의안 전체조회 완료] 총 {len(rows)}건")
 
+    member_info = fetch_member_info()
+    print(f"[국회의원 인적사항 조회 완료] {len(member_info)}명")
+
     seen = {}
     for row in rows:
         bill_id = row.get("BILL_ID")
@@ -292,7 +348,7 @@ def main():
             "의안번호": row.get("BILL_NO", ""),
             "법안명": row.get("BILL_NAME", ""),
             "카테고리": categorize_bill(row.get("BILL_NAME", ""), keywords_map),
-            "제안자": row.get("PROPOSER", ""),
+            "제안자": format_proposer(row.get("PROPOSER", ""), row.get("RST_PROPOSER", ""), member_info),
             "대표발의자": row.get("RST_PROPOSER", ""),
             "제안일": row.get("PROPOSE_DT", ""),
             "소관위원회": row.get("CURR_COMMITTEE", ""),
