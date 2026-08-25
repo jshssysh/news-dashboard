@@ -630,7 +630,7 @@ function renderBillList() {
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
-    filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q));
+    filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q));
   }
   filtered.sort((a,b) => (b.changed - a.changed) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
@@ -654,13 +654,17 @@ function renderBillList() {
       const metaParts = [b.no ? `의안번호 ${b.no}` : '', b.committee || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
+      const summaryBox = b.summary
+        ? `<a href="${summaryLink}" target="_blank" class="summary-box-blue">${b.summary}</a>`
+        : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" target="_blank">원문 보기</a>)</div>`;
       return `<div class="article-card bill-card">
         <div class="card-head">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${b.status}</span>${changedTag}</span>
           <a class="article-title" href="${summaryLink}" target="_blank" title="${titleAttr}">${b.name}</a>
         </div>
-        <div class="card-meta-inline" style="margin-left:0;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
+        <div class="card-meta-inline" style="margin-left:0;margin-bottom:6px;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
+        ${summaryBox}
       </div>`;
     }).join('');
     listEl.querySelectorAll('.star-btn').forEach(btn => {

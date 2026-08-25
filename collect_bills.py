@@ -5,17 +5,24 @@
 - 계류의안(nwbqublzajtcqpdae): 법안명 키워드로 검색 -> 의안ID/번호/제안자/제안일/링크
 - 의안 상세정보(BILLINFODETAIL): 의안ID로 조회 -> 소관위/법사위/본회의/공포 단계별 처리 정보
 
-API 자체엔 제안이유/주요내용(법안 본문) 필드가 없어서, 대시보드에는 처리상태와
-공식 상세페이지 링크까지만 담는다. 실행: python collect_bills.py
+API 자체엔 제안이유/주요내용(법안 본문) 필드가 없지만, likms.assembly.go.kr의
+"제안이유 요약" 팝업 페이지(billSummary.do)는 자바스크립트 없이도 해당 텍스트를
+그대로 담고 있어서, 이 페이지를 긁어와 Gemini로 한 줄 요약해 붙인다.
+한 번 요약된 법안은 다음 실행부터 재사용한다(제안이유 자체는 안 바뀌므로).
+실행: python collect_bills.py
 """
+import json
 import os
+import re
 import time
 import requests
 import yaml
 import pandas as pd
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 
 ASSEMBLY_API_KEY = os.environ.get("ASSEMBLY_API_KEY", "").strip().replace('"', '').replace("'", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
@@ -24,6 +31,7 @@ BILL_LIST_PATH = "bill_list.csv"
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
 BILL_DETAIL_API = "BILLINFODETAIL"      # 의안 상세정보(심사 단계)
+BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
 
 
 def load_bill_keywords():
@@ -118,6 +126,83 @@ def load_previous_status():
         return {}
 
 
+def load_previous_summaries():
+    """직전 실행 결과에서 {의안ID: AI요약}을 읽어온다 (제안이유는 안 바뀌므로 재사용)."""
+    if not os.path.exists(BILL_LIST_PATH):
+        return {}
+    try:
+        df = pd.read_csv(BILL_LIST_PATH)
+        if "AI요약" not in df.columns:
+            return {}
+        return {
+            bid: s for bid, s in zip(df["의안ID"], df["AI요약"])
+            if isinstance(s, str) and s.strip()
+        }
+    except Exception as e:
+        print(f"[이전 bill_list.csv 요약 로드 실패] {e}")
+        return {}
+
+
+def fetch_bill_proposal_text(bill_id):
+    """billSummary.do 팝업 페이지에서 '제안이유 및 주요내용' 뒤 텍스트를 긁어온다.
+    정확한 HTML 구조를 문서로 확인할 수 없어서, 태그 대신 페이지 전체 텍스트에서
+    표제 문구를 찾아 그 뒤를 잘라내는 방식으로 - 구조가 조금 달라져도 잘 버틴다."""
+    try:
+        res = requests.get(BILL_SUMMARY_URL, params={"billId": bill_id}, timeout=15)
+        soup = BeautifulSoup(res.text, "html.parser")
+        full_text = soup.get_text("\n", strip=True)
+        for marker in ["제안이유 및 주요내용", "제안이유"]:
+            idx = full_text.find(marker)
+            if idx != -1:
+                remainder = full_text[idx + len(marker):].strip()
+                return re.sub(r"\n{2,}", "\n", remainder)[:1500]
+    except Exception as e:
+        print(f"[제안이유 스크래핑 예외] {bill_id}: {e}")
+    return ""
+
+
+def summarize_bills_with_gemini(items):
+    """[{"idx", "name", "text"}] 목록을 배치로 Gemini에 보내 한 줄 요약을 받는다."""
+    if not GEMINI_API_KEY or not items:
+        return {}
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    results = {}
+    batches = [items[i:i + 20] for i in range(0, len(items), 20)]
+    for batch in batches:
+        input_data = [{"idx": it["idx"], "name": it["name"], "text": it["text"]} for it in batch]
+        prompt = f"""당신은 법안을 쉬운 말로 요약하는 담당자입니다.
+입력 법안 목록: {json.dumps(input_data, ensure_ascii=False)}
+
+각 법안의 제안이유/주요내용(text)을 읽고, 일반인이 이해하기 쉬운 한국어 1문장으로 요약하세요.
+법률 용어를 그대로 나열하지 말고 "무엇을 왜 바꾸려는지"가 드러나게 쓰세요.
+text가 비어있거나 의미를 알 수 없으면 summary를 빈 문자열로 두세요.
+
+응답은 입력 개수만큼, 각 항목에 idx를 포함해 아래 형식의 JSON 배열로만 출력하세요:
+[
+  {{"idx": 0, "summary": "..."}}
+]
+"""
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
+        try:
+            res = requests.post(url, json=payload, timeout=30)
+            if res.status_code == 200:
+                res_json = res.json()
+                raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+                if raw_text.startswith("```json"): raw_text = raw_text[7:]
+                if raw_text.startswith("```"): raw_text = raw_text[3:]
+                if raw_text.endswith("```"): raw_text = raw_text[:-3]
+                for item in json.loads(raw_text.strip()):
+                    i = item.get("idx")
+                    if i is not None:
+                        results[i] = (item.get("summary") or "").strip()
+            else:
+                print(f"[법안 요약 오류] status={res.status_code} body={res.text[:300]}")
+        except Exception as e:
+            print(f"[법안 요약 예외] {e}")
+        time.sleep(4.5)  # 무료 등급은 분당 15회 제한
+    return results
+
+
 def main():
     if not ASSEMBLY_API_KEY:
         print("[경고] ASSEMBLY_API_KEY가 없습니다 - 키 없이 호출을 시도합니다 (제한/실패 가능).")
@@ -135,15 +220,17 @@ def main():
         time.sleep(0.3)
 
     prev_status = load_previous_status()
+    prev_summaries = load_previous_summaries()
     now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    out_rows = []
+
+    bills = []
     for bill_id, info in seen.items():
         row = info["row"]
         detail = get_bill_process_detail(bill_id)
         status = derive_status(detail)
         is_new = bill_id not in prev_status
         changed = "" if is_new else ("변경" if prev_status[bill_id] != status else "")
-        out_rows.append({
+        bills.append({
             "의안ID": bill_id,
             "의안번호": row.get("BILL_NO", ""),
             "법안명": row.get("BILL_NAME", ""),
@@ -155,13 +242,27 @@ def main():
             "처리상태": status,
             "상태변경": changed,
             "상세링크": row.get("LINK_URL", ""),
+            "AI요약": prev_summaries.get(bill_id, ""),
             "최종수집일": now_str,
         })
         time.sleep(0.3)
 
-    df = pd.DataFrame(out_rows)
+    # 이미 요약이 있는(제안이유가 안 바뀌는) 법안은 재사용하고, 새로 생긴 법안만 긁어서 요약한다
+    to_summarize = [b for b in bills if not b["AI요약"]]
+    print(f"[법안 요약] 신규/미요약 {len(to_summarize)}건 (전체 {len(bills)}건 중 기존 요약 재사용 {len(bills)-len(to_summarize)}건)")
+    summarize_items = []
+    for i, b in enumerate(to_summarize):
+        text = fetch_bill_proposal_text(b["의안ID"])
+        if text:
+            summarize_items.append({"idx": i, "name": b["법안명"], "text": text})
+        time.sleep(0.3)
+    summary_map = summarize_bills_with_gemini(summarize_items)
+    for it in summarize_items:
+        to_summarize[it["idx"]]["AI요약"] = summary_map.get(it["idx"], "")
+
+    df = pd.DataFrame(bills)
     df.to_csv(BILL_LIST_PATH, index=False, encoding="utf-8-sig")
-    print(f"[입법 수집 완료] {len(out_rows)}건 -> {BILL_LIST_PATH}")
+    print(f"[입법 수집 완료] {len(bills)}건 -> {BILL_LIST_PATH}")
 
 
 if __name__ == "__main__":
