@@ -10,6 +10,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_bills:
+        description: '체크 시 계류 법안 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -39,6 +44,7 @@ jobs:
           python main.py
 
       - name: 계류 법안 수집 (국회 열린국회정보 Open API)
+        if: github.event.inputs.skip_bills != 'true'
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
