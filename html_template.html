@@ -170,11 +170,15 @@ a.badge-skipped:hover { text-decoration: underline; }
   border: 1px solid var(--app-border); background: var(--app-secondary-bg);
 }
 .flow-stage-box.active { border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.2); }
+.flow-stage-head { display: flex; align-items: center; gap: 4px; }
 .flow-stage-title {
+  flex: 1 1 auto; min-width: 0;
   border: none; border-radius: 6px; background: var(--app-bg); font-weight: 800; font-size: 0.88em;
-  padding: 6px 10px; text-align: center; border: 1px solid var(--app-border);
+  padding: 6px 10px; text-align: center; border: 1px solid var(--app-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .flow-stage-box.active .flow-stage-title { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.stage-collapse-btn { flex-shrink: 0; background: none; border: none; padding: 0 3px; opacity: 0.5; font-size: 0.75em; }
+.stage-collapse-btn:hover { opacity: 0.9; }
 .flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; }
 .flow-result-grid button {
   border: 1px solid var(--app-border); background: var(--app-bg); border-radius: 6px; font-size: 0.78em;
@@ -459,6 +463,7 @@ const state = {
   billSearch: '',
   billPage: 1,
   billPageSize: 10,
+  billBoxCollapsed: {},
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -902,13 +907,22 @@ function renderStageFlowRow() {
     stageSource.forEach(b => { resultCounts[b.result] = (resultCounts[b.result] || 0) + 1; });
     const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
     const isActiveStage = state.billStage === stage;
+    const isCollapsed = !!state.billBoxCollapsed[stage];
     const grid = results.map(r => {
       const isActiveResult = isActiveStage && state.billResult === r;
       return `<button data-stage="${stage}" data-result="${r}" class="${isActiveResult?'active':''}">${r} (${resultCounts[r]})</button>`;
     }).join('');
+    // 접었을 때는 그리드는 숨기고, 지금 골라둔 세부결과가 있으면 제목 옆에 그대로
+    // 붙여서 뭘 선택했는지 계속 보이게 한다 (예: "상임위 심사 (14320) 심사중 (14035)").
+    const selectedText = (isActiveStage && state.billResult !== '전체')
+      ? ` · ${state.billResult} (${resultCounts[state.billResult] || 0})` : '';
+    const titleText = `${stage} (${stageSource.length})${isCollapsed ? selectedText : ''}`;
     return `<div class="flow-stage-box ${isActiveStage && state.billResult==='전체' ? 'active':''}">
-      <button class="flow-stage-title" data-stage="${stage}">${stage} (${stageSource.length})</button>
-      <div class="flow-result-grid">${grid}</div>
+      <div class="flow-stage-head">
+        <button class="flow-stage-title" data-stage="${stage}">${titleText}</button>
+        <button class="stage-collapse-btn" data-collapse-stage="${stage}" title="세부결과 접기/펼치기">${isCollapsed?'▸':'▾'}</button>
+      </div>
+      <div class="flow-result-grid" style="${isCollapsed?'display:none;':''}">${grid}</div>
     </div>`;
   };
 
@@ -933,6 +947,13 @@ function renderStageFlowRow() {
   };
   row.querySelectorAll('button[data-stage]').forEach(btn => {
     btn.addEventListener('click', () => selectStage(btn.dataset.stage, btn.dataset.result));
+  });
+  row.querySelectorAll('.stage-collapse-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = btn.dataset.collapseStage;
+      state.billBoxCollapsed[s] = !state.billBoxCollapsed[s];
+      renderStageFlowRow();
+    });
   });
   allBtn.textContent = `전체 ${source.length}`;
   allBtn.classList.toggle('active', state.billStage === '전체');
