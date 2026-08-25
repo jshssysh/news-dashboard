@@ -74,12 +74,35 @@ def load_bill_keywords():
         return yaml.safe_load(f)["keywords"]
 
 
-def categorize_bill(bill_name, keywords_map):
-    """법안명에 알고 있는 법률명 키워드가 포함되어 있으면 그 카테고리를, 없으면 '기타'를 반환한다."""
+# html_template.html의 COMMITTEE_ABBR와 동일 - 카테고리 폴백에 쓸 위원회 약칭.
+COMMITTEE_ABBR = {
+    "국회운영위원회": "운영위", "법제사법위원회": "법사위", "정무위원회": "정무위",
+    "재정경제기획위원회": "재정경제기획위", "교육위원회": "교육위", "과학기술정보방송통신위원회": "과방위",
+    "외교통일위원회": "외통위", "국방위원회": "국방위", "행정안전위원회": "행안위",
+    "문화체육관광위원회": "문체위", "농림축산식품해양수산위원회": "농해수위",
+    "산업통상자원중소벤처기업위원회": "산자위", "보건복지위원회": "복지위",
+    "기후에너지환경노동위원회": "기후에너지환경노동위", "국토교통위원회": "국토위", "정보위원회": "정보위",
+    "성평등가족위원회": "성평등가족위", "예산결산특별위원회": "예결위", "기후위기 특별위원회": "기후위기특위",
+}
+
+
+def committee_abbr(name):
+    if not name:
+        return name
+    if name in COMMITTEE_ABBR:
+        return COMMITTEE_ABBR[name]
+    return name[:-3] + "위" if name.endswith("위원회") else name
+
+
+def categorize_bill(bill_name, keywords_map, committee=""):
+    """법안명에 공정위 관련 법률명 키워드가 포함되어 있으면 그 카테고리를 반환한다.
+    안 걸리면(공정위 관련 법이 아니면) "기타"로 뭉뚱그리지 않고 소관위원회 약칭을
+    카테고리로 써서, 국회 전체 법안을 다 가져오는 지금 목록에서 뭘 봐도 "기타"만
+    뜨는 일이 없게 한다. 위원회 정보 자체가 없으면(미배정) 그때만 "기타"."""
     for keyword, category in keywords_map.items():
         if keyword in bill_name:
             return category
-    return "기타"
+    return committee_abbr(committee) or "기타"
 
 
 def _extract_rows(payload, service_id):
@@ -390,7 +413,7 @@ def main():
             "의안ID": bill_id,
             "의안번호": row.get("BILL_NO", ""),
             "법안명": row.get("BILL_NAME", ""),
-            "카테고리": categorize_bill(row.get("BILL_NAME", ""), keywords_map),
+            "카테고리": categorize_bill(row.get("BILL_NAME", ""), keywords_map, row.get("CURR_COMMITTEE", "")),
             "제안자": format_proposer(row.get("PROPOSER", ""), row.get("RST_PROPOSER", ""), member_info),
             "대표발의자": row.get("RST_PROPOSER", ""),
             "제안일": row.get("PROPOSE_DT", ""),
@@ -398,6 +421,12 @@ def main():
             "처리상태": status,
             "처리단계": stage,
             "처리결과": raw_result if raw_result else "심사중",
+            "상임위회부일": row.get("COMMITTEE_DT") or row.get("CMT_PRESENT_DT") or "",
+            "상임위처리일": row.get("CMT_PROC_DT", ""),
+            "상임위결과": row.get("CMT_PROC_RESULT_CD", ""),
+            "법사위회부일": row.get("LAW_PRESENT_DT", ""),
+            "법사위처리일": row.get("LAW_PROC_DT", ""),
+            "법사위결과": row.get("LAW_PROC_RESULT_CD", ""),
             "상태변경": changed,
             "상세링크": row.get("LINK_URL", ""),
             "AI요약": prev_summaries.get(bill_id, ""),

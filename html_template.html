@@ -79,9 +79,17 @@ a.badge-skipped:hover { text-decoration: underline; }
 .chip-tag-warn { background-color: #fdecea; color: #c62828; }
 .chip-alert { background-color: #c62828; color: #fff; font-size: 0.76em; }
 .card-meta-inline { font-size: 0.78em; opacity: 0.56; margin-left: 8px; }
-.bill-meta-inline { opacity: 1; }
-.bill-meta-inline .meta-dim { opacity: 0.56; }
-.bill-meta-inline .proposer-detail { font-weight: 700; opacity: 0.88; }
+.bill-title-line { margin: 2px 0 8px; line-height: 1.6; }
+.bill-title-line .article-title { white-space: normal; overflow: visible; text-overflow: unset; flex: initial; margin-right: 4px; }
+.bill-title-line .meta-dim { opacity: 0.56; font-size: 0.92em; }
+.bill-title-line .proposer-detail { font-weight: 700; opacity: 0.88; font-size: 0.92em; }
+.bill-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-bottom: 8px; font-size: 0.76em; }
+.bill-step { padding: 3px 8px; border-radius: 6px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); white-space: nowrap; font-weight: 600; }
+.bill-step.step-active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); font-weight: 700; }
+.bill-step.step-done { opacity: 0.6; }
+.bill-step.step-future { opacity: 0.35; }
+.bill-step .step-date { margin-left: 4px; font-weight: 400; opacity: 0.85; font-size: 0.92em; }
+.bill-step-arrow { opacity: 0.35; font-size: 0.85em; padding: 0 1px; }
 .reason-chip { display: inline-block; background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 5px; font-size: 0.8em; font-weight: 600; margin-right: 4px; border: 1px solid var(--app-border); }
 .reason-box { border: 1px solid var(--app-border); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.3; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 5px 12px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
@@ -101,6 +109,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 }
 .signal-box { background-color: #12203a; border: 1px solid #1b2e50; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; }
+.signal-box-head { display: flex; align-items: center; justify-content: space-between; }
+.signal-toggle-btn { background: none; border: none; color: #8ab4f8; opacity: 0.7; font-size: 0.8em; padding: 0; transition: transform .15s var(--ease); }
+.signal-box.collapsed #signalItems { display: none; }
+.signal-box.collapsed .signal-toggle-btn { transform: rotate(-90deg); }
 .signal-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); }
 .signal-item:first-of-type { margin-top: 12px; padding-top: 0; border-top: none; }
 .signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: 800; width: 19px; height: 19px; border-radius: 50%; text-align: center; font-size: 0.74em; line-height: 19px; margin-right: 4px; flex-shrink: 0; }
@@ -288,8 +300,11 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-news" class="view">
     <hr class="thin">
-    <div class="signal-box">
-      <span class="signal-tag">오늘 주요 내용</span>
+    <div class="signal-box" id="signalBox">
+      <div class="signal-box-head">
+        <span class="signal-tag">오늘 주요 내용</span>
+        <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
+      </div>
       <div id="signalItems"></div>
     </div>
 
@@ -320,15 +335,21 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
     <div class="layout">
       <div class="main-col">
+        <div class="bill-result-row" id="newsResultRow">
+          <div class="result-caption" id="resultCaption"></div>
+          <div class="pg-top"><select id="pageSizeSel">
+            <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+          </select></div>
+          <div class="pg-nav" id="pgNav"></div>
+        </div>
+        <hr class="thin">
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
-        <div class="result-caption" id="resultCaption"></div>
         <div class="sidebar-panel">
           <div class="panel-title">카테고리별 수집 현황</div>
           <div id="sidebarBars"></div>
         </div>
-        <div class="pagination-row" id="paginationRow"></div>
       </div>
     </div>
   </div>
@@ -352,6 +373,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <div class="filter-section" id="stageFilterSection">
         <div class="filter-section-header">
           <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+          <button id="billStageAllBtn" class="flow-plain committee-all-btn"></button>
           <span class="current-tag" id="stageCurrentTag"></span>
         </div>
         <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
@@ -510,7 +532,7 @@ function renderTopTiles() {
   const failCount = sentCounts['판단 실패']||0;
 
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">판단실패 ${failCount}</span></div>`;
+    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">실패 ${failCount}</span></div>`;
 
   const draftCount = BILL_DATA.filter(b => b.stage === '입안 및 발의').length;
   const committeeCount = BILL_DATA.filter(b => b.stage === '상임위 심사').length;
@@ -623,7 +645,7 @@ function renderNewsView(dr, allGroups) {
       ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;" data-cat="${catValue}" data-sentiment="${sentiment}" title="${catValue} · ${sentiment}만 보기">${pct}%</div>`
       : '';
     const failTag = fail > 0
-      ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 판단실패만 보기">판단실패 ${fail}</span>`
+      ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 실패만 보기">실패 ${fail}</span>`
       : '';
     return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></span>${failTag}</div>
       <div class="sentiment-track">${seg(negPct,'sentiment-neg','부정')}${seg(neuPct,'sentiment-neu','중립')}${seg(posPct,'sentiment-pos','긍정')}</div></div>`;
@@ -671,6 +693,7 @@ function renderMainList(scoped, allGroups) {
 
   document.getElementById('resultCaption').textContent = totalCount === 0 ? "조건에 맞는 기사가 없습니다." :
     `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.pageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  document.getElementById('pageSizeSel').value = String(state.pageSize);
 
   const listEl = document.getElementById('mainListArea');
   if (!pageGroups.length) {
@@ -709,8 +732,8 @@ function renderMainList(scoped, allGroups) {
     });
   }
 
-  const pg = document.getElementById('paginationRow');
-  const WINDOW = 3;
+  const pg = document.getElementById('pgNav');
+  const WINDOW = 10;
   const startP = Math.max(1, Math.min(state.page - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
   const endP = Math.min(totalPages, startP + WINDOW - 1);
   const pageNums = [];
@@ -718,11 +741,7 @@ function renderMainList(scoped, allGroups) {
   let navHtml = `<button id="pgPrev" ${state.page<=1?'disabled':''}>◀</button>`;
   pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.page?'active':''}" data-p="${p}">${p}</button>`; });
   navHtml += `<button id="pgNext" ${state.page>=totalPages?'disabled':''}>▶</button>`;
-  pg.innerHTML = `
-    <div class="pg-top"><select id="pageSizeSel"><option value="10" ${state.pageSize===10?'selected':''}>10개</option><option value="20" ${state.pageSize===20?'selected':''}>20개</option><option value="50" ${state.pageSize===50?'selected':''}>50개</option></select></div>
-    <div class="pg-nav">${navHtml}</div>
-  `;
-  document.getElementById('pageSizeSel').addEventListener('change', e => { state.pageSize = parseInt(e.target.value,10); state.page = 1; renderMainList(scoped, allGroups); });
+  pg.innerHTML = navHtml;
   document.getElementById('pgPrev').addEventListener('click', () => { if (state.page>1) { state.page--; renderMainList(scoped, allGroups); } });
   document.getElementById('pgNext').addEventListener('click', () => { if (state.page<totalPages) { state.page++; renderMainList(scoped, allGroups); } });
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
@@ -758,15 +777,6 @@ function committeePriorityRank(name) {
   return idx === -1 ? COMMITTEE_PRIORITY.length : idx;
 }
 
-// "상임위 심사"는 위원회마다 다 겪는 공통 단계라 이름만 봐선 어디서 심사 중인지 안
-// 보인다. 배지에 표시할 때만 "운영위 심사"처럼 실제 소관위 약칭으로 바꿔 준다.
-function billStatusDisplay(b) {
-  if (b.stage === '상임위 심사' && b.committee) {
-    return b.status.replace('상임위 심사', `${committeeAbbr(b.committee)} 심사`);
-  }
-  return b.status;
-}
-
 // 제안자 문구("OOO의원(정당, 선수, 지역구) 등 N인")에서 괄호 안 인적사항만
 // 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다.
 function proposerHtml(raw) {
@@ -774,7 +784,33 @@ function proposerHtml(raw) {
   const m = raw.match(/^(.*?)(\([^)]*\))(.*)$/);
   if (!m) return `<span class="meta-dim">${raw}</span>`;
   const [, before, detail, after] = m;
-  return `<span class="meta-dim">${before}</span><span class="proposer-detail">${detail}</span><span class="meta-dim">${after}</span>`;
+  return `<span class="proposer-detail">${before}${detail}</span><span class="meta-dim">${after}</span>`;
+}
+
+// 개별 법안 카드에 "입안 및 발의(날짜) > OO위 심사(날짜) > 법사위 심사(날짜) > 본회의 의결"
+// 처럼 그 법안 자신의 진행 상황을 날짜와 함께 보여준다. 지난 단계는 흐리게+완료일,
+// 지금 단계는 강조+진행중인 날짜, 아직 안 온 단계는 더 흐리게 날짜 없이 표시한다.
+// 각 단계에 날짜가 그대로 찍히니 별도의 "상태변경" 배지 없이도 뭐가 바뀌었는지 보인다.
+const BILL_STEP_STAGES = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결"];
+function billStepperHtml(b) {
+  const curRank = BILL_STEP_STAGES.indexOf(b.stage);
+  const steps = [
+    { stage: "입안 및 발의", label: "입안 및 발의", startDt: b.proposeDate, doneDt: b.proposeDate, result: null },
+    { stage: "상임위 심사", label: `${committeeAbbr(b.committee) || '상임위'} 심사`, startDt: b.committeeDt, doneDt: b.committeeDoneDt, result: b.committeeResult },
+    { stage: "법사위 심사", label: "법사위 심사", startDt: b.lawDt, doneDt: b.lawDoneDt, result: b.lawResult },
+    { stage: "본회의 의결", label: "본회의 의결", startDt: null, doneDt: null, result: null },
+  ];
+  return steps.map((s, i) => {
+    const rank = BILL_STEP_STAGES.indexOf(s.stage);
+    let cls, date, result;
+    if (rank < curRank) { cls = 'step-done'; date = s.doneDt || s.startDt; result = s.result; }
+    else if (rank === curRank) { cls = 'step-active'; date = s.startDt; result = null; }
+    else { cls = 'step-future'; date = null; result = null; }
+    const resultHtml = result ? ` · ${result}` : '';
+    const dateHtml = date ? `<span class="step-date">${date}</span>` : '';
+    const arrow = i > 0 ? `<span class="bill-step-arrow">›</span>` : '';
+    return `${arrow}<span class="bill-step ${cls}">${s.label}${resultHtml}${dateHtml}</span>`;
+  }).join('');
 }
 
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
@@ -858,6 +894,7 @@ function renderStageFlowRow() {
     const isActive = state.billStage === stage;
     return `<button data-stage="${stage}" class="flow-plain ${extraClass||''} ${isActive?'active':''}">${shown}</button>`;
   };
+  const allBtn = document.getElementById('billStageAllBtn');
 
   const stageBox = (stage) => {
     const stageSource = source.filter(b => b.stage === stage);
@@ -876,8 +913,6 @@ function renderStageFlowRow() {
   };
 
   const html = [
-    plainBox('전체', '전체'),
-    `<span class="flow-chevron"></span>`,
     plainBox('입안 및 발의', '입안 및 발의'),
     `<span class="flow-chevron"></span>`,
     stageBox('상임위 심사'),
@@ -889,15 +924,19 @@ function renderStageFlowRow() {
 
   const row = document.getElementById('billStatusChipRow');
   row.innerHTML = html;
+  const selectStage = (stage, result) => {
+    state.billStage = stage;
+    state.billResult = result || '전체';
+    state.billPage = 1;
+    renderStageFlowRow();
+    renderBillList();
+  };
   row.querySelectorAll('button[data-stage]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.billStage = btn.dataset.stage;
-      state.billResult = btn.dataset.result || '전체';
-      state.billPage = 1;
-      renderStageFlowRow();
-      renderBillList();
-    });
+    btn.addEventListener('click', () => selectStage(btn.dataset.stage, btn.dataset.result));
   });
+  allBtn.textContent = `전체 ${source.length}`;
+  allBtn.classList.toggle('active', state.billStage === '전체');
+  allBtn.onclick = () => selectStage('전체');
 
   // 접었을 때도 지금 뭘 골랐는지 보이게, 제목 옆에 현재 선택 표시를 남긴다.
   const tag = document.getElementById('stageCurrentTag');
@@ -929,7 +968,7 @@ function renderBillList() {
     const q = state.billSearch.toLowerCase();
     filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q));
   }
-  filtered.sort((a,b) => (b.changed - a.changed) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
+  filtered.sort((a,b) => ((b.changed?1:0) - (a.changed?1:0)) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
   const totalCount = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / state.billPageSize));
@@ -948,8 +987,6 @@ function renderBillList() {
   } else {
     listEl.innerHTML = pageBills.map(b => {
       const isStarred = starred.has(b.id);
-      const changedTag = b.changed ? `<span class="chip-alert" title="처리상태 변경">${b.changed}</span>` : '';
-      const metaParts = [b.no ? `의안번호 ${b.no}` : '', committeeAbbr(b.committee) || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
       const summaryBox = b.summary
@@ -958,10 +995,13 @@ function renderBillList() {
       return `<div class="article-card bill-card">
         <div class="card-head">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
-          <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${billStatusDisplay(b)}</span>${changedTag}</span>
-          <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name}</a>
+          <span class="card-tags"><span class="chip-category">${b.category}</span></span>
         </div>
-        <div class="card-meta-inline bill-meta-inline" style="margin-left:0;margin-bottom:6px;">${proposerHtml(b.proposer||b.repProposer||'')}${metaParts?`<span class="meta-dim"> · ${metaParts}</span>`:''}</div>
+        <div class="bill-title-line">
+          <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name}</a>
+          ${proposerHtml(b.proposer||b.repProposer||'')}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
+        </div>
+        <div class="bill-stepper">${billStepperHtml(b)}</div>
         ${summaryBox}
       </div>`;
     }).join('');
@@ -1045,6 +1085,14 @@ document.getElementById('billPageSizeSel').addEventListener('change', e => {
   state.billPageSize = parseInt(e.target.value, 10);
   state.billPage = 1;
   renderBillList();
+});
+document.getElementById('signalToggleBtn').addEventListener('click', () => {
+  document.getElementById('signalBox').classList.toggle('collapsed');
+});
+document.getElementById('pageSizeSel').addEventListener('change', e => {
+  state.pageSize = parseInt(e.target.value, 10);
+  state.page = 1;
+  renderAll();
 });
 
 renderAll();
