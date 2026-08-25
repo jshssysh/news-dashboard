@@ -154,33 +154,14 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-result-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .bill-result-row .result-caption { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
 
-.bill-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-bottom: 0; }
-.flow-chevron {
-  width: 20px; height: 42px; flex-shrink: 0;
-  background: var(--app-border-strong);
-  clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%, 35% 50%);
-}
+.stage-flow-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
 .flow-plain {
-  flex-shrink: 0; white-space: nowrap; padding: 10px 14px; border-radius: 8px;
-  border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.86em;
+  flex-shrink: 0; white-space: nowrap; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.78em;
 }
 .flow-plain:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
-.flow-stage-box {
-  flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px;
-  border: 1px solid var(--app-border); background: var(--app-secondary-bg);
-}
-.flow-stage-box.active { border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.2); }
-.flow-stage-head { display: flex; align-items: center; gap: 4px; }
-.flow-stage-title {
-  flex: 1 1 auto; min-width: 0;
-  border: none; border-radius: 6px; background: var(--app-bg); font-weight: 800; font-size: 0.88em;
-  padding: 6px 10px; text-align: center; border: 1px solid var(--app-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.flow-stage-box.active .flow-stage-title { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
-.stage-collapse-btn { flex-shrink: 0; background: none; border: none; padding: 0 3px; opacity: 0.5; font-size: 0.75em; }
-.stage-collapse-btn:hover { opacity: 0.9; }
-.flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; }
+.flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; margin-top: 10px; }
 .flow-result-grid button {
   border: 1px solid var(--app-border); background: var(--app-bg); border-radius: 6px; font-size: 0.78em;
   font-weight: 600; padding: 4px 8px; text-align: left; white-space: nowrap;
@@ -305,49 +286,51 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-news" class="view">
     <hr class="thin">
-    <div class="signal-box" id="signalBox">
-      <div class="signal-box-head">
-        <span class="signal-tag">오늘 주요 내용</span>
-        <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
+    <div class="bill-filter-sticky">
+      <div class="signal-box" id="signalBox">
+        <div class="signal-box-head">
+          <span class="signal-tag">오늘 주요 내용</span>
+          <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
+        </div>
+        <div id="signalItems"></div>
       </div>
-      <div id="signalItems"></div>
-    </div>
 
-    <div class="news-filter-row">
-      <h5>카테고리별 주요뉴스</h5>
-      <select id="periodSelect">
-        <option value="0">오늘만</option>
-        <option value="6">최근 7일</option>
-        <option value="29">최근 30일</option>
-      </select>
-      <select id="sortSelect">
-        <option value="importance">중요도순</option>
-        <option value="press">보도량순</option>
-        <option value="latest">최신순</option>
-      </select>
-      <select id="sentimentSelect" class="sel-sentiment">
-        <option value="">논조 전체</option>
-        <option value="긍정">긍정</option>
-        <option value="중립">중립</option>
-        <option value="부정">부정</option>
-        <option value="판단 실패">판단 실패</option>
-      </select>
-      <input type="text" id="searchInput" placeholder="제목, 요약에서 검색">
-    </div>
+      <div class="news-filter-row">
+        <h5>카테고리별 주요뉴스</h5>
+        <select id="periodSelect">
+          <option value="0">오늘만</option>
+          <option value="6">최근 7일</option>
+          <option value="29">최근 30일</option>
+        </select>
+        <select id="sortSelect">
+          <option value="importance">중요도순</option>
+          <option value="press">보도량순</option>
+          <option value="latest">최신순</option>
+        </select>
+        <select id="sentimentSelect" class="sel-sentiment">
+          <option value="">논조 전체</option>
+          <option value="긍정">긍정</option>
+          <option value="중립">중립</option>
+          <option value="부정">부정</option>
+          <option value="판단 실패">판단 실패</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="제목, 요약에서 검색">
+      </div>
 
-    <div class="cat-chip-row" id="catChipRow"></div>
-    <hr class="thin">
+      <div class="cat-chip-row" id="catChipRow"></div>
+      <hr class="thin">
+      <div class="bill-result-row" id="newsResultRow">
+        <div class="result-caption" id="resultCaption"></div>
+        <div class="pg-top"><select id="pageSizeSel">
+          <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+        </select></div>
+        <div class="pg-nav" id="pgNav"></div>
+      </div>
+      <hr class="thin">
+    </div>
 
     <div class="layout">
       <div class="main-col">
-        <div class="bill-result-row" id="newsResultRow">
-          <div class="result-caption" id="resultCaption"></div>
-          <div class="pg-top"><select id="pageSizeSel">
-            <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
-          </select></div>
-          <div class="pg-nav" id="pgNav"></div>
-        </div>
-        <hr class="thin">
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
@@ -379,9 +362,10 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         <div class="filter-section-header">
           <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
           <button id="billStageAllBtn" class="flow-plain committee-all-btn"></button>
+          <div class="stage-flow-compact" id="billStatusChipRow"></div>
           <span class="current-tag" id="stageCurrentTag"></span>
         </div>
-        <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
+        <div class="filter-section-body" id="billStageGridArea"></div>
       </div>
       <hr class="thin">
       <div class="bill-result-row">
@@ -463,7 +447,6 @@ const state = {
   billSearch: '',
   billPage: 1,
   billPageSize: 10,
-  billBoxCollapsed: {},
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -878,11 +861,11 @@ function renderCommitteeChipRow() {
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn', 'committeeCurrentTag');
 }
 
-// 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 흐름을, 위원회
-// 선택에 맞춰 건수를 다시 계산한 화살표 박스로 그린다. 상임위/법사위/본회의
-// 박스 안에는 그 단계의 세부 결과(원안가결/수정가결/폐기 등)를 클릭 가능한
-// 소그리드로 넣는다. (본회의 의결 다음인 정부 이송/공포는 이 API로 알 수
-// 없는 단계라 화면엔 안 그림)
+// 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 흐름을 처리상태
+// 제목 옆에 한 줄짜리 압축 흐름으로 보여준다(위원회 선택에 맞춰 건수 재계산).
+// 상임위/법사위/본회의 중 지금 선택된 단계의 세부 결과(원안가결/심사중 등)만
+// 아래 본문에 아코디언처럼 펼쳐서 보여준다 - 동시에 여러 단계를 다 펼쳐두지
+// 않아서 한 줄 흐름이 계속 짧게 유지된다.
 function renderStageFlowRow() {
   const starred = getStarredBills();
   const source = BILL_DATA.filter(b =>
@@ -893,51 +876,28 @@ function renderStageFlowRow() {
   source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
   if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
 
-  const plainBox = (stage, label, extraClass) => {
-    const cnt = stage === '전체' ? source.length : stageCounts[stage];
-    const shown = stage === '전체' || cnt ? `${label}${cnt !== undefined ? ` (${cnt})` : ''}` : label;
-    const isActive = state.billStage === stage;
-    return `<button data-stage="${stage}" class="flow-plain ${extraClass||''} ${isActive?'active':''}">${shown}</button>`;
-  };
+  const RESULT_STAGE_SET = RESULT_STAGES;
   const allBtn = document.getElementById('billStageAllBtn');
 
-  const stageBox = (stage) => {
-    const stageSource = source.filter(b => b.stage === stage);
-    const resultCounts = {};
-    stageSource.forEach(b => { resultCounts[b.result] = (resultCounts[b.result] || 0) + 1; });
-    const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
-    const isActiveStage = state.billStage === stage;
-    const isCollapsed = !!state.billBoxCollapsed[stage];
-    const grid = results.map(r => {
-      const isActiveResult = isActiveStage && state.billResult === r;
-      return `<button data-stage="${stage}" data-result="${r}" class="${isActiveResult?'active':''}">${r} (${resultCounts[r]})</button>`;
-    }).join('');
-    // 접었을 때는 그리드는 숨기고, 지금 골라둔 세부결과가 있으면 제목 옆에 그대로
-    // 붙여서 뭘 선택했는지 계속 보이게 한다 (예: "상임위 심사 (14320) 심사중 (14035)").
-    const selectedText = (isActiveStage && state.billResult !== '전체')
-      ? ` · ${state.billResult} (${resultCounts[state.billResult] || 0})` : '';
-    const titleText = `${stage} (${stageSource.length})${isCollapsed ? selectedText : ''}`;
-    return `<div class="flow-stage-box ${isActiveStage && state.billResult==='전체' ? 'active':''}">
-      <div class="flow-stage-head">
-        <button class="flow-stage-title" data-stage="${stage}">${titleText}</button>
-        <button class="stage-collapse-btn" data-collapse-stage="${stage}" title="세부결과 접기/펼치기">${isCollapsed?'▸':'▾'}</button>
-      </div>
-      <div class="flow-result-grid" style="${isCollapsed?'display:none;':''}">${grid}</div>
-    </div>`;
+  const stageChip = (stage, label) => {
+    const cnt = stageCounts[stage];
+    const shown = `${label}${cnt !== undefined ? ` (${cnt})` : ''}`;
+    const isActive = state.billStage === stage;
+    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}">${shown}</button>`;
   };
 
-  const html = [
-    plainBox('입안 및 발의', '입안 및 발의'),
-    `<span class="flow-chevron"></span>`,
-    stageBox('상임위 심사'),
-    `<span class="flow-chevron"></span>`,
-    stageBox('법사위 심사'),
-    `<span class="flow-chevron"></span>`,
-    stageBox('본회의 의결'),
+  const compactHtml = [
+    stageChip('입안 및 발의', '입안 및 발의'),
+    `<span class="bill-step-arrow">▶</span>`,
+    stageChip('상임위 심사', '상임위 심사'),
+    `<span class="bill-step-arrow">▶</span>`,
+    stageChip('법사위 심사', '법사위 심사'),
+    `<span class="bill-step-arrow">▶</span>`,
+    stageChip('본회의 의결', '본회의 의결'),
   ].join('');
-
   const row = document.getElementById('billStatusChipRow');
-  row.innerHTML = html;
+  row.innerHTML = compactHtml;
+
   const selectStage = (stage, result) => {
     state.billStage = stage;
     state.billResult = result || '전체';
@@ -946,18 +906,31 @@ function renderStageFlowRow() {
     renderBillList();
   };
   row.querySelectorAll('button[data-stage]').forEach(btn => {
-    btn.addEventListener('click', () => selectStage(btn.dataset.stage, btn.dataset.result));
-  });
-  row.querySelectorAll('.stage-collapse-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const s = btn.dataset.collapseStage;
-      state.billBoxCollapsed[s] = !state.billBoxCollapsed[s];
-      renderStageFlowRow();
-    });
+    btn.addEventListener('click', () => selectStage(btn.dataset.stage));
   });
   allBtn.textContent = `전체 ${source.length}`;
   allBtn.classList.toggle('active', state.billStage === '전체');
   allBtn.onclick = () => selectStage('전체');
+
+  // 지금 선택된 단계가 세부결과를 가질 수 있는 단계면, 그 결과 그리드만 본문에
+  // 아코디언으로 펼쳐서 보여준다(선택 안 바뀌면 다른 단계 그리드는 안 보임).
+  const gridArea = document.getElementById('billStageGridArea');
+  if (!RESULT_STAGE_SET.includes(state.billStage)) {
+    gridArea.innerHTML = '';
+  } else {
+    const stageSource = source.filter(b => b.stage === state.billStage);
+    const resultCounts = {};
+    stageSource.forEach(b => { resultCounts[b.result] = (resultCounts[b.result] || 0) + 1; });
+    const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
+    const grid = results.map(r => {
+      const isActiveResult = state.billResult === r;
+      return `<button data-result="${r}" class="${isActiveResult?'active':''}">${r} (${resultCounts[r]})</button>`;
+    }).join('');
+    gridArea.innerHTML = `<div class="flow-result-grid">${grid}</div>`;
+    gridArea.querySelectorAll('button[data-result]').forEach(btn => {
+      btn.addEventListener('click', () => selectStage(state.billStage, btn.dataset.result));
+    });
+  }
 
   // 접었을 때도 지금 뭘 골랐는지 보이게, 제목 옆에 현재 선택 표시를 남긴다.
   const tag = document.getElementById('stageCurrentTag');
