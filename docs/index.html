@@ -397,8 +397,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-org" class="view">
     <hr class="thin">
-    <div class="info-box" style="margin-bottom:16px;">부서·직책별 담당자 재임 이력 (수동 기록 · config/personnel.csv에서 직접 추가/수정 가능)</div>
-    <div id="orgContent"></div>
+    <div class="info-box">아직 준비중입니다.</div>
   </div>
 
   <div id="view-empty" class="view">
@@ -406,7 +405,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-25 15:42 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-25 15:48 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -558,7 +557,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['공정위\n조직','공정위 조직']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['조직','공정위 조직']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
   ).join('');
@@ -1064,7 +1063,6 @@ function renderAll() {
 
   if (state.activeTab === '공정위 조직') {
     document.getElementById('view-org').classList.add('active');
-    renderOrg();
   } else if (state.activeTab === '입법') {
     document.getElementById('view-law').classList.add('active');
     renderBills();
