@@ -71,9 +71,14 @@ jobs:
             # 정답이다 - rebase 대신 merge를 쓰고, 이 파일들 충돌은 우리 쪽(ours)으로 해결한다.
             git fetch origin main
             if ! git merge origin/main --no-edit; then
+              conflicted=$(git diff --name-only --diff-filter=U)
+              echo "::warning::자동 생성 파일에서 병합 충돌 발생 - 이번 실행 결과로 덮어써서 해결함: $conflicted"
               git checkout --ours -- news_list.csv bill_list.csv docs/index.html
               git add news_list.csv bill_list.csv docs/index.html
               git commit --no-edit
             fi
-            git push
+            if ! git push; then
+              echo "::error::git push 실패 - 이번 실행 결과가 원격에 반영되지 않았습니다. 로그를 확인하세요."
+              exit 1
+            fi
           fi
