@@ -110,7 +110,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .reason-chip-dark { display: inline-block; background-color: rgba(138,180,248,0.12); color: #8ab4f8; padding: 2px 8px; border-radius: 5px; font-size: 0.74em; font-weight: 600; margin-right: 4px; }
 
 .news-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin-bottom: 12px; }
-.news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1.02em; font-weight: 700; letter-spacing: -0.1px; }
+.news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1.02em; font-weight: 700; letter-spacing: -0.1px; white-space: nowrap; }
+.era-tag { font-size: 0.68em; font-weight: 600; opacity: 0.55; margin-left: 4px; }
+.bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; }
 .news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .news-filter-row select.sel-sentiment { width: 110px; }
 .news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
@@ -140,9 +142,8 @@ a.badge-skipped:hover { text-decoration: underline; }
   flex-shrink: 0; white-space: nowrap; padding: 10px 14px; border-radius: 8px;
   border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.86em;
 }
-.flow-plain:hover:not(.active):not(.flow-disabled) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
+.flow-plain:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
-.flow-plain.flow-disabled { opacity: 0.5; cursor: default; }
 .flow-stage-box {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px;
   border: 1px solid var(--app-border); background: var(--app-secondary-bg);
@@ -326,18 +327,20 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-law" class="view">
     <hr class="thin">
-    <div class="news-filter-row">
-      <h5>국회 계류 법안</h5>
-      <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
-      <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
-    </div>
-    <div class="filter-section" id="committeeFilterSection">
-      <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
-      <div class="cat-chip-row filter-section-body" id="billCommitteeChipRow"></div>
-    </div>
-    <div class="filter-section" id="stageFilterSection">
-      <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
-      <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>국회 계류 법안 <span class="era-tag">제22대</span></h5>
+        <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
+        <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
+      </div>
+      <div class="filter-section" id="committeeFilterSection">
+        <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
+        <div class="cat-chip-row filter-section-body" id="billCommitteeChipRow"></div>
+      </div>
+      <div class="filter-section" id="stageFilterSection">
+        <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+        <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
+      </div>
     </div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
@@ -755,10 +758,11 @@ function renderCommitteeChipRow() {
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, filterFn, renderStageFlowRow);
 }
 
-// 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 -> 정부 이송 흐름을,
-// 위원회 선택에 맞춰 건수를 다시 계산한 화살표 박스로 그린다. 상임위/법사위/
-// 본회의 박스 안에는 그 단계의 세부 결과(원안가결/수정가결/폐기 등)를 클릭
-// 가능한 소그리드로 넣는다. 정부 이송은 이 API로는 알 수 없는 단계라 장식용.
+// 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 흐름을, 위원회
+// 선택에 맞춰 건수를 다시 계산한 화살표 박스로 그린다. 상임위/법사위/본회의
+// 박스 안에는 그 단계의 세부 결과(원안가결/수정가결/폐기 등)를 클릭 가능한
+// 소그리드로 넣는다. (본회의 의결 다음인 정부 이송/공포는 이 API로 알 수
+// 없는 단계라 화면엔 안 그림)
 function renderStageFlowRow() {
   const starred = getStarredBills();
   const source = BILL_DATA.filter(b =>
@@ -802,8 +806,6 @@ function renderStageFlowRow() {
     stageBox('법사위 심사'),
     `<span class="flow-chevron"></span>`,
     stageBox('본회의 의결'),
-    `<span class="flow-chevron"></span>`,
-    `<div class="flow-plain flow-disabled">정부 이송</div>`,
   ].join('');
 
   const row = document.getElementById('billStatusChipRow');
