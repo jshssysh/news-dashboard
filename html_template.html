@@ -633,11 +633,18 @@ function committeeAbbr(name) {
   return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
 }
 
-function renderBillChipRow(elId, field, stateKey, displayFn) {
+const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
+function statusStageRank(status) {
+  const idx = STATUS_STAGE_ORDER.findIndex(stage => status.startsWith(stage));
+  return idx === -1 ? STATUS_STAGE_ORDER.length : idx;
+}
+
+function renderBillChipRow(elId, field, stateKey, displayFn, sortFn) {
   displayFn = displayFn || (v => v);
   const counts = {};
   BILL_DATA.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
-  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  const sorter = sortFn || ((a,b) => counts[b]-counts[a]);
+  const values = ['전체'].concat(Object.keys(counts).sort(sorter));
   const row = document.getElementById(elId);
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? BILL_DATA.length : counts[v];
@@ -656,7 +663,7 @@ function renderBillChipRow(elId, field, stateKey, displayFn) {
 
 function renderBills() {
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr);
-  renderBillChipRow('billStatusChipRow', 'status', 'billStatus');
+  renderBillChipRow('billStatusChipRow', 'status', 'billStatus', null, (a,b) => statusStageRank(a) - statusStageRank(b));
   renderBillList();
 }
 
