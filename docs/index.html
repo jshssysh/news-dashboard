@@ -284,8 +284,8 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
       <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
     </div>
-    <div class="cat-chip-row" id="billCommitteeChipRow"></div>
     <div class="cat-chip-row" id="billStatusChipRow"></div>
+    <div class="cat-chip-row" id="billCommitteeChipRow"></div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
@@ -303,7 +303,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-25 12:41 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-25 12:56 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -647,15 +647,17 @@ function statusStageRank(status) {
   return idx === -1 ? STATUS_STAGE_ORDER.length : idx;
 }
 
-function renderBillChipRow(elId, field, stateKey, displayFn, sortFn) {
+function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect) {
   displayFn = displayFn || (v => v);
+  const source = filterFn ? BILL_DATA.filter(filterFn) : BILL_DATA;
   const counts = {};
-  BILL_DATA.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
+  source.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
+  if (filterFn && state[stateKey] !== '전체' && !(state[stateKey] in counts)) state[stateKey] = '전체';
   const sorter = sortFn || ((a,b) => counts[b]-counts[a]);
   const values = ['전체'].concat(Object.keys(counts).sort(sorter));
   const row = document.getElementById(elId);
   row.innerHTML = values.map(v => {
-    const cnt = v === '전체' ? BILL_DATA.length : counts[v];
+    const cnt = v === '전체' ? source.length : counts[v];
     const label = v === '전체' ? v : displayFn(v);
     return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${label} ${cnt}</button>`;
   }).join('');
@@ -664,14 +666,20 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn) {
       state[stateKey] = btn.dataset.val;
       state.billPage = 1;
       row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === state[stateKey]));
+      if (onSelect) onSelect();
       renderBillList();
     });
   });
 }
 
+function renderCommitteeChipRow() {
+  const filterFn = state.billStatus === '전체' ? (b => true) : (b => b.status === state.billStatus);
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, filterFn);
+}
+
 function renderBills() {
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr);
-  renderBillChipRow('billStatusChipRow', 'status', 'billStatus', null, (a,b) => statusStageRank(a) - statusStageRank(b));
+  renderBillChipRow('billStatusChipRow', 'status', 'billStatus', null, (a,b) => statusStageRank(a) - statusStageRank(b), null, renderCommitteeChipRow);
+  renderCommitteeChipRow();
   renderBillList();
 }
 
