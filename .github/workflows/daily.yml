@@ -2,7 +2,7 @@ name: update-data
 
 on:
   schedule:
-    - cron: '15 21 * * *'  # 매일 한국시간(KST, UTC+9) 06:15 실행 (항상 AI 분석 포함)
+    - cron: '0 21 * * *'  # 매일 한국시간(KST, UTC+9) 06:00 실행 (항상 AI 분석 포함)
   workflow_dispatch:
     inputs:
       skip_ai:
