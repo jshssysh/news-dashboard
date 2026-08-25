@@ -149,17 +149,22 @@ a.badge-skipped:hover { text-decoration: underline; }
 .kw-row-total .kw-label { font-size: 0.9em; }
 .kw-row-total .sentiment-track { height: 10px; }
 hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 0 0 16px; }
-.kw-row .kw-label { font-size: 0.84em; font-weight: 700; margin-bottom: 7px; display: flex; align-items: baseline; gap: 4px; }
+.kw-row .kw-label { font-size: 0.84em; font-weight: 700; margin-bottom: 7px; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.kw-label-clickable { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: background-color .15s var(--ease); }
+.kw-label-clickable:hover { background-color: rgba(128,128,128,0.12); }
 .kw-total { opacity: 0.6; font-weight: 500; }
 .cnt-neg { color: #e05353; font-weight: 700; }
 .cnt-neu { color: #d99a2b; font-weight: 700; }
 .cnt-pos { color: #43a047; font-weight: 700; }
+.cnt-fail { color: #9c4dcc; font-weight: 700; opacity: 0.85; }
 .sentiment-track { display: flex; width: 100%; height: 8px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
 .sentiment-seg {
     display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
-    -webkit-text-stroke: 3px var(--app-secondary-bg); paint-order: stroke fill; transition: width .3s var(--ease);
+    -webkit-text-stroke: 3px var(--app-secondary-bg); paint-order: stroke fill; transition: width .3s var(--ease), filter .15s var(--ease);
     text-shadow: -1px -1px 0 var(--app-secondary-bg), 1px -1px 0 var(--app-secondary-bg), -1px 1px 0 var(--app-secondary-bg), 1px 1px 0 var(--app-secondary-bg), 0 0 4px var(--app-secondary-bg);
+    cursor: pointer;
 }
+.sentiment-seg:hover { filter: brightness(1.15); }
 .sentiment-seg:first-child { border-radius: 8px 0 0 8px; }
 .sentiment-seg:last-child { border-radius: 0 8px 8px 0; }
 .sentiment-neg { background-color: #e05353; color: #e05353; }
@@ -298,7 +303,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-25 11:16 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-25 11:56 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -496,22 +501,41 @@ function renderNewsView(dr, allGroups) {
 
   const dailyCatCounts = {};
   dr.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
-  const renderKwRow = (label, rows, extraClass) => {
+  const renderKwRow = (catValue, rows, extraClass) => {
     const neg = rows.filter(r => r.sentiment==='부정').length;
     const neu = rows.filter(r => r.sentiment==='중립').length;
     const pos = rows.filter(r => r.sentiment==='긍정').length;
+    const fail = rows.filter(r => r.sentiment==='판단 실패').length;
     const totalS = neg+neu+pos;
     let negPct=0, neuPct=0, posPct=0;
     if (totalS > 0) { negPct = Math.round(neg/totalS*100); posPct = Math.round(pos/totalS*100); neuPct = 100-negPct-posPct; }
-    const seg = (pct, cls) => pct > 0 ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;">${pct}%</div>` : '';
-    return `<div class="kw-row ${extraClass||''}"><div class="kw-label">${label} <span class="kw-total">${rows.length}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></div>
-      <div class="sentiment-track">${seg(negPct,'sentiment-neg')}${seg(neuPct,'sentiment-neu')}${seg(posPct,'sentiment-pos')}</div></div>`;
+    const seg = (pct, cls, sentiment) => pct > 0
+      ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;" data-cat="${catValue}" data-sentiment="${sentiment}" title="${catValue} · ${sentiment}만 보기">${pct}%</div>`
+      : '';
+    const failTag = fail > 0
+      ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 판단실패만 보기">판단실패 ${fail}</span>`
+      : '';
+    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></span>${failTag}</div>
+      <div class="sentiment-track">${seg(negPct,'sentiment-neg','부정')}${seg(neuPct,'sentiment-neu','중립')}${seg(posPct,'sentiment-pos','긍정')}</div></div>`;
   };
   let sidebarHtml = dr.length ? renderKwRow('전체', dr, 'kw-row-total') + '<hr class="kw-divider">' : '';
   Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
     sidebarHtml += renderKwRow(cat, dr.filter(r => r.category === cat));
   });
-  document.getElementById('sidebarBars').innerHTML = sidebarHtml;
+  const sidebarEl = document.getElementById('sidebarBars');
+  sidebarEl.innerHTML = sidebarHtml;
+
+  const applySidebarFilter = (cat, sentiment) => {
+    state.selectedCategory = cat;
+    state.sentiment = sentiment || '';
+    state.page = 1;
+    chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
+    document.getElementById('sentimentSelect').value = state.sentiment;
+    renderMainList(scoped, allGroups);
+  };
+  sidebarEl.querySelectorAll('.kw-label-clickable, .sentiment-seg').forEach(el => {
+    el.addEventListener('click', () => applySidebarFilter(el.dataset.cat, el.dataset.sentiment || ''));
+  });
 }
 
 function renderMainList(scoped, allGroups) {
@@ -594,14 +618,38 @@ function renderMainList(scoped, allGroups) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
 }
 
-function renderBillChipRow(elId, field, stateKey) {
+const COMMITTEE_ABBR = {
+  "국회운영위원회": "운영위", "법제사법위원회": "법사위", "정무위원회": "정무위",
+  "기획재정위원회": "기재위", "교육위원회": "교육위", "과학기술정보방송통신위원회": "과방위",
+  "외교통일위원회": "외통위", "국방위원회": "국방위", "행정안전위원회": "행안위",
+  "문화체육관광위원회": "문체위", "농림축산식품해양수산위원회": "농해수위",
+  "산업통상자원중소벤처기업위원회": "산자위", "보건복지위원회": "복지위",
+  "환경노동위원회": "환노위", "국토교통위원회": "국토위", "정보위원회": "정보위",
+  "여성가족위원회": "여가위", "예산결산특별위원회": "예결위",
+};
+function committeeAbbr(name) {
+  if (!name) return name;
+  if (COMMITTEE_ABBR[name]) return COMMITTEE_ABBR[name];
+  return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+}
+
+const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
+function statusStageRank(status) {
+  const idx = STATUS_STAGE_ORDER.findIndex(stage => status.startsWith(stage));
+  return idx === -1 ? STATUS_STAGE_ORDER.length : idx;
+}
+
+function renderBillChipRow(elId, field, stateKey, displayFn, sortFn) {
+  displayFn = displayFn || (v => v);
   const counts = {};
   BILL_DATA.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
-  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  const sorter = sortFn || ((a,b) => counts[b]-counts[a]);
+  const values = ['전체'].concat(Object.keys(counts).sort(sorter));
   const row = document.getElementById(elId);
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? BILL_DATA.length : counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${v} ${cnt}</button>`;
+    const label = v === '전체' ? v : displayFn(v);
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${label} ${cnt}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -614,8 +662,8 @@ function renderBillChipRow(elId, field, stateKey) {
 }
 
 function renderBills() {
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee');
-  renderBillChipRow('billStatusChipRow', 'status', 'billStatus');
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr);
+  renderBillChipRow('billStatusChipRow', 'status', 'billStatus', null, (a,b) => statusStageRank(a) - statusStageRank(b));
   renderBillList();
 }
 
@@ -647,7 +695,7 @@ function renderBillList() {
     listEl.innerHTML = pageBills.map(b => {
       const isStarred = starred.has(b.id);
       const changedTag = b.changed ? `<span class="chip-alert">상태변경</span>` : '';
-      const metaParts = [b.no ? `의안번호 ${b.no}` : '', b.committee || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
+      const metaParts = [b.no ? `의안번호 ${b.no}` : '', committeeAbbr(b.committee) || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
       const summaryBox = b.summary
