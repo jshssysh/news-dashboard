@@ -428,6 +428,21 @@ const state = {
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
+
+// 네이버 뉴스는 통신사/포털 제휴 매체가 뒤섞여 있어서, 그룹의 대표기사를 고를 때
+// 아래 주요 언론사 도메인 기사 중 중요도가 가장 높은 걸 우선한다(없으면 원래대로
+// 전체 중 최고 중요도로 폴백).
+const MAJOR_PRESS_DOMAINS = [
+  "yna.co.kr", "chosun.com", "joongang.co.kr", "joins.com", "donga.com", "hani.co.kr", "khan.co.kr",
+  "hankookilbo.com", "seoul.co.kr", "kmib.co.kr", "munhwa.com", "mk.co.kr", "hankyung.com",
+  "sedaily.com", "heraldcorp.com", "fnnews.com", "edaily.co.kr", "mt.co.kr", "newsis.com", "news1.kr",
+  "kbs.co.kr", "imbc.com", "mbc.co.kr", "sbs.co.kr", "ytn.co.kr", "jtbc.co.kr",
+];
+function isMajorPress(link) {
+  const domain = extractDomain(link);
+  if (!domain) return false;
+  return MAJOR_PRESS_DOMAINS.some(d => domain === d || domain.endsWith("." + d));
+}
 function extractFineAmount(text) { const m = FINE_AMOUNT_PATTERN.exec(text || ""); return m ? ("과징금 " + m[1] + m[2] + "원") : null; }
 function keywordRepeatInfo(rows) {
   let bestKw = null, bestCount = 0;
@@ -458,7 +473,8 @@ function buildIssueGroups(rows) {
   rows.forEach(r => { (byIssue[r.issue] = byIssue[r.issue] || []).push(r); });
   const groups = Object.keys(byIssue).map(title => {
     const grows = byIssue[title].slice().sort((a,b) => b.importance - a.importance);
-    const rep = grows[0];
+    const majorRows = grows.filter(r => isMajorPress(r.link));
+    const rep = majorRows.length ? majorRows[0] : grows[0];
     return {
       title, importance: rep.importance, sentiment: rep.sentiment, category: rep.category, summary: rep.summary,
       mainPress: rep.press, pressCount: grows.length, repTs: rep.ts, repPubTs: rep.pub_ts, repLink: rep.link,
