@@ -79,6 +79,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .chip-tag-warn { background-color: #fdecea; color: #c62828; }
 .chip-alert { background-color: #c62828; color: #fff; font-size: 0.76em; }
 .card-meta-inline { font-size: 0.78em; opacity: 0.56; margin-left: 8px; }
+.bill-meta-inline { opacity: 1; }
+.bill-meta-inline .meta-dim { opacity: 0.56; }
+.bill-meta-inline .proposer-detail { font-weight: 700; opacity: 0.88; }
 .reason-chip { display: inline-block; background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 5px; font-size: 0.8em; font-weight: 600; margin-right: 4px; border: 1px solid var(--app-border); }
 .reason-box { border: 1px solid var(--app-border); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.3; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 5px 12px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
@@ -114,9 +117,20 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
-.chip-row-label { font-size: 0.78em; font-weight: 600; opacity: 0.65; margin-bottom: 4px; }
+.filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.filter-section-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  border: none; background: none; padding: 0; margin-bottom: 10px; color: var(--app-text);
+  font-size: 1.05em; font-weight: 800; letter-spacing: -0.1px; text-align: left;
+}
+.filter-section-toggle:hover { opacity: 0.75; }
+.filter-section-toggle .toggle-caret { opacity: 0.5; font-size: 0.72em; transition: transform .15s var(--ease); }
+.filter-section.collapsed .filter-section-toggle { margin-bottom: 0; }
+.filter-section.collapsed .filter-section-toggle .toggle-caret { transform: rotate(-90deg); }
+.filter-section.collapsed .filter-section-body { display: none; }
+.filter-section .filter-section-body { margin-bottom: 0; }
 
-.bill-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-bottom: 12px; }
+.bill-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-bottom: 0; }
 .flow-chevron {
   width: 20px; height: 42px; flex-shrink: 0;
   background: var(--app-border-strong);
@@ -317,10 +331,14 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
       <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
     </div>
-    <div class="chip-row-label">소관위원회</div>
-    <div class="cat-chip-row" id="billCommitteeChipRow"></div>
-    <div class="chip-row-label">처리상태</div>
-    <div class="bill-flow" id="billStatusChipRow"></div>
+    <div class="filter-section" id="committeeFilterSection">
+      <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
+      <div class="cat-chip-row filter-section-body" id="billCommitteeChipRow"></div>
+    </div>
+    <div class="filter-section" id="stageFilterSection">
+      <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+      <div class="bill-flow filter-section-body" id="billStatusChipRow"></div>
+    </div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
@@ -677,6 +695,25 @@ function committeeAbbr(name) {
   return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
 }
 
+// "상임위 심사"는 위원회마다 다 겪는 공통 단계라 이름만 봐선 어디서 심사 중인지 안
+// 보인다. 배지에 표시할 때만 "운영위 심사"처럼 실제 소관위 약칭으로 바꿔 준다.
+function billStatusDisplay(b) {
+  if (b.stage === '상임위 심사' && b.committee) {
+    return b.status.replace('상임위 심사', `${committeeAbbr(b.committee)} 심사`);
+  }
+  return b.status;
+}
+
+// 제안자 문구("OOO의원(정당, 선수, 지역구) 등 N인")에서 괄호 안 인적사항만
+// 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다.
+function proposerHtml(raw) {
+  if (!raw) return '';
+  const m = raw.match(/^(.*?)(\([^)]*\))(.*)$/);
+  if (!m) return `<span class="meta-dim">${raw}</span>`;
+  const [, before, detail, after] = m;
+  return `<span class="meta-dim">${before}</span><span class="proposer-detail">${detail}</span><span class="meta-dim">${after}</span>`;
+}
+
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
 const RESULT_STAGES = ["상임위 심사", "법사위 심사", "본회의 의결"]; // 세부 결과(원안가결/수정가결/폐기 등)가 나올 수 있는 단계
 const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결"];
@@ -816,7 +853,7 @@ function renderBillList() {
   } else {
     listEl.innerHTML = pageBills.map(b => {
       const isStarred = starred.has(b.id);
-      const changedTag = b.changed ? `<span class="chip-alert">상태변경</span>` : '';
+      const changedTag = b.changed ? `<span class="chip-alert" title="처리상태 변경">${b.changed}</span>` : '';
       const metaParts = [b.no ? `의안번호 ${b.no}` : '', committeeAbbr(b.committee) || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
@@ -826,10 +863,10 @@ function renderBillList() {
       return `<div class="article-card bill-card">
         <div class="card-head">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
-          <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${b.status}</span>${changedTag}</span>
+          <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${billStatusDisplay(b)}</span>${changedTag}</span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name}</a>
         </div>
-        <div class="card-meta-inline" style="margin-left:0;margin-bottom:6px;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
+        <div class="card-meta-inline bill-meta-inline" style="margin-left:0;margin-bottom:6px;">${proposerHtml(b.proposer||b.repProposer||'')}${metaParts?`<span class="meta-dim"> · ${metaParts}</span>`:''}</div>
         ${summaryBox}
       </div>`;
     }).join('');
@@ -903,6 +940,11 @@ document.getElementById('billStarredToggle').addEventListener('click', () => {
   btn.classList.toggle('active', state.billStarredOnly);
   btn.textContent = state.billStarredOnly ? '★ 즐겨찾기만' : '☆ 즐겨찾기만';
   renderBills(); // 위원회/처리단계 칩 건수도 즐겨찾기 기준으로 다시 계산
+});
+document.querySelectorAll('.filter-section-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById(btn.dataset.target).classList.toggle('collapsed');
+  });
 });
 
 renderAll();

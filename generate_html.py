@@ -96,7 +96,7 @@ def load_bills():
             "status": row.get("처리상태", ""),
             "stage": row.get("처리단계", ""),
             "result": row.get("처리결과", ""),
-            "changed": str(row.get("상태변경", "")) == "변경",
+            "changed": None if pd.isna(row.get("상태변경")) or not str(row.get("상태변경")).strip() else str(row.get("상태변경")),
             "link": row.get("상세링크", ""),
             "summary": None if pd.isna(row.get("AI요약")) else str(row.get("AI요약")),
         })

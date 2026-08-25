@@ -383,7 +383,9 @@ def main():
         stage, raw_result = derive_stage_and_result(row)
         status = f"{stage} · {normalize_result(raw_result)}" if raw_result else stage
         is_new = bill_id not in prev_status
-        changed = "" if is_new else ("변경" if prev_status[bill_id] != status else "")
+        # 그냥 "변경됐다"만 표시하지 않고, 실제로 어디서 어디로 넘어갔는지 바로 보이게
+        # "이전상태 -> 새상태" 문구를 통째로 저장한다.
+        changed = "" if is_new or prev_status[bill_id] == status else f"{prev_status[bill_id]} → {status}"
         bills.append({
             "의안ID": bill_id,
             "의안번호": row.get("BILL_NO", ""),
