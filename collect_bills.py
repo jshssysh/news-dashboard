@@ -190,8 +190,15 @@ def summarize_bills_with_gemini(items):
         return {}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     results = {}
+    consecutive_failures = 0
     batches = [items[i:i + 20] for i in range(0, len(items), 20)]
     for batch in batches:
+        # 서킷 브레이커: Gemini가 지금 불안정해서 재시도까지 연달아 실패하는 상황이면,
+        # 남은 배치까지 전부 붙잡고 있지 않고 여기서 포기한다. 못 끝낸 법안은 요약이
+        # 빈 채로 저장되고, 다음 실행 때 다시 시도된다 (제안이유는 안 바뀌므로 손해 없음).
+        if consecutive_failures >= 3:
+            print(f"[법안 요약] 연속 {consecutive_failures}회 실패 - Gemini 불안정으로 판단해 남은 배치는 다음 실행으로 미룸")
+            break
         input_data = [{"idx": it["idx"], "name": it["name"], "text": it["text"]} for it in batch]
         prompt = f"""당신은 법안을 쉬운 말로 요약하는 담당자입니다.
 입력 법안 목록: {json.dumps(input_data, ensure_ascii=False)}
@@ -209,6 +216,7 @@ text가 비어있거나 의미를 알 수 없으면 summary를 빈 문자열로 
         try:
             res = post_gemini_with_retry(url, payload)
             if res.status_code == 200:
+                consecutive_failures = 0
                 res_json = res.json()
                 raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
                 if raw_text.startswith("```json"): raw_text = raw_text[7:]
@@ -221,8 +229,10 @@ text가 비어있거나 의미를 알 수 없으면 summary를 빈 문자열로 
                     if i is not None:
                         results[i] = (item.get("summary") or "").strip()
             else:
+                consecutive_failures += 1
                 print(f"[법안 요약 오류] status={res.status_code} body={res.text[:300]}")
         except Exception as e:
+            consecutive_failures += 1
             print(f"[법안 요약 예외] {e}")
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
     return results
