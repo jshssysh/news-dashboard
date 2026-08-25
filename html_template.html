@@ -115,8 +115,38 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
 .chip-row-label { font-size: 0.78em; font-weight: 600; opacity: 0.65; margin-bottom: 4px; }
-.stage-arrow { display: inline-flex; align-items: center; opacity: 0.4; font-weight: 700; padding: 0 2px; flex-shrink: 0; }
-.stage-flow-row button[data-val="전체"] { margin-right: 10px; }
+
+.bill-flow { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px; }
+.bill-flow::-webkit-scrollbar { height: 5px; }
+.flow-chevron {
+  width: 20px; height: 42px; flex-shrink: 0;
+  background: var(--app-border-strong);
+  clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%, 35% 50%);
+}
+.flow-plain {
+  flex-shrink: 0; white-space: nowrap; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.86em;
+}
+.flow-plain:hover:not(.active):not(.flow-disabled) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
+.flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
+.flow-plain.flow-disabled { opacity: 0.5; cursor: default; }
+.flow-stage-box {
+  flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px;
+  border: 1px solid var(--app-border); background: var(--app-secondary-bg);
+}
+.flow-stage-box.active { border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.2); }
+.flow-stage-title {
+  border: none; border-radius: 6px; background: var(--app-bg); font-weight: 800; font-size: 0.88em;
+  padding: 6px 10px; text-align: center; border: 1px solid var(--app-border);
+}
+.flow-stage-box.active .flow-stage-title { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; }
+.flow-result-grid button {
+  border: 1px solid var(--app-border); background: var(--app-bg); border-radius: 6px; font-size: 0.78em;
+  font-weight: 600; padding: 4px 8px; text-align: left; white-space: nowrap;
+}
+.flow-result-grid button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
+.flow-result-grid button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
 .cat-chip-row {
   display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 12px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px;
@@ -290,8 +320,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="chip-row-label">소관위원회</div>
     <div class="cat-chip-row" id="billCommitteeChipRow"></div>
     <div class="chip-row-label">처리상태</div>
-    <div class="cat-chip-row stage-flow-row" id="billStatusChipRow"></div>
-    <div class="cat-chip-row" id="billResultChipRow"></div>
+    <div class="bill-flow" id="billStatusChipRow"></div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
@@ -649,13 +678,8 @@ function committeeAbbr(name) {
 }
 
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
-const RESULT_STAGES = ["상임위 심사", "법사위 심사"]; // 세부 결과(원안/수정/폐기 등)가 나올 수 있는 단계
-const RESULT_ABBR = {
-  "원안가결": "원안", "수정가결": "수정", "대안반영가결": "대안반영", "대안반영폐기": "대안반영",
-  "철회": "철회", "폐기": "폐기", "부결": "부결", "심사중": "심사중",
-};
+const RESULT_STAGES = ["상임위 심사", "법사위 심사"]; // 세부 결과(원안가결/수정가결/폐기 등)가 나올 수 있는 단계
 const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결"];
-function resultAbbr(v) { return RESULT_ABBR[v] || v; }
 function resultRank(v) {
   const idx = RESULT_ORDER.indexOf(v);
   return idx === -1 ? RESULT_ORDER.length : idx;
@@ -692,49 +716,67 @@ function renderCommitteeChipRow() {
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, null, renderStageFlowRow);
 }
 
+// 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 정보 이송 흐름을, 위원회 선택에
+// 맞춰 건수를 다시 계산한 화살표 박스로 그린다. 상임위/법사위 박스 안에는 그
+// 단계의 세부 결과(원안가결/수정가결/폐기 등)를 클릭 가능한 소그리드로 넣는다.
 function renderStageFlowRow() {
   const filterFn = state.billCommittee === '전체' ? (b => true) : (b => b.committee === state.billCommittee);
   const source = BILL_DATA.filter(filterFn);
-  const counts = {};
-  source.forEach(b => { counts[b.stage] = (counts[b.stage] || 0) + 1; });
-  if (state.billStage !== '전체' && !(state.billStage in counts)) state.billStage = '전체';
-  const stages = STATUS_STAGE_ORDER.filter(s => counts[s]);
-  const chip = (val, label, cnt) => `<button data-val="${val}" class="${state.billStage===val?'active':''}">${label} ${cnt}</button>`;
-  const parts = [chip('전체', '전체', source.length)];
-  stages.forEach((s, i) => {
-    if (i > 0) parts.push(`<span class="stage-arrow">→</span>`);
-    parts.push(chip(s, s, counts[s]));
-  });
+  const stageCounts = {};
+  source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
+  if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
+
+  const plainBox = (stage, label, extraClass) => {
+    const cnt = stage === '전체' ? source.length : stageCounts[stage];
+    const shown = stage === '전체' || cnt ? `${label}${cnt !== undefined ? ` (${cnt})` : ''}` : label;
+    const isActive = state.billStage === stage;
+    return `<button data-stage="${stage}" class="flow-plain ${extraClass||''} ${isActive?'active':''}">${shown}</button>`;
+  };
+
+  const stageBox = (stage) => {
+    const stageSource = source.filter(b => b.stage === stage);
+    const resultCounts = {};
+    stageSource.forEach(b => { resultCounts[b.result] = (resultCounts[b.result] || 0) + 1; });
+    const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
+    const isActiveStage = state.billStage === stage;
+    const grid = results.map(r => {
+      const isActiveResult = isActiveStage && state.billResult === r;
+      return `<button data-stage="${stage}" data-result="${r}" class="${isActiveResult?'active':''}">${r} (${resultCounts[r]})</button>`;
+    }).join('');
+    return `<div class="flow-stage-box ${isActiveStage && state.billResult==='전체' ? 'active':''}">
+      <button class="flow-stage-title" data-stage="${stage}">${stage} (${stageSource.length})</button>
+      <div class="flow-result-grid">${grid}</div>
+    </div>`;
+  };
+
+  const html = [
+    plainBox('전체', '전체'),
+    `<span class="flow-chevron"></span>`,
+    plainBox('입안 및 발의', '입안 및 발의'),
+    `<span class="flow-chevron"></span>`,
+    stageBox('상임위 심사'),
+    `<span class="flow-chevron"></span>`,
+    stageBox('법사위 심사'),
+    `<span class="flow-chevron"></span>`,
+    `<div class="flow-plain flow-disabled">정보 이송</div>`,
+  ].join('');
+
   const row = document.getElementById('billStatusChipRow');
-  row.innerHTML = parts.join('');
-  renderResultChipRow(); // 위원회 변경으로 billStage가 방금 자동 초기화됐을 수 있으므로 항상 같이 갱신
-  row.querySelectorAll('button').forEach(btn => {
+  row.innerHTML = html;
+  row.querySelectorAll('button[data-stage]').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.billStage = btn.dataset.val;
+      state.billStage = btn.dataset.stage;
+      state.billResult = btn.dataset.result || '전체';
       state.billPage = 1;
-      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === state.billStage));
-      renderResultChipRow();
+      renderStageFlowRow();
       renderBillList();
     });
   });
 }
 
-function renderResultChipRow() {
-  const area = document.getElementById('billResultChipRow');
-  if (!RESULT_STAGES.includes(state.billStage)) {
-    area.innerHTML = '';
-    area.style.display = 'none';
-    return;
-  }
-  area.style.display = '';
-  const filterFn = b => (state.billCommittee === '전체' || b.committee === state.billCommittee) && b.stage === state.billStage;
-  renderBillChipRow('billResultChipRow', 'result', 'billResult', resultAbbr, (a,b) => resultRank(a) - resultRank(b), filterFn);
-}
-
 function renderBills() {
   renderCommitteeChipRow();
   renderStageFlowRow();
-  renderResultChipRow();
   renderBillList();
 }
 
