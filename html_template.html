@@ -618,14 +618,31 @@ function renderMainList(scoped, allGroups) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
 }
 
-function renderBillChipRow(elId, field, stateKey) {
+const COMMITTEE_ABBR = {
+  "국회운영위원회": "운영위", "법제사법위원회": "법사위", "정무위원회": "정무위",
+  "기획재정위원회": "기재위", "교육위원회": "교육위", "과학기술정보방송통신위원회": "과방위",
+  "외교통일위원회": "외통위", "국방위원회": "국방위", "행정안전위원회": "행안위",
+  "문화체육관광위원회": "문체위", "농림축산식품해양수산위원회": "농해수위",
+  "산업통상자원중소벤처기업위원회": "산자위", "보건복지위원회": "복지위",
+  "환경노동위원회": "환노위", "국토교통위원회": "국토위", "정보위원회": "정보위",
+  "여성가족위원회": "여가위", "예산결산특별위원회": "예결위",
+};
+function committeeAbbr(name) {
+  if (!name) return name;
+  if (COMMITTEE_ABBR[name]) return COMMITTEE_ABBR[name];
+  return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+}
+
+function renderBillChipRow(elId, field, stateKey, displayFn) {
+  displayFn = displayFn || (v => v);
   const counts = {};
   BILL_DATA.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
   const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
   const row = document.getElementById(elId);
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? BILL_DATA.length : counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${v} ${cnt}</button>`;
+    const label = v === '전체' ? v : displayFn(v);
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${label} ${cnt}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -638,7 +655,7 @@ function renderBillChipRow(elId, field, stateKey) {
 }
 
 function renderBills() {
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee');
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr);
   renderBillChipRow('billStatusChipRow', 'status', 'billStatus');
   renderBillList();
 }
@@ -671,7 +688,7 @@ function renderBillList() {
     listEl.innerHTML = pageBills.map(b => {
       const isStarred = starred.has(b.id);
       const changedTag = b.changed ? `<span class="chip-alert">상태변경</span>` : '';
-      const metaParts = [b.no ? `의안번호 ${b.no}` : '', b.committee || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
+      const metaParts = [b.no ? `의안번호 ${b.no}` : '', committeeAbbr(b.committee) || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
       const summaryBox = b.summary

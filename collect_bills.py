@@ -118,23 +118,23 @@ def get_bill_process_detail(bill_id):
 
 
 def derive_status(detail):
-    """심사 단계 필드를 보고 사람이 읽기 쉬운 처리상태 문자열을 만든다.
-    (실제 국회 절차 순서: 소관위 회부 -> 소관위 심사 -> 소관위 의결 -> 법사위 -> 본회의 -> 공포)"""
+    """심사 단계 필드를 보고, 표준 입법 절차 5단계 이름으로 처리상태 문자열을 만든다.
+    (입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 -> 공포)"""
     if detail.get("PROM_DT"):
         return "공포"
     if detail.get("RGS_CONF_RSLT"):
-        return f"본회의 {detail['RGS_CONF_RSLT']}"
+        return f"본회의 의결 · {detail['RGS_CONF_RSLT']}"
     if detail.get("RGS_PRSNT_DT"):
-        return "본회의 부의"
+        return "본회의 의결"
     if detail.get("LAW_PROC_RSLT"):
-        return f"법사위 {detail['LAW_PROC_RSLT']}"
+        return f"법사위 심사 · {detail['LAW_PROC_RSLT']}"
     if detail.get("LAW_PRSNT_DT"):
-        return "법사위 심사중"
+        return "법사위 심사"
     if detail.get("JRCMIT_PROC_RSLT"):
-        return f"소관위 {detail['JRCMIT_PROC_RSLT']}"
+        return f"상임위 심사 · {detail['JRCMIT_PROC_RSLT']}"
     if detail.get("JRCMIT_CMMT_DT"):
-        return "소관위 심사중"
-    return "소관위 회부"
+        return "상임위 심사"
+    return "입안 및 발의"
 
 
 def load_previous_status():
