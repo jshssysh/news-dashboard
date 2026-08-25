@@ -653,11 +653,12 @@ function renderBillList() {
       const changedTag = b.changed ? `<span class="chip-alert">상태변경</span>` : '';
       const metaParts = [b.no ? `의안번호 ${b.no}` : '', b.committee || '', b.proposeDate ? `제안일 ${b.proposeDate}` : ''].filter(Boolean).join(' · ');
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
+      const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
       return `<div class="article-card bill-card">
         <div class="card-head">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${b.status}</span>${changedTag}</span>
-          <a class="article-title" href="${b.link}" target="_blank" title="${titleAttr}">${b.name}</a>
+          <a class="article-title" href="${summaryLink}" target="_blank" title="${titleAttr}">${b.name}</a>
         </div>
         <div class="card-meta-inline" style="margin-left:0;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
       </div>`;
