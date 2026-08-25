@@ -116,8 +116,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .chip-row-label { font-size: 0.78em; font-weight: 600; opacity: 0.65; margin-bottom: 4px; }
 
-.bill-flow { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px; }
-.bill-flow::-webkit-scrollbar { height: 5px; }
+.bill-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-bottom: 12px; }
 .flow-chevron {
   width: 20px; height: 42px; flex-shrink: 0;
   background: var(--app-border-strong);
@@ -157,6 +156,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cat-chip-row button { flex-shrink: 0; border-radius: 20px; white-space: nowrap; padding: 6px 13px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.84em; font-weight: 600; }
 .cat-chip-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
+#billCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
 
 .layout { display: flex; gap: 28px; align-items: flex-start; }
 .main-col { flex: 2.85 1 0; min-width: 0; }
@@ -338,7 +338,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-25 14:01 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-25 14:11 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
