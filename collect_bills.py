@@ -98,11 +98,12 @@ def categorize_bill(bill_name, keywords_map, committee=""):
     """법안명에 공정위 관련 법률명 키워드가 포함되어 있으면 그 카테고리를 반환한다.
     안 걸리면(공정위 관련 법이 아니면) "기타"로 뭉뚱그리지 않고 소관위원회 약칭을
     카테고리로 써서, 국회 전체 법안을 다 가져오는 지금 목록에서 뭘 봐도 "기타"만
-    뜨는 일이 없게 한다. 위원회 정보 자체가 없으면(미배정) 그때만 "기타"."""
+    뜨는 일이 없게 한다. 위원회 정보 자체가 없으면(아직 상임위 회부 전) "배정
+    안됨"으로 표시 - "기타"라고 하면 공정위 관련 법이 아니라는 뜻처럼 헷갈린다."""
     for keyword, category in keywords_map.items():
         if keyword in bill_name:
             return category
-    return committee_abbr(committee) or "기타"
+    return committee_abbr(committee) or "배정 안됨"
 
 
 def _extract_rows(payload, service_id):
