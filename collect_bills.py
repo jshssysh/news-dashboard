@@ -123,6 +123,24 @@ def _extract_rows(payload, service_id):
     return []
 
 
+def get_assembly_api_with_retry(url, params, timeout=15, retries=2, retry_wait=10):
+    """국회 열린국회정보 API 호출을 감싸서, 접속 실패(타임아웃 등)면 짧게 대기 후
+    재시도한다. 이 API가 통째로 잠깐 안 붙는 경우가 있는데, 그때 첫 페이지 호출부터
+    실패하면 재시도 없이 바로 0건으로 끝나서 그날 법안 수집이 통째로 스킵됐었다."""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            return requests.get(url, params=params, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < retries:
+                print(f"[국회 API 연결 실패 - {retry_wait}초 후 재시도 {attempt+1}/{retries}] {e}")
+                time.sleep(retry_wait)
+                continue
+            raise
+    raise last_exc
+
+
 def fetch_all_pending_bills():
     """계류의안 API로 국회 전체 계류 법안을 페이지 단위로 다 가져온다 (BILL_NAME 필터 없음)."""
     results = []
@@ -132,7 +150,7 @@ def fetch_all_pending_bills():
         if ASSEMBLY_API_KEY:
             params["KEY"] = ASSEMBLY_API_KEY
         try:
-            res = requests.get(f"{BASE_URL}/{PENDING_BILL_API}", params=params, timeout=15)
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{PENDING_BILL_API}", params)
             rows = _extract_rows(res.json(), PENDING_BILL_API)
             if not rows:
                 if p_index == 1:
@@ -177,7 +195,7 @@ def fetch_member_info():
         if ASSEMBLY_API_KEY:
             params["KEY"] = ASSEMBLY_API_KEY
         try:
-            res = requests.get(f"{BASE_URL}/{MEMBER_INFO_API}", params=params, timeout=15)
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{MEMBER_INFO_API}", params)
             rows = _extract_rows(res.json(), MEMBER_INFO_API)
             if not rows:
                 break
