@@ -192,7 +192,7 @@ def extract_personnel_appointments(candidates):
             parsed_list = json.loads(raw_text.strip())
             results = []
             for item in parsed_list:
-                if not item.get("is_appointment"):
+                if not isinstance(item, dict) or not item.get("is_appointment"):
                     continue
                 i = item.get("idx")
                 if i is None or not (0 <= i < len(candidates)):
@@ -311,6 +311,11 @@ def analyze_batch_with_gemini(batch_items):
             parsed_list = json.loads(raw_text.strip())
             result_map = {}
             for r in parsed_list:
+                if not isinstance(r, dict):
+                    # 배열 항목이 간혹 객체 대신 문자열 등으로 오는 이상치가 있음 - 이 항목 하나만
+                    # 건너뛰고, 배치 나머지 19건의 정상 결과까지 통째로 날아가는 걸 방지한다.
+                    print(f"[Gemini 응답 이상치] 배열 항목이 객체가 아님: {r!r}")
+                    continue
                 r_idx = r.get("idx")
                 score = r.get("relevance_score") or 0
                 # 관련도가 낮은 기사는 group_title/summary를 아예 생략하는 대신 JSON null로 주는 경우가 있어,
@@ -399,7 +404,7 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
             if raw_text.startswith("```"): raw_text = raw_text[3:]
             if raw_text.endswith("```"): raw_text = raw_text[:-3]
             parsed_list = json.loads(raw_text.strip())
-            mapping = {item.get("original", ""): item.get("merged", "") for item in parsed_list}
+            mapping = {item.get("original", ""): item.get("merged", "") for item in parsed_list if isinstance(item, dict)}
             # 응답에서 빠진 항목은 원래 이름을 그대로 유지 (부분 실패가 전체를 깨지 않도록)
             for t in new_titles:
                 mapping.setdefault(t, t)

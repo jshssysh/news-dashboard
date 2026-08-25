@@ -195,6 +195,8 @@ text가 비어있거나 의미를 알 수 없으면 summary를 빈 문자열로 
                 if raw_text.startswith("```"): raw_text = raw_text[3:]
                 if raw_text.endswith("```"): raw_text = raw_text[:-3]
                 for item in json.loads(raw_text.strip()):
+                    if not isinstance(item, dict):
+                        continue
                     i = item.get("idx")
                     if i is not None:
                         results[i] = (item.get("summary") or "").strip()
