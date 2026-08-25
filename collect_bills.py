@@ -125,10 +125,25 @@ def fetch_all_pending_bills():
     return results
 
 
+PARTY_ABBR = {
+    "더불어민주당": "민주당",
+    "새정치민주연합": "새정치연합",
+    "미래통합당": "통합당",
+    "자유한국당": "한국당",
+    "새누리당": "새누리당",
+}
+
+
+def party_abbr(name):
+    if not name:
+        return name
+    return PARTY_ABBR.get(name, name)
+
+
 def fetch_member_info():
-    """국회의원 인적사항 API에서 이름 -> {정당, 지역구, 선수} 사전을 만든다.
-    한 사람당 한 행에 그동안 거쳐온 소속정당/지역구가 '/'로 이어져 있어서,
-    최신 임기 정보를 얻으려면 마지막 조각만 쓴다 (예: "더불어민주당/조국혁신당" -> 조국혁신당)."""
+    """국회의원 인적사항 API에서 이름 -> {정당, 이전정당, 지역구, 선수} 사전을 만든다.
+    한 사람당 한 행에 그동안 거쳐온 소속정당이 '/'로 이어져 있어서(예: "더불어민주당/조국혁신당"),
+    마지막 조각을 현재 정당으로, 그 바로 앞 조각을 이전 정당으로 쓴다."""
     info = {}
     p_index = 1
     while p_index <= 50:  # 안전장치: 전체 역대 의원 약 3300명 수준이면 충분
@@ -144,8 +159,10 @@ def fetch_member_info():
                 name = row.get("NAAS_NM")
                 if not name:
                     continue
+                parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
                 info[name] = {
-                    "party": (row.get("PLPT_NM") or "").split("/")[-1].strip(),
+                    "party": parties[-1] if parties else "",
+                    "prev_party": parties[-2] if len(parties) >= 2 else "",
                     "district": (row.get("ELECD_NM") or "").split("/")[-1].strip(),
                     "term": row.get("RLCT_DIV_NM") or "",
                 }
@@ -161,13 +178,17 @@ def fetch_member_info():
 
 def format_proposer(raw_proposer, rep_name, member_info):
     """제안자 표시 문구("OOO의원 등 N인")의 대표발의자 이름 뒤에 정당/선수/지역구를
-    괄호로 덧붙인다. 인적사항을 못 찾으면 원래 문구를 그대로 둔다."""
+    괄호로 덧붙인다. 당적을 옮긴 적이 있으면 현재 정당 뒤에 "(前 이전정당)"을 붙인다.
+    인적사항을 못 찾으면 원래 문구를 그대로 둔다."""
     if not rep_name:
         return raw_proposer
     info = member_info.get(rep_name)
     if not info:
         return raw_proposer
-    detail = ", ".join(v for v in [info["party"], info["term"], info["district"]] if v)
+    party = party_abbr(info["party"])
+    if info["prev_party"] and info["prev_party"] != info["party"]:
+        party = f"{party}(前 {party_abbr(info['prev_party'])})"
+    detail = ", ".join(v for v in [party, info["term"], info["district"]] if v)
     if not detail:
         return raw_proposer
     m = re.search(r"(\s*등\s*\d+인)\s*$", raw_proposer or "")
