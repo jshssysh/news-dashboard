@@ -114,6 +114,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
+.chip-row-label { font-size: 0.78em; font-weight: 600; opacity: 0.65; margin-bottom: 4px; }
 .cat-chip-row {
   display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 12px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px;
@@ -284,7 +285,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
       <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
     </div>
+    <div class="chip-row-label">처리상태</div>
     <div class="cat-chip-row" id="billStatusChipRow"></div>
+    <div class="chip-row-label">소관위원회</div>
     <div class="cat-chip-row" id="billCommitteeChipRow"></div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
