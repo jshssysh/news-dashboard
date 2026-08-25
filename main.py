@@ -20,6 +20,26 @@ SKIP_AI_ANALYSIS = os.environ.get("SKIP_AI_ANALYSIS", "").strip().lower() == "tr
 # GitHub Actions 러너는 UTC로 동작하므로, 날짜/시각은 항상 한국시간(KST) 기준으로 명시해서 사용한다
 KST = timezone(timedelta(hours=9))
 
+def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
+    """Gemini 호출 하나를 감싸서, 서버 과부하(503)나 타임아웃처럼 '잠깐 있다 다시 하면
+    될' 일시적 오류일 때만 짧게 대기 후 한 번 더 시도한다. 그 외(200 성공, 4xx 등
+    영구적 오류)는 그대로 반환해서 기존 처리 로직이 그대로 판단하게 둔다."""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            res = requests.post(url, json=payload, timeout=timeout)
+            if res.status_code == 503 and attempt < retries:
+                time.sleep(retry_wait)
+                continue
+            return res
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < retries:
+                time.sleep(retry_wait)
+                continue
+            raise
+    raise last_exc
+
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
 
 def load_keywords(path=KEYWORDS_CONFIG_PATH):
@@ -181,7 +201,7 @@ def extract_personnel_appointments(candidates):
     # 하루 몇 건 안 되는 기사만 처리하는 호출이라 thinkingLevel을 low로 둬도 비용 부담이 적다
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
     try:
-        res = requests.post(url, json=payload, timeout=30)
+        res = post_gemini_with_retry(url, payload)
         if res.status_code == 200:
             res_json = res.json()
             log_gemini_usage(res_json, "공정위인사감지")
@@ -299,7 +319,7 @@ def analyze_batch_with_gemini(batch_items):
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
 
     try:
-        res = requests.post(url, json=payload, timeout=30)
+        res = post_gemini_with_retry(url, payload)
         if res.status_code == 200:
             res_json = res.json()
             log_gemini_usage(res_json, "batch분석")
@@ -395,7 +415,7 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
     # "같은 사건, 다른 표현"을 알아보는 의미적 추론이 필요한 단계라 low로는 병합 누락이 잦았다.
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "medium"}}}
     try:
-        res = requests.post(url, json=payload, timeout=30)
+        res = post_gemini_with_retry(url, payload)
         if res.status_code == 200:
             res_json = res.json()
             log_gemini_usage(res_json, "이슈통합")

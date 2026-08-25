@@ -34,6 +34,26 @@ BILL_DETAIL_API = "BILLINFODETAIL"      # 의안 상세정보(심사 단계)
 BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
 
 
+def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
+    """Gemini 호출을 감싸서, 서버 과부하(503)나 타임아웃처럼 일시적 오류일 때만
+    짧게 대기 후 한 번 더 시도한다 (main.py의 동일 함수와 같은 목적)."""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            res = requests.post(url, json=payload, timeout=timeout)
+            if res.status_code == 503 and attempt < retries:
+                time.sleep(retry_wait)
+                continue
+            return res
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < retries:
+                time.sleep(retry_wait)
+                continue
+            raise
+    raise last_exc
+
+
 def load_bill_keywords():
     with open(BILL_KEYWORDS_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["keywords"]
@@ -187,7 +207,7 @@ text가 비어있거나 의미를 알 수 없으면 summary를 빈 문자열로 
 """
         payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
         try:
-            res = requests.post(url, json=payload, timeout=30)
+            res = post_gemini_with_retry(url, payload)
             if res.status_code == 200:
                 res_json = res.json()
                 raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
