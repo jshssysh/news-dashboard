@@ -68,6 +68,9 @@ def search_pending_bills(bill_name_keyword):
             res = requests.get(f"{BASE_URL}/{PENDING_BILL_API}", params=params, timeout=15)
             rows = _extract_rows(res.json(), PENDING_BILL_API)
             if not rows:
+                if p_index == 1:
+                    # 원인 진단용: 정상이면 빈 결과가 나올 리 없는 첫 페이지가 비었을 때만 원문을 남긴다
+                    print(f"[계류의안 검색 - 결과 없음] '{bill_name_keyword}' status={res.status_code} body={res.text[:300]}")
                 break
             results.extend(rows)
             if len(rows) < 100:
@@ -220,6 +223,15 @@ def main():
         time.sleep(0.3)
 
     prev_status = load_previous_status()
+
+    # 안전장치: API 장애/키 문제/일시적 오류 등으로 이번에 새로 가져온 건수가 기존 대비
+    # 크게 줄었으면(예: 0건), 그 결과로 기존 bill_list.csv를 덮어쓰지 않고 그대로 둔다.
+    # (이전에 이 검사가 없어서 API가 실패한 회차에 287건이 0건으로 날아간 적이 있었음)
+    if prev_status and len(seen) < len(prev_status) * 0.3:
+        print(f"[경고] 이번 수집 결과({len(seen)}건)가 기존({len(prev_status)}건)보다 크게 적습니다. "
+              f"API 오류로 의심되어 bill_list.csv를 덮어쓰지 않고 종료합니다.")
+        return
+
     prev_summaries = load_previous_summaries()
     now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
