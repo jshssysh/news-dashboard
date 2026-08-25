@@ -122,17 +122,31 @@ def fetch_all_pending_bills():
     return results
 
 
+def normalize_result(code):
+    """세부 표결/처리 결과를 큰 범주로 묶는다 - 원안가결/수정가결/대안반영가결처럼
+    비슷한 결과끼리 칩이 너무 잘게 쪼개지지 않도록 함."""
+    if not code:
+        return code
+    if "부결" in code:
+        return "부결"
+    if "가결" in code:
+        return "가결"
+    if "철회" in code or "폐기" in code:
+        return "폐기"
+    return code
+
+
 def derive_status(row):
     """계류의안 응답 자체에 담긴 심사 단계 필드를 보고, 표준 입법 절차 이름으로
     처리상태 문자열을 만든다 (입안 및 발의 -> 상임위 심사 -> 법사위 심사).
     본회의 의결/공포는 이 API 응답에 없음 - "계류"(아직 안 끝난) 법안만 주는
     API라 그 단계까지 간 법안은 애초에 여기 나오지 않기 때문."""
     if row.get("LAW_PROC_RESULT_CD"):
-        return f"법사위 심사 · {row['LAW_PROC_RESULT_CD']}"
+        return f"법사위 심사 · {normalize_result(row['LAW_PROC_RESULT_CD'])}"
     if row.get("LAW_PRESENT_DT"):
         return "법사위 심사"
     if row.get("CMT_PROC_RESULT_CD"):
-        return f"상임위 심사 · {row['CMT_PROC_RESULT_CD']}"
+        return f"상임위 심사 · {normalize_result(row['CMT_PROC_RESULT_CD'])}"
     if row.get("CMT_PROC_DT") or row.get("COMMITTEE_DT") or row.get("CMT_PRESENT_DT"):
         return "상임위 심사"
     return "입안 및 발의"
