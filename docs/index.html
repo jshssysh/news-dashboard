@@ -303,7 +303,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-25 12:30 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-25 12:41 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -328,8 +328,16 @@ const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
 
+const ACTIVE_TAB_KEY = 'activeTab';
+function getSavedTab() {
+  try { return localStorage.getItem(ACTIVE_TAB_KEY) || '뉴스'; } catch(e) { return '뉴스'; }
+}
+function saveActiveTab(tab) {
+  try { localStorage.setItem(ACTIVE_TAB_KEY, tab); } catch(e) {}
+}
+
 const state = {
-  activeTab: '뉴스',
+  activeTab: getSavedTab(),
   currentDate: allDates.length ? allDates[allDates.length - 1] : null,
   selectedCategory: '전체',
   period: 0,
@@ -426,7 +434,7 @@ function renderTabsAndDate() {
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
   ).join('');
   tabsRow.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; renderAll(); });
+    btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; saveActiveTab(state.activeTab); renderAll(); });
   });
 }
 
@@ -699,13 +707,13 @@ function renderBillList() {
       const titleAttr = (b.name||'').replace(/"/g,'&quot;');
       const summaryLink = `https://likms.assembly.go.kr/bill/bi/popup/billSummary.do?billId=${encodeURIComponent(b.id)}`;
       const summaryBox = b.summary
-        ? `<a href="${summaryLink}" target="_blank" class="summary-box-blue">${b.summary}</a>`
-        : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" target="_blank">원문 보기</a>)</div>`;
+        ? `<a href="${summaryLink}" class="summary-box-blue bill-popup-link" data-url="${summaryLink}">${b.summary}</a>`
+        : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" class="bill-popup-link" data-url="${summaryLink}">원문 보기</a>)</div>`;
       return `<div class="article-card bill-card">
         <div class="card-head">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category}</span><span class="badge-neutral">${b.status}</span>${changedTag}</span>
-          <a class="article-title" href="${summaryLink}" target="_blank" title="${titleAttr}">${b.name}</a>
+          <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name}</a>
         </div>
         <div class="card-meta-inline" style="margin-left:0;margin-bottom:6px;">${b.proposer||b.repProposer||''}${metaParts?(' · '+metaParts):''}</div>
         ${summaryBox}
@@ -713,6 +721,12 @@ function renderBillList() {
     }).join('');
     listEl.querySelectorAll('.star-btn').forEach(btn => {
       btn.addEventListener('click', () => { toggleStarredBill(btn.dataset.id); renderBillList(); });
+    });
+    listEl.querySelectorAll('.bill-popup-link').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open(a.dataset.url, 'billSummaryPopup', 'width=820,height=900,scrollbars=yes,resizable=yes,noopener');
+      });
     });
   }
 
