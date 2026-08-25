@@ -210,20 +210,22 @@ def normalize_result(code):
     return code
 
 
-def derive_status(row):
-    """계류의안 응답 자체에 담긴 심사 단계 필드를 보고, 표준 입법 절차 이름으로
-    처리상태 문자열을 만든다 (입안 및 발의 -> 상임위 심사 -> 법사위 심사).
-    본회의 의결/공포는 이 API 응답에 없음 - "계류"(아직 안 끝난) 법안만 주는
-    API라 그 단계까지 간 법안은 애초에 여기 나오지 않기 때문."""
+def derive_stage_and_result(row):
+    """계류의안 응답 자체에 담긴 심사 단계 필드를 보고 (처리단계, 원본 결과코드)를
+    반환한다 (입안 및 발의 -> 상임위 심사 -> 법사위 심사). 결과코드는 원안가결/수정가결/
+    대안반영가결/철회/폐기/부결처럼 API가 준 그대로다(병합 없음 - 위원회별 세부
+    칩에서 원안/수정 등을 구분해서 보여주기 위함). 본회의 의결/공포는 이 API 응답에
+    없음 - "계류"(아직 안 끝난) 법안만 주는 API라 그 단계까지 간 법안은 애초에 여기
+    나오지 않기 때문."""
     if row.get("LAW_PROC_RESULT_CD"):
-        return f"법사위 심사 · {normalize_result(row['LAW_PROC_RESULT_CD'])}"
+        return "법사위 심사", row["LAW_PROC_RESULT_CD"]
     if row.get("LAW_PRESENT_DT"):
-        return "법사위 심사"
+        return "법사위 심사", ""
     if row.get("CMT_PROC_RESULT_CD"):
-        return f"상임위 심사 · {normalize_result(row['CMT_PROC_RESULT_CD'])}"
+        return "상임위 심사", row["CMT_PROC_RESULT_CD"]
     if row.get("CMT_PROC_DT") or row.get("COMMITTEE_DT") or row.get("CMT_PRESENT_DT"):
-        return "상임위 심사"
-    return "입안 및 발의"
+        return "상임위 심사", ""
+    return "입안 및 발의", ""
 
 
 def load_previous_status():
@@ -361,7 +363,8 @@ def main():
 
     bills = []
     for bill_id, row in seen.items():
-        status = derive_status(row)
+        stage, raw_result = derive_stage_and_result(row)
+        status = f"{stage} · {normalize_result(raw_result)}" if raw_result else stage
         is_new = bill_id not in prev_status
         changed = "" if is_new else ("변경" if prev_status[bill_id] != status else "")
         bills.append({
@@ -374,6 +377,8 @@ def main():
             "제안일": row.get("PROPOSE_DT", ""),
             "소관위원회": row.get("CURR_COMMITTEE", ""),
             "처리상태": status,
+            "처리단계": stage,
+            "처리결과": raw_result if raw_result else "심사중",
             "상태변경": changed,
             "상세링크": row.get("LINK_URL", ""),
             "AI요약": prev_summaries.get(bill_id, ""),

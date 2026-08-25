@@ -115,6 +115,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 
 .chip-row-label { font-size: 0.78em; font-weight: 600; opacity: 0.65; margin-bottom: 4px; }
+.stage-arrow { display: inline-flex; align-items: center; opacity: 0.4; font-weight: 700; padding: 0 2px; flex-shrink: 0; }
+.stage-flow-row button[data-val="전체"] { margin-right: 10px; }
 .cat-chip-row {
   display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 12px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 6px;
@@ -285,10 +287,11 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
       <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
     </div>
-    <div class="chip-row-label">처리상태</div>
-    <div class="cat-chip-row" id="billStatusChipRow"></div>
     <div class="chip-row-label">소관위원회</div>
     <div class="cat-chip-row" id="billCommitteeChipRow"></div>
+    <div class="chip-row-label">처리상태</div>
+    <div class="cat-chip-row stage-flow-row" id="billStatusChipRow"></div>
+    <div class="cat-chip-row" id="billResultChipRow"></div>
     <hr class="thin">
     <div class="result-caption" id="billResultCaption"></div>
     <div id="billListArea"></div>
@@ -351,7 +354,8 @@ const state = {
   page: 1,
   openIssues: {},
   billCommittee: '전체',
-  billStatus: '전체',
+  billStage: '전체',
+  billResult: '전체',
   billStarredOnly: false,
   billSearch: '',
   billPage: 1,
@@ -645,9 +649,16 @@ function committeeAbbr(name) {
 }
 
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
-function statusStageRank(status) {
-  const idx = STATUS_STAGE_ORDER.findIndex(stage => status.startsWith(stage));
-  return idx === -1 ? STATUS_STAGE_ORDER.length : idx;
+const RESULT_STAGES = ["상임위 심사", "법사위 심사"]; // 세부 결과(원안/수정/폐기 등)가 나올 수 있는 단계
+const RESULT_ABBR = {
+  "원안가결": "원안", "수정가결": "수정", "대안반영가결": "대안반영", "대안반영폐기": "대안반영",
+  "철회": "철회", "폐기": "폐기", "부결": "부결", "심사중": "심사중",
+};
+const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결"];
+function resultAbbr(v) { return RESULT_ABBR[v] || v; }
+function resultRank(v) {
+  const idx = RESULT_ORDER.indexOf(v);
+  return idx === -1 ? RESULT_ORDER.length : idx;
 }
 
 function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect) {
@@ -675,21 +686,63 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
   });
 }
 
+// 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
+// 위 단계 선택이 아래 단계의 칩 건수를 다시 계산하게 만든다.
 function renderCommitteeChipRow() {
-  const filterFn = state.billStatus === '전체' ? (b => true) : (b => b.status === state.billStatus);
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, filterFn);
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, null, null, renderStageFlowRow);
+}
+
+function renderStageFlowRow() {
+  const filterFn = state.billCommittee === '전체' ? (b => true) : (b => b.committee === state.billCommittee);
+  const source = BILL_DATA.filter(filterFn);
+  const counts = {};
+  source.forEach(b => { counts[b.stage] = (counts[b.stage] || 0) + 1; });
+  if (state.billStage !== '전체' && !(state.billStage in counts)) state.billStage = '전체';
+  const stages = STATUS_STAGE_ORDER.filter(s => counts[s]);
+  const chip = (val, label, cnt) => `<button data-val="${val}" class="${state.billStage===val?'active':''}">${label} ${cnt}</button>`;
+  const parts = [chip('전체', '전체', source.length)];
+  stages.forEach((s, i) => {
+    if (i > 0) parts.push(`<span class="stage-arrow">→</span>`);
+    parts.push(chip(s, s, counts[s]));
+  });
+  const row = document.getElementById('billStatusChipRow');
+  row.innerHTML = parts.join('');
+  renderResultChipRow(); // 위원회 변경으로 billStage가 방금 자동 초기화됐을 수 있으므로 항상 같이 갱신
+  row.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.billStage = btn.dataset.val;
+      state.billPage = 1;
+      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === state.billStage));
+      renderResultChipRow();
+      renderBillList();
+    });
+  });
+}
+
+function renderResultChipRow() {
+  const area = document.getElementById('billResultChipRow');
+  if (!RESULT_STAGES.includes(state.billStage)) {
+    area.innerHTML = '';
+    area.style.display = 'none';
+    return;
+  }
+  area.style.display = '';
+  const filterFn = b => (state.billCommittee === '전체' || b.committee === state.billCommittee) && b.stage === state.billStage;
+  renderBillChipRow('billResultChipRow', 'result', 'billResult', resultAbbr, (a,b) => resultRank(a) - resultRank(b), filterFn);
 }
 
 function renderBills() {
-  renderBillChipRow('billStatusChipRow', 'status', 'billStatus', null, (a,b) => statusStageRank(a) - statusStageRank(b), null, renderCommitteeChipRow);
   renderCommitteeChipRow();
+  renderStageFlowRow();
+  renderResultChipRow();
   renderBillList();
 }
 
 function renderBillList() {
   const starred = getStarredBills();
   let filtered = state.billCommittee === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => (b.committee || '(미정)') === state.billCommittee);
-  if (state.billStatus !== '전체') filtered = filtered.filter(b => b.status === state.billStatus);
+  if (state.billStage !== '전체') filtered = filtered.filter(b => b.stage === state.billStage);
+  if (RESULT_STAGES.includes(state.billStage) && state.billResult !== '전체') filtered = filtered.filter(b => b.result === state.billResult);
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
