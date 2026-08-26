@@ -519,8 +519,10 @@ function renderTopTiles() {
   dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
   const failCount = sentCounts['판단 실패']||0;
 
+  // 중복은 실제 목록에서 안 보이는(대표기사로 묶인) 기사라, 메인 숫자는 중복을 뺀
+  // 이슈 그룹 수로 보여주고 원본 총건수/중복건수는 작게 부기한다.
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${dr.length}건</span><span class="sub-inline">중복 ${dupCount}건</span><span class="sm-fail">실패 ${failCount}</span></div>`;
+    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${groups.length}건</span><span class="sub-inline">전체 ${dr.length}건 · 중복 ${dupCount}건</span><span class="sm-fail">실패 ${failCount}</span></div>`;
 
   const draftCount = BILL_DATA.filter(b => b.stage === '입안 및 발의').length;
   const committeeCount = BILL_DATA.filter(b => b.stage === '상임위 심사').length;
@@ -595,8 +597,11 @@ function renderNewsView(dr, allGroups) {
   }).join('');
 
   const scoped = scopedRows();
+  // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
+  // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
+  const scopedGroups = buildIssueGroups(scoped).filter(g => g.mainPress !== '미상');
   const catCounts = {};
-  scoped.forEach(r => { catCounts[r.category] = (catCounts[r.category]||0) + 1; });
+  scopedGroups.forEach(g => { catCounts[g.category] = (catCounts[g.category]||0) + 1; });
   const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => newsCategoryRank(a) - newsCategoryRank(b)));
 
   const topIssueByCat = {};
@@ -605,7 +610,7 @@ function renderNewsView(dr, allGroups) {
   const chipRow = document.getElementById('catChipRow');
   chipRow.innerHTML = cats.map(c => {
     let tip = c in topIssueByCat ? `${topIssueByCat[c].title} · 중요도 ${topIssueByCat[c].importance}/10` : '';
-    const cnt = c === '전체' ? scoped.length : catCounts[c];
+    const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
     return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
   }).join('');
   chipRow.querySelectorAll('button').forEach(btn => {

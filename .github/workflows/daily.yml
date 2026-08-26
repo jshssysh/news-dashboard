@@ -2,7 +2,11 @@ name: update-data
 
 on:
   schedule:
-    - cron: '0 21 * * *'  # 매일 한국시간(KST, UTC+9) 06:00 실행 (항상 AI 분석 포함)
+    - cron: '0 21 * * *'  # 매일 한국시간(KST, UTC+9) 06:00 - 뉴스만 (항상 AI 분석 포함)
+    - cron: '1 23 * * *'  # 매일 한국시간(KST, UTC+9) 08:01 - 법안만
+    # 법안을 뉴스와 다른 시간에 따로 도는 이유: 국회 열린국회정보 계류의안 API가
+    # 그날 발의된 법안을 바로 안 주고 다음날 07:30~08:15경에야 반영하는 걸 실측으로
+    # 확인함 - 06:00에 같이 돌리면 전날 법안이 누락되는 경우가 있어서 분리함.
   workflow_dispatch:
     inputs:
       skip_ai:
@@ -35,6 +39,7 @@ jobs:
           pip install requests pandas pyyaml beautifulsoup4  # 수집 스크립트에 필요한 것만 설치 (streamlit은 앱 전용)
 
       - name: 파이썬 스크립트 실행 (API 키 매핑 필수)
+        if: github.event.schedule != '1 23 * * *'  # 08:01 법안 전용 실행에서는 뉴스 스킵
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -44,7 +49,7 @@ jobs:
           python main.py
 
       - name: 계류 법안 수집 (국회 열린국회정보 Open API)
-        if: github.event.inputs.skip_bills != 'true'
+        if: github.event.schedule != '0 21 * * *' && github.event.inputs.skip_bills != 'true'  # 06:00 뉴스 전용 실행에서는 법안 스킵
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
