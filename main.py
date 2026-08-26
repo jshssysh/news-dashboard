@@ -445,6 +445,20 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
 # 뿌리가 같아도 사건이 다르면 안 되므로, 뿌리 외 토큰이 실제로 겹칠 때만 병합한다.
 ISSUE_ROOT_SIM_THRESHOLD = 0.75
 
+# 뿌리가 기업/인물명이 아니라 일반 토픽어인 경우 - 같은 뿌리라도 서로 완전히 다른
+# 사건인 경우가 많아서(예: "AI 산업" vs "AI 시대 시험인증 포럼 출범") 더 엄격하게 본다.
+# 실제 수집 데이터로 검증했을 때 이 목록 없이는 짧은 일반 이슈명이 긴 특정 기사에
+# 통째로 흡수되는 과잉 병합이 발생했다.
+GENERIC_ISSUE_ROOTS = {
+    "AI", "ESG", "증시", "상생", "공정위", "배달앱", "공공기관", "코스닥", "코스피",
+    "납품대금", "합병가액", "스마트링", "정부", "국회", "대법원", "법원", "검찰",
+    "금융위", "중기부", "산업부", "하도급", "가맹", "유통", "플랫폼", "반도체",
+    "배터리", "건설", "은행", "보험", "카드", "증권", "경북", "경기", "서울", "부산",
+    "대구", "인천", "광주", "대전", "울산", "제주", "기업", "중소기업", "대기업", "소상공인",
+}
+GENERIC_ROOT_SIM_THRESHOLD = 0.85
+GENERIC_ROOT_MIN_TOKENS = 3
+
 
 def _issue_tokens(title):
     return [t for t in re.split(r"\s+", str(title).strip()) if t]
@@ -456,16 +470,20 @@ def _should_merge_issue(tokens_a, tokens_b):
         예: "쿠팡 공정위 조사" ⊂ "쿠팡 공정위 조사 거부" -> 병합
     (2) 포함관계가 아니어도 문자열이 매우 비슷하고 뿌리 외 토큰이 겹치면 병합한다.
     뿌리(첫 토큰)만 같은 경우는 병합하지 않는다 - 같은 기업의 별개 사건일 수 있음
-    (예: "쿠팡 공정위 조사" vs "쿠팡 배송비 인상")."""
+    (예: "쿠팡 공정위 조사" vs "쿠팡 배송비 인상").
+    뿌리가 일반 토픽어면(GENERIC_ISSUE_ROOTS) 기준을 더 높인다."""
     set_a, set_b = set(tokens_a), set(tokens_b)
     shared_beyond_root = (set_a & set_b) - {tokens_a[0]}
     if not shared_beyond_root:
         return False
+    is_generic = tokens_a[0] in GENERIC_ISSUE_ROOTS
+    min_tokens = GENERIC_ROOT_MIN_TOKENS if is_generic else 2
+    threshold = GENERIC_ROOT_SIM_THRESHOLD if is_generic else ISSUE_ROOT_SIM_THRESHOLD
     smaller = set_a if len(set_a) <= len(set_b) else set_b
     larger = set_b if smaller is set_a else set_a
-    if len(smaller) >= 2 and smaller <= larger:
+    if len(smaller) >= min_tokens and smaller <= larger:
         return True
-    return difflib.SequenceMatcher(None, " ".join(tokens_a), " ".join(tokens_b)).ratio() >= ISSUE_ROOT_SIM_THRESHOLD
+    return difflib.SequenceMatcher(None, " ".join(tokens_a), " ".join(tokens_b)).ratio() >= threshold
 
 
 def build_issue_merge_mapping(titles_oldest_first):
