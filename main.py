@@ -78,6 +78,14 @@ CATEGORY_LIST = [
     "삼성그룹", "삼성물산", "공정위인사",
 ]
 
+# Gemini 분석이 실패했을 때 대표이슈 자리에 들어가는 플레이스홀더.
+# 실제 이슈명이 아니므로, 다음 실행에서 "기존 이슈명"으로 재사용되거나 병합 기준이
+# 되면 안 된다 (한 번 배치가 실패하면 이 문구가 빈도 1위가 되어 Gemini에게 재사용
+# 대상으로 제시되는 오염이 실제로 발생했다).
+ISSUE_TITLE_API_ERROR = "통신 예외 발생"
+ISSUE_TITLE_PARSE_ERROR = "파싱 오류"
+ERROR_ISSUE_TITLES = {ISSUE_TITLE_API_ERROR, ISSUE_TITLE_PARSE_ERROR}
+
 def extract_press_from_link(link):
     for domain, name in PRESS_DOMAINS.items():
         if domain in link: return name
@@ -356,12 +364,12 @@ def analyze_batch_with_gemini(batch_items):
 
                 result_map[r_idx] = (score, g_title, summary, sentiment, category)
 
-            return [(item["idx"], *result_map.get(item["idx"], (0, "파싱 오류", "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
+            return [(item["idx"], *result_map.get(item["idx"], (0, ISSUE_TITLE_PARSE_ERROR, "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
         else:
             print(f"[Gemini API 오류] status={res.status_code} body={res.text[:300]}")
     except Exception as e:
         print(f"[Gemini API 예외] {e}")
-    return [(item["idx"], 0, "통신 예외 발생", "분석 에러", "판단 실패", None) for item in batch_items]
+    return [(item["idx"], 0, ISSUE_TITLE_API_ERROR, "분석 에러", "판단 실패", None) for item in batch_items]
 
 def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
     """최근 N일간 이미 저장된 대표이슈명을 반환한다 (등장 빈도 높은 순으로 최대 limit개).
@@ -372,8 +380,9 @@ def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
     try:
         df = pd.read_csv(file_name)
         cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=days)
-        dt = pd.to_datetime(df["수집일자"], errors="coerce")
+        dt = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
         recent = df.loc[dt >= cutoff, "대표이슈"].dropna()
+        recent = recent[~recent.isin(ERROR_ISSUE_TITLES)]  # 분석 실패 플레이스홀더는 재사용 대상에서 제외
         return recent.value_counts().head(limit).index.tolist()
     except Exception as e:
         print(f"[최근 이슈명 로드 예외] {e}")
@@ -521,7 +530,10 @@ def apply_issue_merge(df):
     try:
         order = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
         first_seen = df.assign(_dt=order).groupby("대표이슈")["_dt"].min().sort_values()
-        mapping = build_issue_merge_mapping([t for t in first_seen.index if isinstance(t, str) and t.strip()])
+        mapping = build_issue_merge_mapping([
+            t for t in first_seen.index
+            if isinstance(t, str) and t.strip() and t not in ERROR_ISSUE_TITLES
+        ])
         changed = {k: v for k, v in mapping.items() if k != v}
         if changed:
             print(f"[이슈 자동 병합] {len(changed)}건: " + ", ".join(f"{k} -> {v}" for k, v in list(changed.items())[:10]))
