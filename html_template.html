@@ -55,6 +55,8 @@ button:active { transform: translateY(1px); }
 .stat-card { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 14px 16px; height: 100%; box-sizing: border-box; }
 .tile-law .stat-card { padding-right: 8px; }
 .law-substats-block { display: flex; flex-direction: column; gap: 2px; font-size: 0.72em; opacity: 0.62; align-self: center; }
+.collect-substats-block { display: flex; flex-direction: column; gap: 2px; align-self: center; }
+.collect-substats-block .sub-inline { white-space: nowrap; }
 .stat-card .label { font-size: 0.76em; font-weight: 600; opacity: 0.62; margin-bottom: 6px; letter-spacing: 0.2px; }
 .stat-card .value-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; row-gap: 2px; }
 .stat-card .value { font-size: 1.85em; font-weight: 800; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
@@ -522,7 +524,14 @@ function renderTopTiles() {
   // 중복은 실제 목록에서 안 보이는(대표기사로 묶인) 기사라, 메인 숫자는 중복을 뺀
   // 이슈 그룹 수로 보여주고 원본 총건수/중복건수는 작게 부기한다.
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div><div class="value-line"><span class="value">${groups.length}건</span><span class="sub-inline">전체 ${dr.length}건 · 중복 ${dupCount}건</span><span class="sm-fail">실패 ${failCount}</span></div>`;
+    `<div class="label">수집 기사</div>
+     <div class="value-line">
+       <span class="value">${groups.length}건</span>
+       <div class="collect-substats-block">
+         <div class="sub-inline">전체 ${dr.length}건</div>
+         <div class="sub-inline">중복 ${dupCount}건 <span class="sm-fail">실패 ${failCount}건</span></div>
+       </div>
+     </div>`;
 
   const draftCount = BILL_DATA.filter(b => b.stage === '입안 및 발의').length;
   const committeeCount = BILL_DATA.filter(b => b.stage === '상임위 심사').length;
