@@ -186,8 +186,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .main-col { flex: 2.85 1 0; min-width: 0; }
 .side-col {
   flex: 1 1 0; min-width: 220px;
-  position: sticky; top: 20px; align-self: flex-start;
-  max-height: calc(100vh - 40px); overflow-y: auto;
+  /* 위쪽 필터 블록도 sticky라, 그 높이만큼 내려서 붙어야 가려지지 않는다.
+     --filter-h는 필터 블록 실제 높이로 JS가 채운다(접기/줄바꿈에 따라 변함). */
+  position: sticky; top: calc(var(--filter-h, 0px) + 20px); align-self: flex-start;
+  max-height: calc(100vh - var(--filter-h, 0px) - 40px); overflow-y: auto;
   scrollbar-width: thin;
 }
 .side-col::-webkit-scrollbar { width: 6px; }
@@ -288,15 +290,17 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-news" class="view">
     <hr class="thin">
-    <div class="bill-filter-sticky">
-      <div class="signal-box" id="signalBox">
-        <div class="signal-box-head">
-          <span class="signal-tag">오늘 주요 내용</span>
-          <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
-        </div>
-        <div id="signalItems"></div>
+    <!-- 오늘 주요 내용은 필터가 아니라 읽을거리라 스티키에서 제외한다.
+         (스티키에 넣으면 블록이 450px까지 커져서 사이드바를 덮어버림) -->
+    <div class="signal-box" id="signalBox">
+      <div class="signal-box-head">
+        <span class="signal-tag">오늘 주요 내용</span>
+        <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
       </div>
+      <div id="signalItems"></div>
+    </div>
 
+    <div class="bill-filter-sticky" id="newsFilterSticky">
       <div class="news-filter-row">
         <h5>카테고리별 주요뉴스</h5>
         <select id="periodSelect">
@@ -324,7 +328,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <div class="bill-result-row" id="newsResultRow">
         <div class="result-caption" id="resultCaption"></div>
         <div class="pg-top"><select id="pageSizeSel">
-          <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+          <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
         <div class="pg-nav" id="pgNav"></div>
       </div>
@@ -373,7 +377,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
       <div class="bill-result-row">
         <div class="result-caption" id="billResultCaption"></div>
         <div class="pg-top"><select id="billPageSizeSel">
-          <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+          <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
         <div class="pg-nav" id="billPgNav"></div>
       </div>
@@ -431,6 +435,20 @@ function saveActiveTab(tab) {
   try { localStorage.setItem(ACTIVE_TAB_KEY, tab); } catch(e) {}
 }
 
+// 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
+// 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
+const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize' };
+const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
+function getSavedPageSize(kind) {
+  try {
+    const v = parseInt(localStorage.getItem(PAGE_SIZE_KEYS[kind]), 10);
+    return ALLOWED_PAGE_SIZES.includes(v) ? v : 10;
+  } catch(e) { return 10; }
+}
+function savePageSize(kind, size) {
+  try { localStorage.setItem(PAGE_SIZE_KEYS[kind], String(size)); } catch(e) {}
+}
+
 const state = {
   activeTab: getSavedTab(),
   currentDate: allDates.length ? allDates[allDates.length - 1] : null,
@@ -439,7 +457,7 @@ const state = {
   sort: 'importance',
   sentiment: '',
   search: '',
-  pageSize: 10,
+  pageSize: getSavedPageSize('news'),
   page: 1,
   openIssues: {},
   billCommittee: '전체',
@@ -448,7 +466,7 @@ const state = {
   billStarredOnly: false,
   billSearch: '',
   billPage: 1,
-  billPageSize: 10,
+  billPageSize: getSavedPageSize('bill'),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1103,6 +1121,7 @@ document.querySelectorAll('.filter-section-toggle').forEach(btn => {
 });
 document.getElementById('billPageSizeSel').addEventListener('change', e => {
   state.billPageSize = parseInt(e.target.value, 10);
+  savePageSize('bill', state.billPageSize);
   state.billPage = 1;
   renderBillList();
 });
@@ -1111,9 +1130,23 @@ document.getElementById('signalToggleBtn').addEventListener('click', () => {
 });
 document.getElementById('pageSizeSel').addEventListener('change', e => {
   state.pageSize = parseInt(e.target.value, 10);
+  savePageSize('news', state.pageSize);
   state.page = 1;
   renderAll();
 });
+
+// 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
+// 붙게 한다(안 하면 사이드바가 필터 블록에 가려짐). 필터를 접거나 창 폭이 바뀌면
+// 높이가 달라지므로 ResizeObserver로 계속 추적한다.
+(function syncFilterHeight() {
+  const el = document.getElementById('newsFilterSticky');
+  if (!el) return;
+  const apply = () => document.documentElement.style.setProperty(
+    '--filter-h', Math.round(el.getBoundingClientRect().height) + 'px');
+  apply();
+  try { if (window.ResizeObserver) new ResizeObserver(apply).observe(el); } catch(e) {}
+  window.addEventListener('resize', apply);
+})();
 
 renderAll();
 </script>
