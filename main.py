@@ -440,6 +440,79 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
         print(f"[Gemini 클러스터링 예외] {e}")
     return {title: title for title in new_titles}
 
+# 이슈명은 "기업명 + 사건" 형태(예: "쿠팡 공정위 조사")로 만들어지므로, 첫 단어를
+# 그 이슈의 "뿌리"(기업/기관)로 보고 같은 뿌리끼리만 병합 후보로 삼는다.
+# 뿌리가 같아도 사건이 다르면 안 되므로, 뿌리 외 토큰이 실제로 겹칠 때만 병합한다.
+ISSUE_ROOT_SIM_THRESHOLD = 0.75
+
+
+def _issue_tokens(title):
+    return [t for t in re.split(r"\s+", str(title).strip()) if t]
+
+
+def _should_merge_issue(tokens_a, tokens_b):
+    """같은 뿌리를 가진 두 이슈명이 사실상 같은 사건인지 기계적으로 판정한다.
+    (1) 한쪽 토큰이 다른 쪽에 통째로 포함되면 사건이 이어진 것으로 본다
+        예: "쿠팡 공정위 조사" ⊂ "쿠팡 공정위 조사 거부" -> 병합
+    (2) 포함관계가 아니어도 문자열이 매우 비슷하고 뿌리 외 토큰이 겹치면 병합한다.
+    뿌리(첫 토큰)만 같은 경우는 병합하지 않는다 - 같은 기업의 별개 사건일 수 있음
+    (예: "쿠팡 공정위 조사" vs "쿠팡 배송비 인상")."""
+    set_a, set_b = set(tokens_a), set(tokens_b)
+    shared_beyond_root = (set_a & set_b) - {tokens_a[0]}
+    if not shared_beyond_root:
+        return False
+    smaller = set_a if len(set_a) <= len(set_b) else set_b
+    larger = set_b if smaller is set_a else set_a
+    if len(smaller) >= 2 and smaller <= larger:
+        return True
+    return difflib.SequenceMatcher(None, " ".join(tokens_a), " ".join(tokens_b)).ratio() >= ISSUE_ROOT_SIM_THRESHOLD
+
+
+def build_issue_merge_mapping(titles_oldest_first):
+    """이슈명 목록(먼저 등장한 순)을 받아 {이슈명: 통합 이슈명} 매핑을 만든다.
+    Gemini 호출 없이 파이썬만으로 처리하므로 무료 등급 호출 한도에 영향이 없다.
+    통합 이름은 "가장 먼저 등장한 이름"으로 고정해서, 같은 사건 이름이 날마다
+    바뀌지 않게 한다."""
+    canonical = {}  # 뿌리 -> [(대표이름, 토큰)]
+    mapping = {}
+    for title in titles_oldest_first:
+        tokens = _issue_tokens(title)
+        if not tokens:
+            mapping[title] = title
+            continue
+        root = tokens[0]
+        merged_into = None
+        for existing_title, existing_tokens in canonical.get(root, []):
+            if _should_merge_issue(existing_tokens, tokens):
+                merged_into = existing_title
+                break
+        if merged_into is None:
+            canonical.setdefault(root, []).append((title, tokens))
+            mapping[title] = title
+        else:
+            mapping[title] = merged_into
+    return mapping
+
+
+def apply_issue_merge(df):
+    """저장 직전에 전체 데이터(과거 행 포함)의 대표이슈를 한 번 더 병합한다.
+    과거 행까지 같이 고쳐야, 어제 "쿠팡 공정위 조사"로 저장된 기사와 오늘
+    "쿠팡 공정위 조사 거부"로 잡힌 기사가 하나의 이슈로 합쳐진다."""
+    if "대표이슈" not in df.columns or df.empty:
+        return df
+    try:
+        order = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
+        first_seen = df.assign(_dt=order).groupby("대표이슈")["_dt"].min().sort_values()
+        mapping = build_issue_merge_mapping([t for t in first_seen.index if isinstance(t, str) and t.strip()])
+        changed = {k: v for k, v in mapping.items() if k != v}
+        if changed:
+            print(f"[이슈 자동 병합] {len(changed)}건: " + ", ".join(f"{k} -> {v}" for k, v in list(changed.items())[:10]))
+            df["대표이슈"] = df["대표이슈"].map(lambda t: mapping.get(t, t))
+    except Exception as e:
+        print(f"[이슈 자동 병합 예외] {e}")
+    return df
+
+
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
     new_df = pd.DataFrame(new_rows, columns=columns)
@@ -467,7 +540,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception: pass
-    
+
+    combined_df = apply_issue_merge(combined_df)
+
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
 
 def main():
