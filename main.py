@@ -543,9 +543,48 @@ def apply_issue_merge(df):
     return df
 
 
+# 클러스터링 품질 안전장치.
+# Gemini가 컨디션이 나쁜 날 기사들을 "기업동향"/"지배구조 개편" 같은 거대 일반
+# 바구니에 쓸어담아, 1315건이 이슈 47개로 뭉개진 실행이 실제로 있었다(정상은 500개 내외).
+# 그런 결과로 기존 데이터를 덮어쓰면 하루치 화면이 통째로 망가지므로, 이슈당 평균
+# 기사 수가 비정상적으로 크면 저장을 건너뛴다(collect_bills.py의 30% 안전장치와 같은 취지).
+CLUSTER_SANITY_MIN_ROWS = 200   # 표본이 이보다 적으면 판단 유보(이른 아침 실행 등)
+CLUSTER_SANITY_MAX_AVG = 10.0   # 이슈당 평균 기사 수 상한 (정상 관측치는 2~3건)
+
+
+def is_clustering_sane(new_df):
+    """이번 실행의 클러스터링 결과가 쓸 만한지 판정한다. 판단이 애매하면 True(저장 허용)."""
+    try:
+        analyzed = new_df[
+            ~new_df["대표이슈"].isin(ERROR_ISSUE_TITLES)
+            & (new_df["논조"] != "미분석")
+            & new_df["대표이슈"].astype(str).str.strip().ne("")
+        ]
+        total = len(analyzed)
+        if total < CLUSTER_SANITY_MIN_ROWS:
+            return True
+        issues = analyzed["대표이슈"].nunique()
+        if issues == 0:
+            return False
+        avg = total / issues
+        if avg > CLUSTER_SANITY_MAX_AVG:
+            print(f"[경고] 클러스터링 결과가 비정상입니다 - 분석 {total}건이 이슈 {issues}개로만 묶임 "
+                  f"(이슈당 평균 {avg:.1f}건, 상한 {CLUSTER_SANITY_MAX_AVG}건). "
+                  f"Gemini 클러스터링 실패로 의심되어 news_list.csv를 덮어쓰지 않고 건너뜁니다.")
+            return False
+        return True
+    except Exception as e:
+        print(f"[클러스터링 점검 예외 - 저장은 진행] {e}")
+        return True
+
+
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
     new_df = pd.DataFrame(new_rows, columns=columns)
+    # 여기서 return하면 이후 워크플로우 스텝(법안 수집/HTML 생성/커밋)은 그대로 진행된다
+    # (예외를 던지면 스텝이 실패하면서 법안 수집까지 같이 스킵되므로 그렇게 하면 안 된다).
+    if not is_clustering_sane(new_df):
+        return
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
         try:
             old_df = pd.read_csv(file_name)
