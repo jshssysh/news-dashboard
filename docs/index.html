@@ -95,6 +95,13 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-step-arrow { opacity: 0.35; font-size: 0.85em; padding: 0 1px; }
 .reason-chip { display: inline-block; background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 5px; font-size: 0.8em; font-weight: 600; margin-right: 4px; border: 1px solid var(--app-border); }
 .reason-box { border: 1px solid var(--app-border); border-radius: 8px; padding: 4px 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.3; }
+/* "선별 근거"가 스타일 없는 맨 텍스트라 옆 칩(0.8em)보다 커서 혼자 튀어 보였다.
+   다른 라벨(.chip-row-label 등)과 같은 결로 작고 흐리게 맞춘다. */
+.reason-label { font-size: 0.74em; font-weight: 700; opacity: 0.5; letter-spacing: -0.1px; margin-right: 1px; }
+/* 유사기사 토글은 두 벌을 두고 화면 크기에 따라 하나만 보여준다.
+   데스크톱은 기존대로 카드 하단(.toggle-btn-bottom), 모바일은 제목 줄 옆
+   (.toggle-btn-inline)에 짧게. 둘 다 같은 data-key라 어느 쪽을 눌러도 동작한다. */
+.toggle-btn-inline { display: none; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 4px 11px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
 .toggle-btn:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow); }
 
@@ -126,6 +133,19 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .news-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin-bottom: 12px; }
 .news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1.02em; font-weight: 700; letter-spacing: -0.1px; white-space: nowrap; }
+/* 셀렉트 묶음은 데스크톱에선 없는 셈 치고 부모 flex에 그대로 참여시킨다(기존 한 줄 배치 유지).
+   모바일에서만 실제 flex 컨테이너가 되어 셀렉트 3개가 한 줄로 묶인다. */
+.filter-selects { display: contents; }
+/* 접기 UI는 모바일 전용 - 데스크톱에서는 캐럿/현재선택/접기줄을 모두 숨긴다 */
+.stat-toggle-row { display: none; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 8px 12px; border: 1px solid var(--app-border); border-radius: 10px;
+  background: var(--app-secondary-bg); font-size: 0.82em; font-weight: 700; color: var(--app-text); }
+.news-filter-row h5 .toggle-caret,
+.news-filter-row h5 .current-tag { display: none; }
+@media (max-width: 800px) {
+  .news-filter-row h5 .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  .news-filter-row h5 .current-tag { display: inline; }
+}
 .era-tag { font-size: 0.68em; font-weight: 600; opacity: 0.55; margin-left: 4px; }
 .bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; }
 .news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
@@ -290,7 +310,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   #catChipRow button, #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.76em; }
   .article-card { padding: 10px 12px; margin-bottom: 8px; }
 
-  /* "중요도 9/10  08.27 00:02 · joongang.co.kr · 총 보도 매체 25개"는 nowrap +
+  /* "9/10  08.27 00:02 · joongang.co.kr · 매체 25"는 nowrap +
      flex-shrink:0 이라 좁은 화면에서 줄지 않고 가로 스크롤을 만든다. 줄바꿈 허용. */
   .card-meta-group { flex-shrink: 1; min-width: 0; white-space: normal; }
   .card-meta-inline { margin-left: 0; }
@@ -302,13 +322,41 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .bill-title-line, .signal-item-head, .signal-item-body {
     word-break: keep-all; overflow-wrap: anywhere;
   }
+
+  /* ── 통계 타일 접기 ── */
+  .stat-toggle-row { display: flex; }        /* 데스크톱에선 none (아래 기본 규칙) */
+  #topStatRow.stats-collapsed .tile-collect,
+  #topStatRow.stats-collapsed .tile-law { display: none; }
+
+  /* ── 카테고리별 주요뉴스 접기 + 세로 배치 ── */
+  .news-filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .news-filter-row h5 { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .filter-selects { display: flex; gap: 8px; }
+  .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
+  .news-filter-row input[type=text] { width: 100%; }
+  #newsFilterSticky.news-collapsed .filter-selects,
+  #newsFilterSticky.news-collapsed #searchInput,
+  #newsFilterSticky.news-collapsed #catChipRow { display: none; }
+  #newsFilterSticky.news-collapsed .news-filter-row { gap: 0; margin-bottom: 8px; }
+  #newsFilterSticky.news-collapsed .toggle-caret { transform: rotate(-90deg); }
+
+  /* 접은 "오늘 주요 내용"은 태그 한 줄뿐인데 펼침용 여백(18px 20px)이 그대로 남아
+     60px나 차지했다. 접었을 때만 여백을 줄인다(펼친 상태는 그대로). */
+  .signal-box { padding: 14px 14px; margin-bottom: 12px; }
+  .signal-box.collapsed { padding: 8px 12px; margin-bottom: 10px; }
+
+  /* 유사기사 토글: 하단 긴 버튼 대신 제목 줄 옆에 짧게 */
+  .toggle-btn-bottom { display: none; }
+  .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 2px 8px; font-size: 0.72em; }
+  /* 버튼이 빠지면 선별근거 상자만 남으므로 폭을 다 쓰게 한다 */
+  .related-row .reason-box { flex: 1 1 auto; }
 }
 </style>
 </head>
 <body>
 <div class="block-container">
 
-  <div class="top-stat-row">
+  <div class="top-stat-row" id="topStatRow">
     <div class="tile-db">
       <div class="db-tile">
         <div class="db-left"><div class="app-header"><span class="app-title">Daily<br>Brief</span></div></div>
@@ -322,6 +370,10 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         </div>
       </div>
     </div>
+    <!-- 모바일에서만 보이는 접기 줄. 접으면 아래 두 타일이 숨고 요약만 한 줄로 남는다. -->
+    <button class="stat-toggle-row" id="statToggleBtn">
+      <span id="statSummaryText"></span><span class="toggle-caret">▼</span>
+    </button>
     <div class="tile-collect"><div class="stat-card" id="statCollect"></div></div>
     <div class="tile-law"><div class="stat-card" id="statLaw"></div></div>
   </div>
@@ -340,24 +392,29 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
     <div class="bill-filter-sticky" id="newsFilterSticky">
       <div class="news-filter-row">
-        <h5>카테고리별 주요뉴스</h5>
-        <select id="periodSelect">
-          <option value="0">오늘만</option>
-          <option value="6">최근 7일</option>
-          <option value="29">최근 30일</option>
-        </select>
-        <select id="sortSelect">
-          <option value="importance">중요도순</option>
-          <option value="press">보도량순</option>
-          <option value="latest">최신순</option>
-        </select>
-        <select id="sentimentSelect" class="sel-sentiment">
-          <option value="">논조 전체</option>
-          <option value="긍정">긍정</option>
-          <option value="중립">중립</option>
-          <option value="부정">부정</option>
-          <option value="판단 실패">판단 실패</option>
-        </select>
+        <!-- 모바일에서 이 제목이 접기 버튼이 된다(데스크톱에서는 그냥 제목) -->
+        <h5 id="newsFilterToggle">카테고리별 주요뉴스<span class="toggle-caret">▼</span><span class="current-tag" id="newsCurrentTag"></span></h5>
+        <!-- 데스크톱에서는 display:contents 로 부모 flex에 그대로 참여해 기존 한 줄 배치를
+             유지하고, 모바일에서만 셀렉트 3개가 한 줄로 묶인다. -->
+        <div class="filter-selects">
+          <select id="periodSelect">
+            <option value="0">오늘만</option>
+            <option value="6">최근 7일</option>
+            <option value="29">최근 30일</option>
+          </select>
+          <select id="sortSelect">
+            <option value="importance">중요도순</option>
+            <option value="press">보도량순</option>
+            <option value="latest">최신순</option>
+          </select>
+          <select id="sentimentSelect" class="sel-sentiment">
+            <option value="">논조 전체</option>
+            <option value="긍정">긍정</option>
+            <option value="중립">중립</option>
+            <option value="부정">부정</option>
+            <option value="판단 실패">판단 실패</option>
+          </select>
+        </div>
         <input type="text" id="searchInput" placeholder="제목, 요약에서 검색">
       </div>
 
@@ -434,7 +491,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-27 10:46 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-27 12:51 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -532,11 +589,14 @@ function keywordRepeatInfo(rows) {
   });
   return [bestKw, bestCount];
 }
+// 카드가 좁아 두 줄로 넘어가지 않도록 문구를 최소로 줄인다.
+// ("반복 보도 26건" -> "반복 26", "'과징금' 9회 반복" -> "과징금 9회")
+const REASON_SANCTION = "제재·심결";
 function selectionReasons(g) {
   const reasons = [];
-  if (g.pressCount >= 5) reasons.push("반복 보도 " + g.pressCount + "건");
-  if (g.kwRepeat[0] && g.kwRepeat[1] >= 2) reasons.push("'" + g.kwRepeat[0] + "' " + g.kwRepeat[1] + "회 반복");
-  if (g.category === "공정거래") reasons.push("제재·심결 신호");
+  if (g.pressCount >= 5) reasons.push("반복 " + g.pressCount);
+  if (g.kwRepeat[0] && g.kwRepeat[1] >= 2) reasons.push(g.kwRepeat[0] + " " + g.kwRepeat[1] + "회");
+  if (g.category === "공정거래") reasons.push(REASON_SANCTION);
   return reasons;
 }
 function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
@@ -602,6 +662,10 @@ function renderTopTiles() {
          <div>상임위 ${committeeCount} · 법사위 ${lawCount} · 본회의 ${plenaryCount}</div>
        </div>
      </div>`;
+
+  // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약
+  document.getElementById('statSummaryText').textContent =
+    `수집 ${groups.length}건 · 입법 ${BILL_DATA.length}건 (발의 ${draftCount})`;
 
   return { dr, groups, sentCounts };
 }
@@ -682,11 +746,20 @@ function renderNewsView(dr, allGroups) {
     const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
     return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
   }).join('');
+  // 모바일에서 접었을 때도 지금 무슨 카테고리를 보고 있는지 제목 옆에 남긴다
+  // ("전체"면 굳이 표시하지 않음).
+  const updateNewsCurrentTag = () => {
+    const c = state.selectedCategory;
+    document.getElementById('newsCurrentTag').textContent =
+      c === '전체' ? '' : `${c} ${catCounts[c] || 0}`;
+  };
+  updateNewsCurrentTag();
   chipRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
       state.selectedCategory = btn.dataset.cat;
       state.page = 1;
       chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
+      updateNewsCurrentTag();
       renderMainList(scoped, allGroups);
     });
   });
@@ -770,7 +843,7 @@ function renderMainList(scoped, allGroups) {
       const issueKey = (g.title + "|" + g.repLink).replace(/"/g,'&quot;');
       const isOpen = !!state.openIssues[issueKey];
       let tags = `<span class="${bc}">${g.sentiment}</span> <span class="chip-category">${g.category}</span>`;
-      if (reasons.indexOf('제재·심결 신호') !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
+      if (reasons.indexOf(REASON_SANCTION) !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
       if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
       const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
@@ -779,12 +852,13 @@ function renderMainList(scoped, allGroups) {
         <div class="card-head">
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
-          <span class="card-meta-group"><span class="importance-tag">중요도 ${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain} · 총 보도 매체 ${g.pressCount}개</span></span>
+          <span class="card-meta-group"><span class="importance-tag" title="중요도 ${g.importance}/10">${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain}</span></span>
+          <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
         <div class="related-row">
-          <div class="reason-box">${reasons.length? ("선별 근거 "+reasonChips) : ""}</div>
-          <button class="toggle-btn" data-key="${issueKey}">유사 기사 ${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
+          <div class="reason-box">${reasons.length? ("<span class='reason-label'>선별 근거</span>"+reasonChips) : ""}</div>
+          <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <div class="related-list ${isOpen?'open':''}">${related}</div>
       </div>`;
@@ -1175,6 +1249,25 @@ document.getElementById('pageSizeSel').addEventListener('change', e => {
   savePageSize('news', state.pageSize);
   state.page = 1;
   renderAll();
+});
+
+// 모바일 전용 접기 두 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
+const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed';
+function readFlag(key) { try { return localStorage.getItem(key) === '1'; } catch(e) { return false; } }
+function writeFlag(key, on) { try { localStorage.setItem(key, on ? '1' : '0'); } catch(e) {} }
+
+const topStatRow = document.getElementById('topStatRow');
+topStatRow.classList.toggle('stats-collapsed', readFlag(STAT_COLLAPSE_KEY));
+document.getElementById('statToggleBtn').addEventListener('click', () => {
+  const on = topStatRow.classList.toggle('stats-collapsed');
+  writeFlag(STAT_COLLAPSE_KEY, on);
+});
+
+const newsFilterSticky = document.getElementById('newsFilterSticky');
+newsFilterSticky.classList.toggle('news-collapsed', readFlag(NEWS_COLLAPSE_KEY));
+document.getElementById('newsFilterToggle').addEventListener('click', () => {
+  const on = newsFilterSticky.classList.toggle('news-collapsed');
+  writeFlag(NEWS_COLLAPSE_KEY, on);
 });
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
