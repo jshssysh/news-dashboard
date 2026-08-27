@@ -13,9 +13,19 @@ on:
     # 정각(및 정각 직후)은 GitHub Actions 요청이 몰려 예약 실행이 지연/누락되므로
     # (공식 문서에 명시된 동작, 실제로 같은 날 두 예약이 모두 누락된 적 있음)
     # 모든 시각을 정각에서 비켜 잡았다.
-    - cron: '7 21 * * *'   # KST 06:07 - 뉴스 + 법안 (본 수집, 06:40경 완료)
+    # 낮 시간대에는 뉴스만 2시간 간격으로 더 받는다. main.py가 이미 분석된 기사는
+    # 건너뛰므로(증분 분석) 회당 Gemini 호출이 3~5회, 소요 3~6분 수준이라 부담이 작다.
+    # 법안은 하루 한 번(아침)만 갱신되므로 낮 실행에서는 수집하지 않는다.
+    - cron: '7 21 * * *'   # KST 06:07 - 뉴스 + 법안 (본 수집)
     - cron: '12 22 * * *'  # KST 07:12 - 법안만 (일찍 반영된 날 잡기)
-    - cron: '47 22 * * *'  # KST 07:47 - 법안만 (발송 직전 마지막, 07:50경 완료)
+    - cron: '47 22 * * *'  # KST 07:47 - 법안만 (발송 직전 마지막)
+    - cron: '7 0 * * *'    # KST 09:07 - 뉴스만
+    - cron: '7 2 * * *'    # KST 11:07 - 뉴스만
+    - cron: '7 4 * * *'    # KST 13:07 - 뉴스만
+    - cron: '7 6 * * *'    # KST 15:07 - 뉴스만
+    - cron: '7 8 * * *'    # KST 17:07 - 뉴스만
+    - cron: '7 10 * * *'   # KST 19:07 - 뉴스만
+    - cron: '7 12 * * *'   # KST 21:07 - 뉴스만
   workflow_dispatch:
     inputs:
       skip_ai:
@@ -60,7 +70,15 @@ jobs:
           python main.py
 
       - name: 계류 법안 수집 (국회 열린국회정보 Open API)
-        if: github.event.inputs.skip_bills != 'true'  # 06:07/07:12/07:47 세 번 다 수집 (한 번 실패해도 앞선 수집분이 남도록)
+        # 법안은 아침 세 번(06:07/07:12/07:47)만 수집한다. 국회 API가 하루 한 번
+        # 아침에만 갱신되므로 낮 뉴스 실행에서 또 긁으면 얻는 것 없이 부하만 준다.
+        # 수동 실행(workflow_dispatch)은 schedule이 빈 값이라 아래 조건에서 통과한다.
+        if: >-
+          github.event.inputs.skip_bills != 'true'
+          && (github.event_name != 'schedule'
+              || github.event.schedule == '7 21 * * *'
+              || github.event.schedule == '12 22 * * *'
+              || github.event.schedule == '47 22 * * *')
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
