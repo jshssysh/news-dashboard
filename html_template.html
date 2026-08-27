@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -195,10 +195,6 @@ a.badge-skipped:hover { text-decoration: underline; }
 .side-col::-webkit-scrollbar { width: 6px; }
 .side-col::-webkit-scrollbar-thumb { background: var(--app-border-strong); border-radius: 4px; }
 .side-col::-webkit-scrollbar-track { background: transparent; }
-@media (max-width: 800px) {
-  .side-col { position: static; max-height: none; overflow-y: visible; }
-}
-@media (max-width: 800px) { .layout { flex-direction: column; } .news-filter-row { flex-wrap: wrap; } .news-filter-row h5 { width: auto; } }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
@@ -265,6 +261,48 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .generated-note { font-size: 0.72em; opacity: 0.45; text-align: center; margin-top: 36px; }
 .view { display: none; }
 .view.active { display: block; }
+
+/* ── 모바일(<=800px) ── 기본 규칙보다 뒤에 있어야 덮어쓸 수 있어 스타일시트 끝에 둔다 ── */
+@media (max-width: 800px) {
+  .layout { flex-direction: column; }
+  .side-col { position: static; max-height: none; overflow-y: visible; }
+  .news-filter-row { flex-wrap: wrap; }
+  .news-filter-row h5 { width: auto; }
+
+  /* 상단 타일 3장을 좁은 화면에서 가로로 밀어 넣으면 숫자가 "697 / 건"으로 줄바꿈되고
+     탭 버튼이 잘린다. Daily Brief(탭+날짜)를 한 줄 전체로 빼고 통계 두 장을 아래에 나란히. */
+  .top-stat-row { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .tile-db { flex: 1 1 100%; }
+  .tile-collect, .tile-law { flex: 1 1 0; min-width: 0; }
+  .db-left { display: none; }              /* 로고는 좁은 화면에서 공간만 차지 */
+  .db-tile { padding: 10px 12px; }
+  .db-tabs-row button { font-size: 0.78em; min-height: 34px; }
+  .db-date-row button, .date-pill { font-size: 0.78em; padding: 3px 10px; }
+  .stat-card { padding: 10px 12px; }
+  .stat-card .value { font-size: 1.35em; white-space: nowrap; }
+  .stat-card .label { margin-bottom: 4px; }
+
+  /* 모바일은 세로가 짧아서 필터를 고정하면 기사 카드 첫 장을 통째로 덮어버린다
+     (실제로 그렇게 보였음). 좁은 화면에서는 고정하지 않고 같이 스크롤되게 둔다. */
+  .bill-filter-sticky { position: static; }
+
+  /* 칩/카드 여백을 한 번 더 줄여 한 화면에 더 담는다 */
+  #catChipRow button, #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.76em; }
+  .article-card { padding: 10px 12px; margin-bottom: 8px; }
+
+  /* "중요도 9/10  08.27 00:02 · joongang.co.kr · 총 보도 매체 25개"는 nowrap +
+     flex-shrink:0 이라 좁은 화면에서 줄지 않고 가로 스크롤을 만든다. 줄바꿈 허용. */
+  .card-meta-group { flex-shrink: 1; min-width: 0; white-space: normal; }
+  .card-meta-inline { margin-left: 0; }
+
+  /* 한글은 기본적으로 아무 글자에서나 줄바꿈돼 "매체 26 / 개", "중요도 / 9/10"처럼
+     단어가 쪼개진다. keep-all로 어절을 붙여두되, 긴 URL 등은 못 끊으면 넘치므로
+     overflow-wrap으로 예외를 허용한다. */
+  .article-title, .card-meta-group, .card-meta-inline, .summary-box-blue,
+  .bill-title-line, .signal-item-head, .signal-item-body {
+    word-break: keep-all; overflow-wrap: anywhere;
+  }
+}
 </style>
 </head>
 <body>
