@@ -2,15 +2,20 @@ name: update-data
 
 on:
   schedule:
-    # 정각(및 정각 직후)은 GitHub Actions 요청이 몰리는 시간대라 예약 실행이 지연되거나
-    # 아예 누락된다(공식 문서에 명시된 동작). 실제로 06:00/08:01 두 예약이 같은 날 모두
-    # 발동하지 않은 적이 있어서, 정각을 피한 시각으로 옮겼다.
-    - cron: '7 21 * * *'   # 매일 한국시간(KST, UTC+9) 06:07 - 뉴스 + 법안
-    - cron: '23 23 * * *'  # 매일 한국시간(KST, UTC+9) 08:23 - 법안만 (재수집)
-    # 법안을 08:01에 한 번 더 도는 이유: 국회 열린국회정보 계류의안 API가 그날
-    # 발의된 법안을 바로 안 주고 다음날 07:30~08:15경에야 반영하는 걸 실측으로
-    # 확인함. 06:00 수집으로는 전날 법안이 누락될 수 있어서, API가 갱신된 뒤인
-    # 08:01에 한 번 더 받아 채운다(이미 요약된 법안은 재사용하므로 추가 비용 없음).
+    # 운영 기준: 사용자가 07:00~08:00에 전날 뉴스/법안을 정리해 08:00경 발송한다.
+    # 따라서 모든 수집은 08:00 이전에 끝나야 의미가 있다(08시 넘어 도는 실행은 소용없음).
+    #
+    # 국회 계류의안 API는 전날 발의분을 다음날 아침에야 반영하는데, 그 시각이 날마다
+    # 흔들린다(실측: 8/26은 07:32엔 없다가 08:23에 나타남 / 8/27은 07:34에 이미 있었음).
+    # 06:07 한 번만으로는 놓치는 날이 생기므로, 발송 직전까지 법안만 두 번 더 받는다.
+    # 법안 수집은 1~2분이고 이미 요약된 건은 캐시를 재사용하므로 추가 비용이 거의 없다.
+    #
+    # 정각(및 정각 직후)은 GitHub Actions 요청이 몰려 예약 실행이 지연/누락되므로
+    # (공식 문서에 명시된 동작, 실제로 같은 날 두 예약이 모두 누락된 적 있음)
+    # 모든 시각을 정각에서 비켜 잡았다.
+    - cron: '7 21 * * *'   # KST 06:07 - 뉴스 + 법안 (본 수집, 06:40경 완료)
+    - cron: '12 22 * * *'  # KST 07:12 - 법안만 (일찍 반영된 날 잡기)
+    - cron: '47 22 * * *'  # KST 07:47 - 법안만 (발송 직전 마지막, 07:50경 완료)
   workflow_dispatch:
     inputs:
       skip_ai:
@@ -43,7 +48,9 @@ jobs:
           pip install requests pandas pyyaml beautifulsoup4  # 수집 스크립트에 필요한 것만 설치 (streamlit은 앱 전용)
 
       - name: 파이썬 스크립트 실행 (API 키 매핑 필수)
-        if: github.event.schedule != '23 23 * * *'  # 08:23 법안 전용 실행에서는 뉴스 스킵
+        # 07:12 / 07:47은 법안 전용 재수집이므로 뉴스(및 Gemini 분석)는 건너뛴다.
+        # 여기 cron 문자열이 위 schedule과 어긋나면 법안 전용 실행에서 뉴스까지 돌아버린다.
+        if: github.event.schedule != '12 22 * * *' && github.event.schedule != '47 22 * * *'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -53,7 +60,7 @@ jobs:
           python main.py
 
       - name: 계류 법안 수집 (국회 열린국회정보 Open API)
-        if: github.event.inputs.skip_bills != 'true'  # 06:07/08:23 두 번 다 수집 (08:23이 실패해도 06:07분은 남도록)
+        if: github.event.inputs.skip_bills != 'true'  # 06:07/07:12/07:47 세 번 다 수집 (한 번 실패해도 앞선 수집분이 남도록)
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
