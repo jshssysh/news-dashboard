@@ -177,6 +177,11 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-result-row .result-caption { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
 
 .stage-flow-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+/* 처리상태 줄은 제목 없이 "전체 ▶ 입안 ▶ 상임위 ▶ 법사위 ▶ 본회의" 한 줄이다 */
+.stage-flow-header { flex-wrap: nowrap; gap: 4px; }
+.stage-flow-header .committee-all-btn { flex-shrink: 0; }
+.flow-cnt { opacity: 0.65; font-weight: 600; }
+.flow-plain.active .flow-cnt { opacity: 0.9; }
 .flow-plain {
   flex-shrink: 0; white-space: nowrap; padding: 5px 10px; border-radius: 8px;
   border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.78em;
@@ -219,6 +224,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
 .sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px; }
+/* 접기 표시는 모바일 전용 - 데스크톱에선 그냥 제목이다(아래 미디어쿼리에서 되살림) */
+.sidebar-panel .panel-title .toggle-caret,
+.sidebar-panel .panel-title .current-tag { display: none; }
 .kw-row { margin-bottom: 18px; }
 .kw-row:last-child { margin-bottom: 0; }
 .kw-row-total .kw-label { font-size: 0.9em; }
@@ -348,8 +356,58 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   /* 유사기사 토글: 하단 긴 버튼 대신 제목 줄 옆에 짧게 */
   .toggle-btn-bottom { display: none; }
   .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 2px 8px; font-size: 0.72em; }
-  /* 버튼이 빠지면 선별근거 상자만 남으므로 폭을 다 쓰게 한다 */
-  .related-row .reason-box { flex: 1 1 auto; }
+  /* 버튼이 빠지면 선별근거 상자만 남으므로 폭을 다 쓰게 한다.
+     근거가 셋(반복/키워드/제재·심결)까지 붙어도 두 줄로 넘어가지 않게
+     줄바꿈을 막고 칩과 라벨을 한 단계씩 줄인다. */
+  .related-row .reason-box { flex: 1 1 auto; flex-wrap: nowrap; gap: 4px; padding: 4px 7px; }
+  .reason-box .reason-chip { font-size: 0.7em; padding: 2px 6px; margin-right: 0; white-space: nowrap; }
+  .reason-box .reason-label { font-size: 0.66em; margin-right: 0; flex-shrink: 0; }
+
+  /* ── 카테고리별 수집 현황을 "카테고리별 주요뉴스"와 결과줄 사이로 올린다 ──
+     패널은 .layout 안(오른쪽 칼럼), 결과줄은 #newsFilterSticky 안이라 부모가 서로 달라
+     order만으로는 순서를 바꿀 수 없다. 두 래퍼를 display:contents로 녹여서 안의
+     요소들이 모두 #view-news의 flex 아이템이 되게 한 뒤 순서를 다시 잡는다.
+     (모바일에선 두 래퍼 다 sticky가 꺼져 있어 녹여도 잃는 게 없다) */
+  /* .active 를 꼭 같이 걸어야 한다. #view-news 만 쓰면 특이도가 .view 보다 높아서
+     탭을 옮겨도 뉴스 화면이 계속 보이게 된다(display:none 이 덮어써짐). */
+  #view-news.active { display: flex; flex-direction: column; }
+  #newsFilterSticky, #view-news .layout { display: contents; }
+  #view-news > hr.thin { order: 0; }
+  #signalBox { order: 1; }
+  #newsFilterSticky .news-filter-row { order: 2; }
+  #catChipRow { order: 3; }
+  .side-col { order: 4; }
+  #newsResultRow { order: 5; }
+  .main-col { order: 6; }
+  /* 세로 배치에서 flex-basis:0(가로 비율용)이 남아 있으면 높이 계산이 꼬인다 */
+  .main-col, .side-col { flex: 0 0 auto; width: 100%; min-width: 0; }
+  /* 순서를 바꾸고 나면 원래 자리 기준으로 넣었던 구분선은 의미가 없다 */
+  #newsFilterSticky hr.thin { display: none; }
+
+  /* 패널 접기 (제목이 버튼 역할) */
+  .sidebar-panel .panel-title { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  .sidebar-panel .panel-title .current-tag { display: inline; }
+  .sidebar-panel.side-collapsed #sidebarBars { display: none; }
+  .sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
+  .sidebar-panel.side-collapsed { padding: 10px 14px; }
+  .sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
+
+  /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
+  .kw-row { margin-bottom: 14px; }
+  .sentiment-track { height: 14px; }
+  .kw-row-total .sentiment-track { height: 16px; }
+
+  /* ── 처리상태 흐름을 좁은 화면에서도 한 줄로 ──
+     칸 5개 + 화살표 4개를 폭 안에 넣으려면 단계별 건수까지는 못 들어간다.
+     '전체'의 건수만 남기고 단계는 이름만 보인다(고른 단계의 건수는 바로 아래
+     "전체 N건 중 ..." 줄에 어차피 다시 나온다). */
+  .filter-section { padding: 10px 10px; }
+  .stage-flow-compact { flex-wrap: nowrap; gap: 2px; }
+  .stage-flow-header { gap: 2px; }
+  .stage-flow-header .flow-plain { padding: 5px 5px; font-size: 0.68em; }
+  .stage-flow-header .bill-step-arrow { font-size: 0.55em; padding: 0; }
+  .stage-flow-compact .flow-cnt { display: none; }
 }
 </style>
 </head>
@@ -435,8 +493,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
-        <div class="sidebar-panel">
-          <div class="panel-title">카테고리별 수집 현황</div>
+        <div class="sidebar-panel" id="sidebarPanel">
+          <!-- 모바일에서는 이 제목이 접기 버튼이 된다(데스크톱에서는 그냥 제목) -->
+          <div class="panel-title" id="sidebarToggle">카테고리별 수집 현황<span class="toggle-caret">▼</span><span class="current-tag" id="sidebarCurrentTag"></span></div>
           <div id="sidebarBars"></div>
         </div>
       </div>
@@ -459,12 +518,13 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         </div>
         <div class="cat-chip-row filter-section-body" id="billCommitteeChipRow"></div>
       </div>
+      <!-- 처리상태: 제목 없이 흐름 자체가 한 줄이다.
+           같은 단계를 다시 누르면 전체로 돌아가면서 세부결과가 접힌다. -->
       <div class="filter-section" id="stageFilterSection">
-        <div class="filter-section-header">
-          <button class="filter-section-toggle" data-target="stageFilterSection">처리상태 <span class="toggle-caret">▼</span></button>
+        <div class="filter-section-header stage-flow-header">
           <button id="billStageAllBtn" class="flow-plain committee-all-btn"></button>
+          <span class="bill-step-arrow">▶</span>
           <div class="stage-flow-compact" id="billStatusChipRow"></div>
-          <span class="current-tag" id="stageCurrentTag"></span>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
       </div>
@@ -533,12 +593,21 @@ function saveActiveTab(tab) {
 // 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
 // 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
 const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize' };
-const ALLOWED_PAGE_SIZES = [5, 10, 20, 50];
+// 좁은 화면에서는 한 화면에 한두 건씩 보고 넘기는 편이 편해서 1~5를 넣고 50은 뺀다.
+const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
+const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
 function getSavedPageSize(kind) {
   try {
     const v = parseInt(localStorage.getItem(PAGE_SIZE_KEYS[kind]), 10);
     return ALLOWED_PAGE_SIZES.includes(v) ? v : 10;
   } catch(e) { return 10; }
+}
+// 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
+function fillPageSizeOptions() {
+  ['pageSizeSel', 'billPageSizeSel'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}개</option>`).join('');
+  });
 }
 function savePageSize(kind, size) {
   try { localStorage.setItem(PAGE_SIZE_KEYS[kind], String(size)); } catch(e) {}
@@ -766,8 +835,11 @@ function renderNewsView(dr, allGroups) {
 
   renderMainList(scoped, allGroups);
 
+  // 이 패널도 카테고리 칩/목록과 같은 기준(중복 제외한 이슈 그룹)으로 센다.
+  // 예전엔 원본 행(dr)을 세서 "전체 1753건"인데 칩은 "전체 728"로 어긋났다.
+  const panelRows = scopedGroups;
   const dailyCatCounts = {};
-  dr.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
+  panelRows.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
   const renderKwRow = (catValue, rows, extraClass) => {
     const neg = rows.filter(r => r.sentiment==='부정').length;
     const neu = rows.filter(r => r.sentiment==='중립').length;
@@ -776,19 +848,25 @@ function renderNewsView(dr, allGroups) {
     const totalS = neg+neu+pos;
     let negPct=0, neuPct=0, posPct=0;
     if (totalS > 0) { negPct = Math.round(neg/totalS*100); posPct = Math.round(pos/totalS*100); neuPct = 100-negPct-posPct; }
-    const seg = (pct, cls, sentiment) => pct > 0
-      ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;" data-cat="${catValue}" data-sentiment="${sentiment}" title="${catValue} · ${sentiment}만 보기">${pct}%</div>`
+    // 막대 안에 "577(33%)"처럼 건수와 비율을 함께 넣는다(좁은 칸은 글자를 생략).
+    const seg = (pct, cnt, cls, sentiment) => pct > 0
+      ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;" data-cat="${catValue}" data-sentiment="${sentiment}" title="${catValue} · ${sentiment} ${cnt}건(${pct}%)">${pct >= 18 ? cnt+'('+pct+'%)' : (pct >= 9 ? cnt : '')}</div>`
       : '';
     const failTag = fail > 0
       ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 실패만 보기">실패 ${fail}</span>`
       : '';
-    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span> / <span class="cnt-neg">${neg}</span> <span class="cnt-neu">${neu}</span> <span class="cnt-pos">${pos}</span></span>${failTag}</div>
-      <div class="sentiment-track">${seg(negPct,'sentiment-neg','부정')}${seg(neuPct,'sentiment-neu','중립')}${seg(posPct,'sentiment-pos','긍정')}</div></div>`;
+    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
+      <div class="sentiment-track">${seg(negPct,neg,'sentiment-neg','부정')}${seg(neuPct,neu,'sentiment-neu','중립')}${seg(posPct,pos,'sentiment-pos','긍정')}</div></div>`;
   };
-  let sidebarHtml = dr.length ? renderKwRow('전체', dr, 'kw-row-total') + '<hr class="kw-divider">' : '';
+  let sidebarHtml = panelRows.length ? renderKwRow('전체', panelRows, 'kw-row-total') + '<hr class="kw-divider">' : '';
   Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
-    sidebarHtml += renderKwRow(cat, dr.filter(r => r.category === cat));
+    sidebarHtml += renderKwRow(cat, panelRows.filter(r => r.category === cat));
   });
+  // 접었을 때 제목 옆에 지금 보고 있는 카테고리를 남긴다.
+  // 카테고리 칩만 눌렀을 때는 이 함수가 다시 안 돌기 때문에, 건수 표를 밖에 넘겨
+  // renderMainList 에서도 같은 표시를 갱신할 수 있게 해둔다.
+  sidebarTagCounts = dailyCatCounts;
+  updateSidebarTag();
   const sidebarEl = document.getElementById('sidebarBars');
   sidebarEl.innerHTML = sidebarHtml;
 
@@ -805,7 +883,17 @@ function renderNewsView(dr, allGroups) {
   });
 }
 
+// "카테고리별 수집 현황"을 접었을 때 제목 옆에 남길 현재 선택 표시
+let sidebarTagCounts = {};
+function updateSidebarTag() {
+  const el = document.getElementById('sidebarCurrentTag');
+  if (!el) return;
+  el.textContent = state.selectedCategory === '전체'
+    ? '' : `${state.selectedCategory} ${sidebarTagCounts[state.selectedCategory] || 0}`;
+}
+
 function renderMainList(scoped, allGroups) {
+  updateSidebarTag();
   let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
   if (state.sentiment) filtered = filtered.filter(r => r.sentiment === state.sentiment);
   if (state.search) {
@@ -1042,21 +1130,23 @@ function renderStageFlowRow() {
   const RESULT_STAGE_SET = RESULT_STAGES;
   const allBtn = document.getElementById('billStageAllBtn');
 
+  // 라벨은 짧게(입안/상임위/법사위/본회의) 두고 건수는 따로 감싼다.
+  // 좁은 화면에서는 고른 칸의 건수만 남겨서 흐름이 한 줄로 유지되게 한다(CSS).
   const stageChip = (stage, label) => {
     const cnt = stageCounts[stage];
-    const shown = `${label}${cnt !== undefined ? ` (${cnt})` : ''}`;
     const isActive = state.billStage === stage;
-    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}">${shown}</button>`;
+    const cntHtml = cnt !== undefined ? ` <span class="flow-cnt">${cnt}</span>` : '';
+    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}" title="${stage}">${label}${cntHtml}</button>`;
   };
 
   const compactHtml = [
-    stageChip('입안 및 발의', '입안 및 발의'),
+    stageChip('입안 및 발의', '입안'),
     `<span class="bill-step-arrow">▶</span>`,
-    stageChip('상임위 심사', '상임위 심사'),
+    stageChip('상임위 심사', '상임위'),
     `<span class="bill-step-arrow">▶</span>`,
-    stageChip('법사위 심사', '법사위 심사'),
+    stageChip('법사위 심사', '법사위'),
     `<span class="bill-step-arrow">▶</span>`,
-    stageChip('본회의 의결', '본회의 의결'),
+    stageChip('본회의 의결', '본회의'),
   ].join('');
   const row = document.getElementById('billStatusChipRow');
   row.innerHTML = compactHtml;
@@ -1069,7 +1159,10 @@ function renderStageFlowRow() {
     renderBillList();
   };
   row.querySelectorAll('button[data-stage]').forEach(btn => {
-    btn.addEventListener('click', () => selectStage(btn.dataset.stage));
+    // 제목 옆 ▼ 버튼을 없앴으므로, 고른 칸을 다시 누르는 것이 "접기"가 된다.
+    btn.addEventListener('click', () => selectStage(
+      state.billStage === btn.dataset.stage ? '전체' : btn.dataset.stage
+    ));
   });
   allBtn.textContent = `전체 ${source.length}`;
   allBtn.classList.toggle('active', state.billStage === '전체');
@@ -1095,18 +1188,7 @@ function renderStageFlowRow() {
     });
   }
 
-  // 접었을 때도 지금 뭘 골랐는지 보이게, 제목 옆에 현재 선택 표시를 남긴다.
-  const tag = document.getElementById('stageCurrentTag');
-  if (state.billStage === '전체') {
-    tag.textContent = '';
-  } else {
-    let text = `${state.billStage} ${stageCounts[state.billStage] || 0}`;
-    if (state.billResult !== '전체') {
-      const resultCnt = source.filter(b => b.stage === state.billStage && b.result === state.billResult).length;
-      text += ` · ${state.billResult} ${resultCnt}`;
-    }
-    tag.textContent = text;
-  }
+  // (제목 줄을 없앴으므로 "현재 선택" 별도 표시는 필요 없다 - 칩 자체가 켜져 있다)
 }
 
 function renderBills() {
@@ -1251,8 +1333,9 @@ document.getElementById('pageSizeSel').addEventListener('change', e => {
   renderAll();
 });
 
-// 모바일 전용 접기 두 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
-const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed';
+// 모바일 전용 접기 세 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
+const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed',
+      SIDE_COLLAPSE_KEY = 'sidebarCollapsed';
 function readFlag(key) { try { return localStorage.getItem(key) === '1'; } catch(e) { return false; } }
 function writeFlag(key, on) { try { localStorage.setItem(key, on ? '1' : '0'); } catch(e) {} }
 
@@ -1270,6 +1353,13 @@ document.getElementById('newsFilterToggle').addEventListener('click', () => {
   writeFlag(NEWS_COLLAPSE_KEY, on);
 });
 
+const sidebarPanel = document.getElementById('sidebarPanel');
+sidebarPanel.classList.toggle('side-collapsed', readFlag(SIDE_COLLAPSE_KEY));
+document.getElementById('sidebarToggle').addEventListener('click', () => {
+  const on = sidebarPanel.classList.toggle('side-collapsed');
+  writeFlag(SIDE_COLLAPSE_KEY, on);
+});
+
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
 // 붙게 한다(안 하면 사이드바가 필터 블록에 가려짐). 필터를 접거나 창 폭이 바뀌면
 // 높이가 달라지므로 ResizeObserver로 계속 추적한다.
@@ -1283,6 +1373,7 @@ document.getElementById('newsFilterToggle').addEventListener('click', () => {
   window.addEventListener('resize', apply);
 })();
 
+fillPageSizeOptions();
 renderAll();
 </script>
 </body>
