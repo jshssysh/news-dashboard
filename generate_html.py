@@ -87,17 +87,18 @@ def load_bills():
     records = []
     for _, row in bdf.iterrows():
         records.append({
-            "id": row.get("의안ID", ""),
-            "no": row.get("의안번호", ""),
-            "name": row.get("법안명", ""),
-            "category": row.get("카테고리", ""),
-            "proposer": row.get("제안자", ""),
-            "repProposer": row.get("대표발의자", ""),
+            "id": nz(row.get("의안ID"), ""),
+            "no": nz(row.get("의안번호"), ""),
+            "name": nz(row.get("법안명"), ""),
+            "category": nz(row.get("카테고리"), ""),
+            "proposer": nz(row.get("제안자"), ""),
+            # 위원장 발의처럼 대표발의자가 없는 건이 있다(현재 274건)
+            "repProposer": nz(row.get("대표발의자"), ""),
             "proposeDate": None if pd.isna(row.get("제안일")) else str(row.get("제안일")),
             "committee": None if pd.isna(row.get("소관위원회")) else str(row.get("소관위원회")),
-            "status": row.get("처리상태", ""),
-            "stage": row.get("처리단계", ""),
-            "result": row.get("처리결과", ""),
+            "status": nz(row.get("처리상태"), ""),
+            "stage": nz(row.get("처리단계"), ""),
+            "result": nz(row.get("처리결과"), ""),
             "committeeDt": None if pd.isna(row.get("상임위회부일")) or not str(row.get("상임위회부일")).strip() else str(row.get("상임위회부일")),
             "committeeDoneDt": None if pd.isna(row.get("상임위처리일")) or not str(row.get("상임위처리일")).strip() else str(row.get("상임위처리일")),
             "committeeResult": None if pd.isna(row.get("상임위결과")) or not str(row.get("상임위결과")).strip() else str(row.get("상임위결과")),
@@ -111,19 +112,30 @@ def load_bills():
     return records
 
 
+def nz(value, default=None):
+    """CSV의 빈 칸은 pandas에서 NaN이 되는데, json.dumps는 이걸 그대로 `NaN`으로
+    적는다. JSON 규격에는 없는 값이라(브라우저는 JS 리터럴로 읽어서 통과하지만
+    다른 도구로는 못 읽는다) 여기서 None(=null)으로 정리한다.
+
+    화면 쪽 실제 피해도 있었다. 대표이슈가 NaN이면 이슈 묶기에서 객체 키가
+    문자열 "NaN"이 되면서, 서로 아무 관계 없는 기사들이 한 이슈로 뭉쳤다
+    (2026-08-18 분석 실패분 192건이 그렇게 한 덩어리가 됐다)."""
+    return default if pd.isna(value) else value
+
+
 def row_to_dict(row):
     return {
-        "date": row["date_str"] if pd.notna(row["date_str"]) else None,
+        "date": nz(row["date_str"]),
         "ts": row["dt"].strftime("%Y-%m-%dT%H:%M:%S") if pd.notna(row["dt"]) else None,
         "pub_ts": row["pub_dt"].strftime("%Y-%m-%dT%H:%M:%S") if pd.notna(row["pub_dt"]) else None,
-        "category": row["분야"],
-        "issue": row["대표이슈"],
-        "title": row["제목"],
-        "press": row["언론사"],
-        "summary": row["AI요약"],
-        "sentiment": row["논조"],
+        "category": nz(row["분야"], ""),
+        "issue": nz(row["대표이슈"]),
+        "title": nz(row["제목"], ""),
+        "press": nz(row["언론사"], ""),
+        "summary": nz(row["AI요약"], ""),
+        "sentiment": nz(row["논조"], ""),
         "importance": int(row["중요도"]) if pd.notna(row["중요도"]) else 5,
-        "link": row["기사링크"],
+        "link": nz(row["기사링크"], ""),
     }
 
 

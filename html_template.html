@@ -679,7 +679,12 @@ function fmtDt(ts) {
 
 function buildIssueGroups(rows) {
   const byIssue = {};
-  rows.forEach(r => { (byIssue[r.issue] = byIssue[r.issue] || []).push(r); });
+  // 대표이슈가 비어 있으면(분석 실패분) 제목을 키로 쓴다. 예전엔 빈 값이 그대로
+  // 키가 되면서 서로 아무 관계 없는 기사들이 한 이슈로 뭉쳤다.
+  rows.forEach(r => {
+    const key = r.issue || r.title || r.link;
+    (byIssue[key] = byIssue[key] || []).push(r);
+  });
   const groups = Object.keys(byIssue).map(title => {
     const grows = byIssue[title].slice().sort((a,b) => b.importance - a.importance);
     const majorRows = grows.filter(r => isMajorPress(r.link));
