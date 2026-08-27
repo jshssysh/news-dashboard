@@ -1,7 +1,17 @@
 """
-news_list.csv + bill_list.csv + config/personnel.csv 를 읽어서 정적 HTML 한 장
-(docs/index.html)을 생성한다. 화면 골격은 html_template.html에 있고, 여기서는
-데이터만 JSON으로 끼워 넣는다.
+news_list.csv + bill_list.csv + config/personnel.csv 를 읽어서 GitHub Pages에 올릴
+정적 파일 세 장을 만든다.
+
+  docs/index.html   화면 코드 (약 80KB) - 열자마자 골격이 뜬다
+  docs/news.json    뉴스 데이터   - 페이지가 열리면서 바로 받는다
+  docs/bills.json   법안 데이터   - 입법 탭을 볼 때만 받는다
+
+예전에는 데이터를 전부 index.html 안에 박아 넣었는데, 그러다 보니 파일이 16MB가
+됐다. 그 크기에서는 GitHub Pages(CDN)가 gzip 압축을 아예 안 해줘서 매번 16MB를
+그대로 내려받게 됐다(실측: Content-Encoding 없음). 파일을 쪼개면
+  - 첫 화면에 법안 9.8MB를 안 받고,
+  - 파일이 작아져 CDN 압축이 걸릴 여지가 생기고,
+  - 안 바뀐 파일은 브라우저 캐시(304)로 끝난다.
 
 이 파일은 GitHub Actions(서버) 안에서만 돌고 브라우저에서는 순수 HTML/CSS/JS로만
 동작하므로, 별도 서버나 런타임이 필요 없다(예전에는 Streamlit 앱을 같이 운영했지만
@@ -22,7 +32,23 @@ HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 
 OUT_DIR = "docs"
 OUT_PATH = os.path.join(OUT_DIR, "index.html")
+NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
+BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
 TEMPLATE_PATH = "html_template.html"
+
+# 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
+BILL_LINK_PREFIX = "https://likms.assembly.go.kr/bill/billDetail.do?billId="
+
+
+def nz(value, default=None):
+    """CSV의 빈 칸은 pandas에서 NaN이 되는데, json.dumps는 이걸 그대로 `NaN`으로
+    적는다. JSON 규격에는 없는 값이라 fetch().json() 이 통째로 실패한다
+    (예전처럼 HTML 안에 박아 넣을 때는 자바스크립트 리터럴이라 그냥 통과했다).
+
+    화면 쪽 실제 피해도 있었다. 대표이슈가 NaN이면 이슈 묶기에서 객체 키가
+    문자열 "NaN"이 되면서, 서로 아무 관계 없는 기사들이 한 이슈로 뭉쳤다
+    (2026-08-18 분석 실패분 192건이 그렇게 한 덩어리가 됐다)."""
+    return default if pd.isna(value) else value
 
 # 화면 필터의 최대 옵션이 "최근 30일"이므로, 그보다 넉넉하게 최근 N일치만 정적 HTML에 담는다.
 # news_list.csv 자체는 계속 쌓이지만(현재 7MB+), 그 전체를 매번 페이지에 박아넣으면
@@ -65,9 +91,9 @@ def load_personnel():
     records = []
     for _, row in pdf.iterrows():
         records.append({
-            "dept": row.get("부서", ""),
-            "role": row.get("직책", ""),
-            "name": row.get("담당자", ""),
+            "dept": nz(row.get("부서"), ""),
+            "role": nz(row.get("직책"), ""),
+            "name": nz(row.get("담당자"), ""),
             "start": None if pd.isna(row.get("시작일")) else str(row.get("시작일")),
             "end": None if pd.isna(row.get("종료일")) else str(row.get("종료일")),
             "source": None if pd.isna(row.get("출처링크")) else str(row.get("출처링크")),
@@ -106,21 +132,10 @@ def load_bills():
             "lawDoneDt": None if pd.isna(row.get("법사위처리일")) or not str(row.get("법사위처리일")).strip() else str(row.get("법사위처리일")),
             "lawResult": None if pd.isna(row.get("법사위결과")) or not str(row.get("법사위결과")).strip() else str(row.get("법사위결과")),
             "changed": None if pd.isna(row.get("상태변경")) or not str(row.get("상태변경")).strip() else str(row.get("상태변경")),
-            "link": row.get("상세링크", ""),
+            "link": nz(row.get("상세링크"), ""),
             "summary": None if pd.isna(row.get("AI요약")) else str(row.get("AI요약")),
         })
     return records
-
-
-def nz(value, default=None):
-    """CSV의 빈 칸은 pandas에서 NaN이 되는데, json.dumps는 이걸 그대로 `NaN`으로
-    적는다. JSON 규격에는 없는 값이라(브라우저는 JS 리터럴로 읽어서 통과하지만
-    다른 도구로는 못 읽는다) 여기서 None(=null)으로 정리한다.
-
-    화면 쪽 실제 피해도 있었다. 대표이슈가 NaN이면 이슈 묶기에서 객체 키가
-    문자열 "NaN"이 되면서, 서로 아무 관계 없는 기사들이 한 이슈로 뭉쳤다
-    (2026-08-18 분석 실패분 192건이 그렇게 한 덩어리가 됐다)."""
-    return default if pd.isna(value) else value
 
 
 def row_to_dict(row):
@@ -139,31 +154,101 @@ def row_to_dict(row):
     }
 
 
+def slim_bills(bills):
+    """법안은 14,000건이 넘어 전체 용량의 대부분을 차지하므로 담을 것만 담는다.
+
+    - 상세링크(link)는 화면에서 한 번도 쓰지 않는 데다(카드는 의안ID로 요약 팝업
+      주소를 따로 만든다) 의안ID로 100% 복원되는 값이라 뺀다. 혹시 형태가 다른
+      주소가 섞여 있으면 그것만 남긴다.
+    - 값이 빈 칸은 키까지 통째로 뺀다. 법사위 관련 칸은 사실상 전부 비어 있고
+      (회부일/처리일/결과 각 100%), 상임위처리일·결과도 98%가 비어 있다.
+
+    이 둘로 9.8MB -> 6.2MB.
+    """
+    out = []
+    for bill in bills:
+        row = {}
+        for key, value in bill.items():
+            if key == "link" and value == BILL_LINK_PREFIX + str(bill.get("id", "")):
+                continue
+            if value is None or value == "":
+                continue
+            row[key] = value
+        out.append(row)
+    return out
+
+
+def bill_stats(bills):
+    """상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자를 보여줘야 하므로,
+    단계별 건수만 미리 세어 index.html 안에 같이 넣는다(수백 바이트)."""
+    counts = {}
+    for bill in bills:
+        counts[bill.get("stage", "")] = counts.get(bill.get("stage", ""), 0) + 1
+    return {
+        "total": len(bills),
+        "draft": counts.get("입안 및 발의", 0),
+        "committee": counts.get("상임위 심사", 0),
+        "law": counts.get("법사위 심사", 0),
+        "plenary": counts.get("본회의 의결", 0),
+    }
+
+
+def sanitize(rows):
+    """혹시 위에서 놓친 결측이 남아 있으면 여기서 마지막으로 걷어낸다.
+
+    데이터는 이제 브라우저가 fetch().json() 으로 읽는데, JSON에는 `NaN`이 없어서
+    딱 하나만 새어 나와도 파싱이 통째로 실패해 화면이 백지가 된다. 예전처럼
+    HTML 안에 박아 넣던 시절에는 자바스크립트 리터럴로 읽혀서 그냥 통과했다.
+    조용히 고치기만 하면 원인을 못 찾으니, 어느 칸이었는지 로그로 남긴다."""
+    hits = {}
+    for row in rows:
+        for key, value in list(row.items()):
+            if isinstance(value, float) and value != value:  # NaN
+                row[key] = None
+                hits[key] = hits.get(key, 0) + 1
+    if hits:
+        print(f"  ::warning:: 결측이 남아 있어 null 로 정리함: {hits}")
+    return rows
+
+
+def dump_json(path, rows):
+    # allow_nan=False 는 위 sanitize 가 제대로 걷어냈는지 확인하는 안전장치다.
+    text = json.dumps(sanitize(rows), ensure_ascii=False, allow_nan=False)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return len(text.encode("utf-8"))
+
+
 def build():
     df = load_data()
     news_rows = [row_to_dict(r) for _, r in df.iterrows()] if not df.empty else []
     personnel = load_personnel()
-    bills = load_bills()
+    bills = slim_bills(load_bills())
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
-    data_json = json.dumps(news_rows, ensure_ascii=False)
-    personnel_json = json.dumps(personnel, ensure_ascii=False)
-    bills_json = json.dumps(bills, ensure_ascii=False)
+    personnel_json = json.dumps(sanitize(personnel), ensure_ascii=False, allow_nan=False)
+    stats_json = json.dumps(bill_stats(bills), ensure_ascii=False, allow_nan=False)
 
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
 
-    html = template.replace("__NEWS_DATA_JSON__", data_json.replace("</", "<\\/"))
-    html = html.replace("__PERSONNEL_DATA_JSON__", personnel_json.replace("</", "<\\/"))
-    html = html.replace("__BILL_DATA_JSON__", bills_json.replace("</", "<\\/"))
+    html = template.replace("__PERSONNEL_DATA_JSON__", personnel_json.replace("</", "<\\/"))
+    html = html.replace("__BILL_STATS_JSON__", stats_json.replace("</", "<\\/"))
     html = html.replace("__GENERATED_AT__", now_kst)
 
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
-    size_kb = os.path.getsize(OUT_PATH) / 1024
-    print(f"[정적 HTML 생성 완료] {OUT_PATH} (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건, 인사 {len(personnel)}명, 법안 {len(bills)}건, 파일 크기 {size_kb:.1f}KB)")
+    news_bytes = dump_json(NEWS_JSON_PATH, news_rows)
+    bills_bytes = dump_json(BILLS_JSON_PATH, bills)
+    html_kb = os.path.getsize(OUT_PATH) / 1024
+    print(
+        f"[정적 대시보드 생성 완료]\n"
+        f"  {OUT_PATH:<18} {html_kb:8.0f}KB (인사 {len(personnel)}명)\n"
+        f"  {NEWS_JSON_PATH:<18} {news_bytes/1024:8.0f}KB (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건)\n"
+        f"  {BILLS_JSON_PATH:<18} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)"
+    )
 
 
 if __name__ == "__main__":

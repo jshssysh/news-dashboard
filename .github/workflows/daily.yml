@@ -82,7 +82,7 @@ jobs:
         run: |
           python collect_bills.py
 
-      - name: 정적 대시보드(docs/index.html) 생성
+      - name: 정적 대시보드(docs/) 생성
         run: |
           python generate_html.py
 
@@ -92,20 +92,23 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add news_list.csv bill_list.csv docs/index.html
+          git add news_list.csv bill_list.csv docs/index.html docs/news.json docs/bills.json
           if ! git diff --quiet || ! git diff --staged --quiet; then
             git commit -m "Update news data"
             # 이 스크립트가 실행되는 동안 다른 커밋(예: 코드 수정)이 먼저 푸시되어
             # main이 앞서 있으면 그냥 push하면 거부되므로, 먼저 최신 내용을 받아온 뒤 푸시한다.
-            # news_list.csv/bill_list.csv/docs/index.html은 매번 스크립트가 통째로 새로
+            # news_list.csv/bill_list.csv/docs/*는 매번 스크립트가 통째로 새로
             # 만들어내는 자동 생성 파일이라, 충돌이 나면 "지금 막 새로 만든 것"이 항상
             # 정답이다 - rebase 대신 merge를 쓰고, 이 파일들 충돌은 우리 쪽(ours)으로 해결한다.
             git fetch origin main
             if ! git merge origin/main --no-edit; then
               conflicted=$(git diff --name-only --diff-filter=U)
               echo "::warning::자동 생성 파일에서 병합 충돌 발생 - 이번 실행 결과로 덮어써서 해결함: $conflicted"
-              git checkout --ours -- news_list.csv bill_list.csv docs/index.html
-              git add news_list.csv bill_list.csv docs/index.html
+              # 목록을 다시 적지 않고 실제로 충돌난 파일만 처리한다. 파일 목록을 손으로
+              # 적어두면(docs/news.json 처럼) 아직 원격에 없는 파일에 checkout --ours 가
+              # 걸려 죽는다.
+              git checkout --ours -- $conflicted
+              git add $conflicted
               git commit --no-edit
             fi
             if ! git push; then

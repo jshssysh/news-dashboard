@@ -555,9 +555,15 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 </div>
 
 <script>
-const NEWS_DATA = __NEWS_DATA_JSON__;
+// 데이터는 이 파일에 박혀 있지 않고 news.json / bills.json 에서 받아온다.
+// (전부 넣었더니 16MB가 됐고, 그 크기에선 GitHub Pages가 gzip을 안 해준다)
+// 그래서 처음엔 비어 있고, 아래 맨 끝 부트스트랩에서 채운다.
+let NEWS_DATA = [];
+let BILL_DATA = [];
+let allDates = [];
 const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
-const BILL_DATA = __BILL_DATA_JSON__;
+// 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
+const BILL_STATS = __BILL_STATS_JSON__;
 
 const STARRED_BILLS_KEY = 'starredBills';
 function getStarredBills() {
@@ -579,8 +585,6 @@ function newsCategoryRank(c) {
 
 const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","담합","사익편취","일감몰아주기","기술탈취"];
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
-
-const allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
 
 const ACTIVE_TAB_KEY = 'activeTab';
 function getSavedTab() {
@@ -615,7 +619,7 @@ function savePageSize(kind, size) {
 
 const state = {
   activeTab: getSavedTab(),
-  currentDate: allDates.length ? allDates[allDates.length - 1] : null,
+  currentDate: null,   // news.json 을 받은 뒤 가장 최근 날짜로 채운다
   selectedCategory: '전체',
   period: 0,
   sort: 'importance',
@@ -723,23 +727,21 @@ function renderTopTiles() {
        </div>
      </div>`;
 
-  const draftCount = BILL_DATA.filter(b => b.stage === '입안 및 발의').length;
-  const committeeCount = BILL_DATA.filter(b => b.stage === '상임위 심사').length;
-  const lawCount = BILL_DATA.filter(b => b.stage === '법사위 심사').length;
-  const plenaryCount = BILL_DATA.filter(b => b.stage === '본회의 의결').length;
+  // 법안 목록(bills.json)은 입법 탭을 볼 때만 받으므로, 이 타일은 미리 세어 둔
+  // BILL_STATS 로 그린다(목록이 아직 없어도 숫자는 정확하다).
   document.getElementById('statLaw').innerHTML =
     `<div class="label">입법 현황 <span class="era-tag">제22대</span></div>
      <div class="value-line">
-       <span class="value">${BILL_DATA.length}건</span>
+       <span class="value">${BILL_STATS.total}건</span>
        <div class="law-substats-block">
-         <div>입안 및 발의 ${draftCount}건</div>
-         <div>상임위 ${committeeCount} · 법사위 ${lawCount} · 본회의 ${plenaryCount}</div>
+         <div>입안 및 발의 ${BILL_STATS.draft}건</div>
+         <div>상임위 ${BILL_STATS.committee} · 법사위 ${BILL_STATS.law} · 본회의 ${BILL_STATS.plenary}</div>
        </div>
      </div>`;
 
   // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약
   document.getElementById('statSummaryText').textContent =
-    `수집 ${groups.length}건 · 입법 ${BILL_DATA.length}건 (발의 ${draftCount})`;
+    `수집 ${groups.length}건 · 입법 ${BILL_STATS.total}건 (발의 ${BILL_STATS.draft})`;
 
   return { dr, groups, sentCounts };
 }
@@ -1239,8 +1241,8 @@ function renderBillList() {
       return `<div class="article-card bill-card">
         <div class="card-head bill-title-line">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
-          <span class="card-tags"><span class="chip-category">${b.category}</span></span>
-          <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name}</a>
+          <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
+          <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
           ${proposerHtml(b.proposer||b.repProposer||'')}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
         </div>
         <div class="bill-stepper">${billStepperHtml(b)}</div>
@@ -1287,7 +1289,17 @@ function renderAll() {
     document.getElementById('view-org').classList.add('active');
   } else if (state.activeTab === '입법') {
     document.getElementById('view-law').classList.add('active');
-    renderBills();
+    if (billsLoaded) {
+      renderBills();
+    } else {
+      document.getElementById('billListArea').innerHTML =
+        "<div class='info-box'>법안 목록을 불러오는 중…</div>";
+      ensureBills().then(() => { if (state.activeTab === '입법') renderAll(); })
+        .catch(() => {
+          document.getElementById('billListArea').innerHTML =
+            "<div class='info-box'>법안 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
   } else if (dr.length === 0) {
     document.getElementById('view-empty').classList.add('active');
   } else {
@@ -1378,8 +1390,49 @@ document.getElementById('sidebarToggle').addEventListener('click', () => {
   window.addEventListener('resize', apply);
 })();
 
+// ── 데이터 로딩 ──────────────────────────────────────────────────────────
+// news.json 은 열자마자, bills.json 은 입법 탭을 볼 때 받는다.
+// (index.html 안에 다 넣었더니 16MB가 됐고 CDN 압축도 안 걸렸다)
+function loadJson(path) {
+  return fetch(path, { cache: 'no-cache' }).then(res => {
+    if (!res.ok) throw new Error(path + ' → HTTP ' + res.status);
+    return res.json();
+  });
+}
+
+let billsLoaded = false;
+let billsPromise = null;
+function ensureBills() {
+  if (billsLoaded) return Promise.resolve();
+  if (!billsPromise) {
+    billsPromise = loadJson('bills.json')
+      .then(rows => { BILL_DATA = rows; billsLoaded = true; })
+      // 실패한 약속을 그대로 쥐고 있으면 다시 눌러도 재시도가 안 되므로 비운다
+      .catch(err => { billsPromise = null; throw err; });
+  }
+  return billsPromise;
+}
+
+function showLoadError(message) {
+  document.getElementById('view-empty').classList.add('active');
+  document.getElementById('view-empty').innerHTML =
+    `<div class="info-box">${message}</div>`;
+}
+
 fillPageSizeOptions();
-renderAll();
+loadJson('news.json').then(rows => {
+  NEWS_DATA = rows;
+  allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
+  state.currentDate = allDates.length ? allDates[allDates.length - 1] : null;
+  renderAll();
+  // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
+  // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
+  const whenIdle = window.requestIdleCallback || (fn => setTimeout(fn, 2000));
+  whenIdle(() => { ensureBills().catch(() => {}); });
+}).catch(err => {
+  console.error(err);
+  showLoadError('뉴스 데이터를 불러오지 못했습니다 (' + err.message + '). 새로고침 해주세요.');
+});
 </script>
 </body>
 </html>
