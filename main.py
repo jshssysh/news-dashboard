@@ -371,6 +371,34 @@ def analyze_batch_with_gemini(batch_items):
         print(f"[Gemini API 예외] {e}")
     return [(item["idx"], 0, ISSUE_TITLE_API_ERROR, "분석 에러", "판단 실패", None) for item in batch_items]
 
+def load_analyzed_links(file_name="news_list.csv"):
+    """이미 정상적으로 분석이 끝난 기사링크 집합을 돌려준다.
+    네이버는 매 실행마다 '최근 24시간'을 통째로 주기 때문에, 하루에 여러 번 돌리면
+    같은 기사를 반복해서 Gemini에 보내게 된다. 이 목록에 있는 기사는 건너뛴다.
+
+    단, 아래는 일부러 제외해서 '다시 시도'되게 한다:
+      - 논조 "판단 실패": Gemini 호출이 실패했던 기사
+      - 논조 "미분석":    skip_ai 개발 모드가 남긴 더미
+      - 대표이슈가 오류 플레이스홀더인 기사
+    """
+    if not os.path.exists(file_name):
+        return set()
+    try:
+        df = pd.read_csv(file_name, usecols=["기사링크", "논조", "대표이슈"])
+        ok = df[
+            df["논조"].notna()
+            & ~df["논조"].isin(["판단 실패", "미분석"])
+            # 대표이슈가 비어 있거나 오류 플레이스홀더면 분석이 온전하지 않은 것이다.
+            # (분석은 멀쩡한데 대표이슈만 "통신 예외 발생"으로 오염된 행이 실제로 있었다)
+            & df["대표이슈"].notna()
+            & ~df["대표이슈"].isin(ERROR_ISSUE_TITLES)
+        ]
+        return set(ok["기사링크"].dropna().astype(str))
+    except Exception as e:
+        print(f"[기분석 링크 로드 예외 - 이번엔 전체 분석] {e}")
+        return set()
+
+
 def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
     """최근 N일간 이미 저장된 대표이슈명을 반환한다 (등장 빈도 높은 순으로 최대 limit개).
     여러 날에 걸쳐 보도되는 사건이 매일 실행되는 클러스터링에서 서로 다른 이슈명으로
@@ -620,12 +648,22 @@ def main():
     seen_links, unique_for_api = set(), {}
     idx = 0
 
+    # 이미 분석이 끝난 기사는 Gemini에 다시 안 보낸다. 개발 모드(skip_ai)에서는
+    # 어차피 분석을 안 하므로 이 최적화도 끈다.
+    analyzed_links = set() if SKIP_AI_ANALYSIS else load_analyzed_links()
+    skipped_already_analyzed = 0
+
     for keyword, category in KEYWORDS.items():
         articles = get_naver_news_24h(keyword)
         for item in articles:
             link = item["originallink"] if item["originallink"] else item["link"]
             if link in seen_links: continue
             seen_links.add(link)
+
+            # 기존 분석 결과가 그대로 남아 있으므로(저장 시 병합됨) 여기서 빠져도 유실되지 않는다
+            if link in analyzed_links:
+                skipped_already_analyzed += 1
+                continue
 
             title = clean_text(item["title"])
             norm_t = normalize_title(title)
@@ -650,6 +688,10 @@ def main():
                 api_data["description"] = desc[:80]
                 unique_for_api[norm_t] = api_data
             idx += 1
+
+    if skipped_already_analyzed:
+        print(f"[증분 분석] 수집 {skipped_already_analyzed + len(all_articles)}건 중 "
+              f"{skipped_already_analyzed}건은 이미 분석돼 있어 건너뜀 → 신규 {len(all_articles)}건만 분석")
 
     rows = []
 
