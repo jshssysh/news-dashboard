@@ -234,15 +234,21 @@ div[class*="st-key-article_card_"] [data-testid="stVerticalBlock"] > div { margi
 def load_data():
     try:
         df = pd.read_csv("news_list.csv")
-        df['dt'] = pd.to_datetime(df['수집일자'], errors='coerce')
+        # format을 명시하지 않으면 불규칙한 값 때문에 pandas가 행 단위 dateutil 파싱으로
+        # 전환되어 3만행 이상에서 수 분씩 걸린다(generate_html.py에서 같은 문제로 13분
+        # 걸린 적 있음). 캐시가 10분마다 만료되므로 앱에서도 그대로 체감된다.
+        df['dt'] = pd.to_datetime(df['수집일자'], format='%Y-%m-%d %H:%M', errors='coerce')
         df['date_str'] = df['dt'].dt.strftime('%Y/%m/%d')
         if '중요도' not in df.columns:
             df['중요도'] = 5  # 구버전 데이터(중요도 컬럼 없음) 호환
         df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5)
         # 실제 기사 발행 시각 (구버전 데이터엔 없음 → NaT, 카드에서 수집 시각으로 대체 표시)
-        df['pub_dt'] = pd.to_datetime(df['발행일시'], errors='coerce') if '발행일시' in df.columns else pd.NaT
+        df['pub_dt'] = pd.to_datetime(df['발행일시'], format='%Y-%m-%d %H:%M', errors='coerce') if '발행일시' in df.columns else pd.NaT
         # 앱 화면에서는 삼성그룹·삼성물산 분야를 숨김 (수집·분류 자체는 main.py에서 그대로 유지)
         df = df[~df['분야'].isin(HIDDEN_CATEGORIES)]
+        # "미분석"은 skip_ai 개발/테스트 실행이 남긴 더미 데이터 - 정적 대시보드
+        # (generate_html.py)와 동일하게 여기서도 숨긴다.
+        df = df[df['논조'] != '미분석']
         return df
     except Exception:
         return pd.DataFrame()

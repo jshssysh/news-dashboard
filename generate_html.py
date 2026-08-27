@@ -7,15 +7,15 @@ Streamlit이 필요 없는 이유는 딱 하나 - 이 파일은 GitHub Actions(�
 """
 import json
 import os
-import re
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
 KST = timezone(timedelta(hours=9))
 
-CRITICAL_KEYWORDS = ["과징금", "시정명령", "고발", "동의의결", "담합", "사익편취", "일감몰아주기", "기술탈취"]
-FINE_AMOUNT_PATTERN = re.compile(r"과징금\s*([0-9][0-9,\.]*)\s*(억|만)\s*원?")
+# 중요 키워드 반복/과징금 금액 추출은 화면(html_template.html)에서 자바스크립트로
+# 처리하므로 여기선 쓰지 않는다. 예전에 파이썬 쪽에도 같은 로직이 있었지만 호출되지
+# 않는 죽은 코드였어서 제거함.
 HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 
 OUT_DIR = "docs"
@@ -107,20 +107,6 @@ def load_bills():
             "summary": None if pd.isna(row.get("AI요약")) else str(row.get("AI요약")),
         })
     return records
-
-
-def keyword_repeat_info(titles):
-    best_kw, best_count = None, 0
-    for kw in CRITICAL_KEYWORDS:
-        count = sum(1 for t in titles if kw in t)
-        if count > best_count:
-            best_kw, best_count = kw, count
-    return best_kw, best_count
-
-
-def extract_fine_amount(text):
-    m = FINE_AMOUNT_PATTERN.search(text or "")
-    return f"과징금 {m.group(1)}{m.group(2)}원" if m else None
 
 
 def row_to_dict(row):
