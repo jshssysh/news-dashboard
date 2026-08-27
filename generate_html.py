@@ -34,6 +34,7 @@ OUT_DIR = "docs"
 OUT_PATH = os.path.join(OUT_DIR, "index.html")
 NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
 BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
+MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
 TEMPLATE_PATH = "html_template.html"
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -154,6 +155,55 @@ def row_to_dict(row):
     }
 
 
+def load_members(bills):
+    """member_list.csv(22대 현역)를 읽어서 의원 검색 화면용 목록을 만든다.
+
+    대표발의 건수는 여기서 미리 세어 붙인다. 화면에서 세려면 법안 목록(bills.json)이
+    있어야 하는데 그건 입법 탭을 볼 때만 받으므로, 의원 탭만 열어도 건수가 보이게
+    한다. 세는 기준은 카드에 적히는 이름과 같은 '대표발의자'다."""
+    path = "member_list.csv"
+    if not os.path.exists(path):
+        return []
+    try:
+        mdf = pd.read_csv(path)
+    except Exception:
+        return []
+
+    bill_counts = {}
+    for bill in bills:
+        rep = (bill.get("repProposer") or "").strip()
+        if rep:
+            bill_counts[rep] = bill_counts.get(rep, 0) + 1
+
+    records = []
+    for _, row in mdf.iterrows():
+        name = nz(row.get("이름"), "")
+        records.append({
+            "name": name,
+            "hanja": nz(row.get("한자명"), ""),
+            "party": nz(row.get("정당"), ""),
+            "prevParty": nz(row.get("이전정당"), ""),
+            "term": nz(row.get("선수"), ""),
+            "district": nz(row.get("지역구"), ""),
+            "districtType": nz(row.get("선거구구분"), ""),
+            "committees": nz(row.get("소속위원회"), ""),
+            "gender": nz(row.get("성별"), ""),
+            "birth": nz(row.get("생년월일"), ""),
+            "tel": nz(row.get("전화"), ""),
+            "email": nz(row.get("이메일"), ""),
+            "homepage": nz(row.get("홈페이지"), ""),
+            "office": nz(row.get("사무실"), ""),
+            "aide": nz(row.get("보좌관"), ""),
+            "chiefSecretary": nz(row.get("비서관"), ""),
+            "secretary": nz(row.get("비서"), ""),
+            "history": nz(row.get("약력"), ""),
+            "photo": nz(row.get("사진"), ""),
+            "billCount": bill_counts.get(name, 0),
+        })
+    # 값이 빈 칸은 키까지 빼서 가볍게 만든다(화면은 전부 truthy 검사로 쓴다)
+    return [{k: v for k, v in r.items() if v not in (None, "")} for r in records]
+
+
 def slim_bills(bills):
     """법안은 14,000건이 넘어 전체 용량의 대부분을 차지하므로 담을 것만 담는다.
 
@@ -224,6 +274,7 @@ def build():
     news_rows = [row_to_dict(r) for _, r in df.iterrows()] if not df.empty else []
     personnel = load_personnel()
     bills = slim_bills(load_bills())
+    members = load_members(bills)
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
@@ -242,12 +293,14 @@ def build():
         f.write(html)
     news_bytes = dump_json(NEWS_JSON_PATH, news_rows)
     bills_bytes = dump_json(BILLS_JSON_PATH, bills)
+    members_bytes = dump_json(MEMBERS_JSON_PATH, members)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
-        f"  {OUT_PATH:<18} {html_kb:8.0f}KB (인사 {len(personnel)}명)\n"
-        f"  {NEWS_JSON_PATH:<18} {news_bytes/1024:8.0f}KB (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건)\n"
-        f"  {BILLS_JSON_PATH:<18} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)"
+        f"  {OUT_PATH:<20} {html_kb:8.0f}KB (인사 {len(personnel)}명)\n"
+        f"  {NEWS_JSON_PATH:<20} {news_bytes/1024:8.0f}KB (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건)\n"
+        f"  {BILLS_JSON_PATH:<20} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)\n"
+        f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)"
     )
 
 

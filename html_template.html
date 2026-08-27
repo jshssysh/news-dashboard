@@ -286,6 +286,36 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .org-dept-title { font-size: 0.96em; font-weight: 700; margin: 18px 0 10px; letter-spacing: -0.1px; }
 .org-person-row { margin-bottom: 7px; font-size: 0.9em; }
 .info-box { background: var(--app-secondary-bg); border: 1px solid var(--app-border); border-radius: 8px; padding: 16px; font-size: 0.9em; line-height: 1.5; }
+/* ── 국회의원 검색 ── */
+.member-card { display: flex; gap: 14px; align-items: flex-start; }
+.member-photo { width: 62px; height: 78px; flex-shrink: 0; border-radius: 8px; object-fit: cover; background: var(--app-secondary-bg); border: 1px solid var(--app-border); }
+.member-photo-blank { display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; opacity: 0.35; }
+.member-body { flex: 1 1 auto; min-width: 0; }
+.member-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; margin-bottom: 4px; }
+.member-name { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; }
+.member-hanja { font-size: 0.78em; opacity: 0.45; }
+.member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
+.member-cmit-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+.member-cmit-chip { border: 1px solid var(--app-border); background: var(--app-secondary-bg); border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
+.member-cmit-chip:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.member-contact { font-size: 0.78em; opacity: 0.7; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.member-contact a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.member-contact a:hover { color: var(--app-primary); }
+.dot-sep { opacity: 0.35; }
+.member-staff { font-size: 0.75em; opacity: 0.5; margin-top: 5px; word-break: keep-all; overflow-wrap: anywhere; }
+.member-bill-btn { margin-left: auto; flex-shrink: 0; border: 1px solid var(--app-primary); color: var(--app-primary); background: transparent; border-radius: 7px; padding: 3px 10px; font-size: 0.76em; font-weight: 700; }
+.member-bill-btn:hover { background: var(--app-primary); color: #fff; }
+.member-bill-none { margin-left: auto; flex-shrink: 0; font-size: 0.74em; opacity: 0.35; }
+.member-history { margin-top: 8px; font-size: 0.78em; }
+.member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
+.member-history summary:hover { opacity: 0.9; }
+.member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; }
+.proposer-pill { background: var(--app-primary); color: #fff; border: none; border-radius: 20px; padding: 2px 10px; font-size: 0.92em; font-weight: 700; margin-right: 4px; }
+.proposer-pill:hover { filter: brightness(1.1); }
+/* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
+#memberPartyChipRow, #memberCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
+#memberPartyChipRow button, #memberCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
+
 .generated-note { font-size: 0.72em; opacity: 0.45; text-align: center; margin-top: 36px; }
 .view { display: none; }
 .view.active { display: block; }
@@ -408,6 +438,14 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .stage-flow-header .flow-plain { padding: 5px 5px; font-size: 0.68em; }
   .stage-flow-header .bill-step-arrow { font-size: 0.55em; padding: 0; }
   .stage-flow-compact .flow-cnt { display: none; }
+
+  /* ── 국회의원 카드 ── */
+  .member-card { gap: 10px; }
+  .member-photo { width: 48px; height: 60px; }
+  /* 좁은 화면에서 "대표발의 N건"까지 이름 줄에 밀어 넣으면 이름이 눌리므로 아래로 내린다 */
+  .member-bill-btn, .member-bill-none { margin-left: 0; }
+  .member-head { gap: 5px; }
+  .member-contact { font-size: 0.74em; }
 }
 </style>
 </head>
@@ -543,7 +581,37 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
   <div id="view-org" class="view">
     <hr class="thin">
-    <div class="info-box">아직 준비중입니다.</div>
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>국회의원 <span class="era-tag">제22대</span></h5>
+        <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당에서 검색">
+      </div>
+      <div class="filter-section" id="partyFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="partyFilterSection">정당 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="partyCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="memberPartyChipRow"></div>
+      </div>
+      <div class="filter-section" id="memberCommitteeFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="memberCommitteeFilterSection">소속 위원회 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="memberCommitteeCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="memberCommitteeChipRow"></div>
+      </div>
+      <hr class="thin">
+      <div class="bill-result-row">
+        <div class="result-caption" id="memberResultCaption"></div>
+        <div class="pg-top"><select id="memberSortSel">
+          <option value="bills">발의순</option>
+          <option value="name">이름순</option>
+          <option value="term">선수순</option>
+        </select></div>
+      </div>
+      <hr class="thin">
+    </div>
+    <div id="memberListArea"></div>
   </div>
 
   <div id="view-empty" class="view">
@@ -560,6 +628,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 // 그래서 처음엔 비어 있고, 아래 맨 끝 부트스트랩에서 채운다.
 let NEWS_DATA = [];
 let BILL_DATA = [];
+let MEMBER_DATA = [];
 let allDates = [];
 const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
 // 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
@@ -587,8 +656,14 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
+const TAB_VALUES = ['뉴스', '입법', '국회의원'];
 function getSavedTab() {
-  try { return localStorage.getItem(ACTIVE_TAB_KEY) || '뉴스'; } catch(e) { return '뉴스'; }
+  // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
+  // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+    return TAB_VALUES.includes(saved) ? saved : '뉴스';
+  } catch(e) { return '뉴스'; }
 }
 function saveActiveTab(tab) {
   try { localStorage.setItem(ACTIVE_TAB_KEY, tab); } catch(e) {}
@@ -635,6 +710,11 @@ const state = {
   billSearch: '',
   billPage: 1,
   billPageSize: getSavedPageSize('bill'),
+  billProposer: '',   // 의원 탭에서 "대표발의 N건"을 눌러 들어왔을 때만 채워진다
+  memberParty: '전체',
+  memberCommittee: '전체',
+  memberSearch: '',
+  memberSort: 'bills',
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -748,7 +828,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['조직','공정위 조직']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
   ).join('');
@@ -757,32 +837,151 @@ function renderTabsAndDate() {
   });
 }
 
-// 조직 탭은 현재 "준비중"으로 막아둬서 이 함수는 호출되지 않는다. 다시 켤 때를 위해
-// 남겨두되, 대상 DOM(#orgContent)도 같이 지워진 상태라 그대로 호출하면 죽는다.
-// 마크업을 되살리기 전까지는 조용히 빠져나가게 가드를 둔다.
-function renderOrg() {
-  const el = document.getElementById('orgContent');
-  if (!el) return;
-  if (!PERSONNEL_DATA.length) { el.innerHTML = "<div class='info-box'>아직 등록된 인사 이력이 없습니다.</div>"; return; }
-  const groups = {};
-  PERSONNEL_DATA.forEach(p => {
-    const key = p.dept + '|||' + p.role;
-    (groups[key] = groups[key] || {dept:p.dept, role:p.role, people:[]}).people.push(p);
+// ── 국회의원 검색 (제22대 현역) ────────────────────────────────────────────
+const TERM_ORDER = ["초선", "재선", "3선", "4선", "5선", "6선", "7선", "8선", "9선"];
+function termRank(t) {
+  const i = TERM_ORDER.indexOf(t || "");
+  return i === -1 ? -1 : i;
+}
+// 위원회는 "정무위원회, 예산결산특별위원회"처럼 쉼표로 여러 개가 들어있다.
+function memberCommittees(m) {
+  return (m.committees || "").split(",").map(s => s.trim()).filter(Boolean);
+}
+
+function filteredMembers() {
+  let list = MEMBER_DATA.slice();
+  if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
+  if (state.memberCommittee !== '전체') list = list.filter(m => memberCommittees(m).includes(state.memberCommittee));
+  if (state.memberSearch) {
+    const q = state.memberSearch.toLowerCase();
+    list = list.filter(m => [m.name, m.hanja, m.party, m.district, m.committees, m.term]
+      .some(v => (v || '').toLowerCase().includes(q)));
+  }
+  if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
+  else list.sort((a, b) => ((b.billCount || 0) - (a.billCount || 0)) || a.name.localeCompare(b.name, 'ko'));
+  return list;
+}
+
+function renderMemberChipRows() {
+  // 칩 건수는 "다른 필터를 적용한 뒤" 기준으로 세야 눌렀을 때 0건이 되는 일이 없다.
+  const byParty = state.memberCommittee === '전체'
+    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommittees(m).includes(state.memberCommittee));
+  const byCommittee = state.memberParty === '전체'
+    ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty);
+
+  const partyCounts = {};
+  byParty.forEach(m => { const p = m.party || '무소속'; partyCounts[p] = (partyCounts[p] || 0) + 1; });
+  const committeeCounts = {};
+  byCommittee.forEach(m => memberCommittees(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
+
+  const chipRow = (el, counts, total, selected, attr) => {
+    const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}">전체 ${total}</button>`]
+      .concat(names.map(n => `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}">${committeeAbbr(n) || n} ${counts[n]}</button>`))
+      .join('');
+  };
+  chipRow(document.getElementById('memberPartyChipRow'), partyCounts, byParty.length, state.memberParty, 'party');
+  chipRow(document.getElementById('memberCommitteeChipRow'), committeeCounts, byCommittee.length, state.memberCommittee, 'committee');
+
+  document.getElementById('partyCurrentTag').textContent =
+    state.memberParty === '전체' ? '' : `${state.memberParty} ${partyCounts[state.memberParty] || 0}`;
+  document.getElementById('memberCommitteeCurrentTag').textContent =
+    state.memberCommittee === '전체' ? '' : `${committeeAbbr(state.memberCommittee) || state.memberCommittee} ${committeeCounts[state.memberCommittee] || 0}`;
+
+  document.getElementById('memberPartyChipRow').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { state.memberParty = b.dataset.party; renderMembers(); });
   });
-  let html = "";
-  Object.values(groups).forEach(g => {
-    g.people.sort((a,b) => (b.start||"").localeCompare(a.start||""));
-    html += `<div class="org-dept-title">${g.dept} · ${g.role}</div>`;
-    g.people.forEach(p => {
-      const isCurrent = !p.end;
-      const badge = isCurrent ? "<span class='badge-positive'>현재</span> " : "";
-      const unverifiedBadge = p.verified === false
-        ? ` <a href="${p.source||'#'}" target="_blank" class="badge-skipped" title="뉴스 기사에서 자동 감지된 인사입니다. 확인 후 personnel.csv의 확인상태를 '확인됨'으로 바꿔주세요.">미확인(자동감지)</a>`
-        : "";
-      html += `<div class="org-person-row">${badge}<b>${p.name}</b> · ${p.start||'?'} ~ ${isCurrent?'현재':p.end}${unverifiedBadge}</div>`;
+  document.getElementById('memberCommitteeChipRow').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; renderMembers(); });
+  });
+}
+
+function memberCardHtml(m) {
+  const partyText = m.prevParty && m.prevParty !== m.party
+    ? `${m.party || '무소속'}(前 ${m.prevParty})` : (m.party || '무소속');
+  const meta = [partyText, m.term, m.district].filter(Boolean).join(' · ');
+  const committees = memberCommittees(m)
+    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
+    .join('');
+  const contact = [
+    // API가 주는 값이 이미 "의원회관 515호" 형태라 앞뒤로 덧붙이면 안 된다
+    m.office ? `<span>${m.office}</span>` : '',
+    m.tel ? `<a href="tel:${m.tel}">${m.tel}</a>` : '',
+    m.email ? `<a href="mailto:${m.email}">${m.email}</a>` : '',
+    m.homepage ? `<a href="${m.homepage}" target="_blank" rel="noopener">홈페이지</a>` : '',
+  ].filter(Boolean).join('<span class="dot-sep">·</span>');
+  const staff = [
+    m.aide ? `보좌관 ${m.aide}` : '',
+    m.chiefSecretary ? `비서관 ${m.chiefSecretary}` : '',
+    m.secretary ? `비서 ${m.secretary}` : '',
+  ].filter(Boolean).join(' / ');
+  // 사진은 국회 서버에서 받아오는데, 없거나 막히면 이름 첫 글자로 대체한다.
+  const photo = m.photo
+    ? `<img class="member-photo" src="${m.photo}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'member-photo member-photo-blank',textContent:'${(m.name || '?').slice(0, 1)}'}))">`
+    : `<div class="member-photo member-photo-blank">${(m.name || '?').slice(0, 1)}</div>`;
+  const billBtn = m.billCount
+    ? `<button class="member-bill-btn" data-name="${m.name}" title="${m.name} 의원이 대표발의한 계류 법안 보기">대표발의 ${m.billCount}건 ›</button>`
+    : `<span class="member-bill-none">대표발의 계류 법안 없음</span>`;
+  const history = m.history
+    ? `<details class="member-history"><summary>약력</summary><div>${m.history.replace(/\r?\n/g, '<br>')}</div></details>`
+    : '';
+  return `<div class="article-card member-card">
+    ${photo}
+    <div class="member-body">
+      <div class="member-head">
+        <span class="member-name">${m.name}</span>
+        ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
+        ${billBtn}
+      </div>
+      <div class="member-meta">${meta}</div>
+      ${committees ? `<div class="member-cmit-row">${committees}</div>` : ''}
+      ${contact ? `<div class="member-contact">${contact}</div>` : ''}
+      ${staff ? `<div class="member-staff">${staff}</div>` : ''}
+      ${history}
+    </div>
+  </div>`;
+}
+
+function renderMembers() {
+  const listEl = document.getElementById('memberListArea');
+  if (!MEMBER_DATA.length) {
+    document.getElementById('memberResultCaption').textContent = '';
+    listEl.innerHTML = "<div class='info-box'>의원 명단을 아직 받지 못했습니다.</div>";
+    return;
+  }
+  renderMemberChipRows();
+  const list = filteredMembers();
+  document.getElementById('memberResultCaption').textContent = `전체 ${list.length}명 표시`;
+  document.getElementById('memberSortSel').value = state.memberSort;
+  listEl.innerHTML = list.length
+    ? list.map(memberCardHtml).join('')
+    : "<div class='info-box'>조건에 맞는 의원이 없습니다.</div>";
+
+  // 카드 안 위원회 칩으로도 필터가 걸리게
+  listEl.querySelectorAll('.member-cmit-chip').forEach(b => {
+    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; renderMembers(); window.scrollTo(0, 0); });
+  });
+  // "대표발의 N건"을 누르면 입법 탭으로 넘어가 그 의원 법안만 걸어준다
+  listEl.querySelectorAll('.member-bill-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      state.activeTab = '입법';
+      saveActiveTab(state.activeTab);
+      // 검색창에 이름을 넣으면 요약문에 이름이 스친 법안까지 걸려서 카드의 건수와
+      // 어긋난다(강경숙: 카드 74건 vs 검색 75건). 대표발의자로 정확히 거른다.
+      state.billProposer = b.dataset.name;
+      state.billSearch = '';
+      state.billCommittee = '전체';
+      state.billStage = '전체';
+      state.billResult = '전체';
+      state.billStarredOnly = false;
+      state.billPage = 1;
+      const input = document.getElementById('billSearchInput');
+      if (input) input.value = '';
+      renderAll();
+      window.scrollTo(0, 0);
     });
   });
-  el.innerHTML = html;
 }
 
 function scopedRows() {
@@ -1210,6 +1409,7 @@ function renderBillList() {
   if (state.billStage !== '전체') filtered = filtered.filter(b => b.stage === state.billStage);
   if (RESULT_STAGES.includes(state.billStage) && state.billResult !== '전체') filtered = filtered.filter(b => b.result === state.billResult);
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
+  if (state.billProposer) filtered = filtered.filter(b => b.repProposer === state.billProposer);
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
     filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q));
@@ -1223,8 +1423,19 @@ function renderBillList() {
   const startN = (state.billPage - 1) * state.billPageSize;
   const pageBills = filtered.slice(startN, startN + state.billPageSize);
 
-  document.getElementById('billResultCaption').textContent = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
+  const captionText = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
     `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.billPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  const captionEl = document.getElementById('billResultCaption');
+  // 의원 탭에서 넘어와 대표발의자로 걸려 있으면, 왜 걸렸는지 보이게 하고 바로 풀 수 있게 한다
+  captionEl.innerHTML = state.billProposer
+    ? `<button class="proposer-pill" id="billProposerPill" title="이 조건 해제">${state.billProposer} 대표발의 ✕</button> ${captionText}`
+    : captionText;
+  const pill = document.getElementById('billProposerPill');
+  if (pill) pill.addEventListener('click', () => {
+    state.billProposer = '';
+    state.billPage = 1;
+    renderBillList();
+  });
   document.getElementById('billPageSizeSel').value = String(state.billPageSize);
 
   const listEl = document.getElementById('billListArea');
@@ -1285,8 +1496,19 @@ function renderAll() {
 
   ['view-news','view-law','view-org','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '공정위 조직') {
+  if (state.activeTab === '국회의원') {
     document.getElementById('view-org').classList.add('active');
+    if (membersLoaded) {
+      renderMembers();
+    } else {
+      document.getElementById('memberListArea').innerHTML =
+        "<div class='info-box'>의원 명단을 불러오는 중…</div>";
+      ensureMembers().then(() => { if (state.activeTab === '국회의원') renderAll(); })
+        .catch(() => {
+          document.getElementById('memberListArea').innerHTML =
+            "<div class='info-box'>의원 명단을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
   } else if (state.activeTab === '입법') {
     document.getElementById('view-law').classList.add('active');
     if (billsLoaded) {
@@ -1321,6 +1543,8 @@ document.getElementById('sortSelect').addEventListener('change', e => { state.so
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBillList(); });
+document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; renderMembers(); });
+document.getElementById('memberSortSel').addEventListener('change', e => { state.memberSort = e.target.value; renderMembers(); });
 document.getElementById('billStarredToggle').addEventListener('click', () => {
   state.billStarredOnly = !state.billStarredOnly;
   state.billPage = 1;
@@ -1334,6 +1558,13 @@ document.querySelectorAll('.filter-section-toggle').forEach(btn => {
     document.getElementById(btn.dataset.target).classList.toggle('collapsed');
   });
 });
+// 의원 탭 필터는 정당 8개 + 위원회 17개라 좁은 화면에서 펼쳐두면 목록이 한참 밀린다.
+// 접어두고 시작하되, 무엇을 골랐는지는 제목 옆 표시로 계속 보인다.
+if (IS_NARROW) {
+  ['partyFilterSection', 'memberCommitteeFilterSection'].forEach(id => {
+    document.getElementById(id).classList.add('collapsed');
+  });
+}
 document.getElementById('billPageSizeSel').addEventListener('change', e => {
   state.billPageSize = parseInt(e.target.value, 10);
   savePageSize('bill', state.billPageSize);
@@ -1413,6 +1644,18 @@ function ensureBills() {
   return billsPromise;
 }
 
+let membersLoaded = false;
+let membersPromise = null;
+function ensureMembers() {
+  if (membersLoaded) return Promise.resolve();
+  if (!membersPromise) {
+    membersPromise = loadJson('members.json')
+      .then(rows => { MEMBER_DATA = rows; membersLoaded = true; })
+      .catch(err => { membersPromise = null; throw err; });
+  }
+  return membersPromise;
+}
+
 function showLoadError(message) {
   document.getElementById('view-empty').classList.add('active');
   document.getElementById('view-empty').innerHTML =
@@ -1428,7 +1671,10 @@ loadJson('news.json').then(rows => {
   // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
   // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
   const whenIdle = window.requestIdleCallback || (fn => setTimeout(fn, 2000));
-  whenIdle(() => { ensureBills().catch(() => {}); });
+  whenIdle(() => {
+    ensureMembers().catch(() => {});   // 의원 명단은 작아서 먼저
+    ensureBills().catch(() => {});
+  });
 }).catch(err => {
   console.error(err);
   showLoadError('뉴스 데이터를 불러오지 못했습니다 (' + err.message + '). 새로고침 해주세요.');

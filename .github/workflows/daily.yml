@@ -92,7 +92,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add news_list.csv bill_list.csv docs/index.html docs/news.json docs/bills.json
+          git add news_list.csv bill_list.csv member_list.csv docs/index.html docs/news.json docs/bills.json docs/members.json
           if ! git diff --quiet || ! git diff --staged --quiet; then
             git commit -m "Update news data"
             # 이 스크립트가 실행되는 동안 다른 커밋(예: 코드 수정)이 먼저 푸시되어

@@ -38,6 +38,11 @@ KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
 BILL_LIST_PATH = "bill_list.csv"
+MEMBER_LIST_PATH = "member_list.csv"
+
+# 인적사항 API는 역대 의원 3,300명을 모두 주는데, 이 대시보드는 22대 계류법안만
+# 다루므로 현역만 남긴다. 당선 대수 칸(GTELT_ERACO)이 "제21대, 제22대" 형태다.
+CURRENT_ERA = "제22대"
 
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
@@ -187,8 +192,12 @@ def party_abbr(name):
 def fetch_member_info():
     """국회의원 인적사항 API에서 이름 -> {정당, 이전정당, 지역구, 선수} 사전을 만든다.
     한 사람당 한 행에 그동안 거쳐온 소속정당이 '/'로 이어져 있어서(예: "더불어민주당/조국혁신당"),
-    마지막 조각을 현재 정당으로, 그 바로 앞 조각을 이전 정당으로 쓴다."""
+    마지막 조각을 현재 정당으로, 그 바로 앞 조각을 이전 정당으로 쓴다.
+
+    (사전, 22대 현역 원본행 목록)을 돌려준다. 원본행은 의원 검색 화면(member_list.csv)에
+    쓰는데, 같은 API를 두 번 훑지 않으려고 여기서 같이 걷어 온다."""
     info = {}
+    current_rows = []
     p_index = 1
     while p_index <= 50:  # 안전장치: 전체 역대 의원 약 3300명 수준이면 충분
         params = {"Type": "json", "pIndex": p_index, "pSize": 100}
@@ -212,6 +221,8 @@ def fetch_member_info():
                     "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
                     "term": row.get("RLCT_DIV_NM") or "",
                 }
+                if CURRENT_ERA in (row.get("GTELT_ERACO") or ""):
+                    current_rows.append(row)
             if len(rows) < 100:
                 break
             p_index += 1
@@ -219,7 +230,52 @@ def fetch_member_info():
         except Exception as e:
             print(f"[국회의원 인적사항 조회 예외] {p_index}페이지: {e}")
             break
-    return info
+    return info, current_rows
+
+
+def save_members(rows):
+    """22대 현역 의원을 member_list.csv 로 저장한다 (의원 검색 화면용).
+
+    정당/선거구/위원회 칸은 거쳐온 이력이 '/'로 이어져 있어서 마지막 조각이 현재값이다.
+    위원회는 한 사람이 여러 곳에 속하므로 쉼표로 이어진 문자열을 그대로 둔다."""
+    if not rows:
+        print("[의원 명단] 22대 현역을 못 찾아 member_list.csv를 건드리지 않습니다.")
+        return
+
+    def last(value):
+        return (value or "").split("/")[-1].strip()
+
+    members = []
+    for row in rows:
+        parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
+        members.append({
+            "의원코드": row.get("NAAS_CD", ""),
+            "이름": row.get("NAAS_NM", ""),
+            "한자명": row.get("NAAS_CH_NM", "") or "",
+            # 법안 카드의 제안자 문구도 약칭("민주당")을 쓰므로 여기서도 맞춘다.
+            # 정식명 그대로 두면 같은 정당이 화면마다 다르게 보인다.
+            "정당": party_abbr(parties[-1]) if parties else "",
+            "이전정당": party_abbr(parties[-2]) if len(parties) >= 2 else "",
+            "선수": row.get("RLCT_DIV_NM", "") or "",
+            "당선대수": row.get("GTELT_ERACO", "") or "",
+            "지역구": last(row.get("ELECD_NM")) or "비례대표",
+            "선거구구분": last(row.get("ELECD_DIV_NM")) or "",
+            "소속위원회": last(row.get("CMIT_NM")) or "",
+            "성별": row.get("NTR_DIV", "") or "",
+            "생년월일": row.get("BIRDY_DT", "") or "",
+            "전화": row.get("NAAS_TEL_NO", "") or "",
+            "이메일": row.get("NAAS_EMAIL_ADDR", "") or "",
+            "홈페이지": row.get("NAAS_HP_URL", "") or "",
+            "사무실": row.get("OFFM_RNUM_NO", "") or "",
+            "보좌관": row.get("AIDE_NM", "") or "",
+            "비서관": row.get("CHF_SCRT_NM", "") or "",
+            "비서": row.get("SCRT_NM", "") or "",
+            "약력": row.get("BRF_HST", "") or "",
+            "사진": row.get("NAAS_PIC", "") or "",
+        })
+    members.sort(key=lambda m: m["이름"])
+    pd.DataFrame(members).to_csv(MEMBER_LIST_PATH, index=False, encoding="utf-8-sig")
+    print(f"[의원 명단 저장] {CURRENT_ERA} 현역 {len(members)}명 -> {MEMBER_LIST_PATH}")
 
 
 def format_proposer(raw_proposer, rep_name, member_info):
@@ -398,8 +454,9 @@ def main():
     rows = fetch_all_pending_bills()
     print(f"[계류의안 전체조회 완료] 총 {len(rows)}건")
 
-    member_info = fetch_member_info()
-    print(f"[국회의원 인적사항 조회 완료] {len(member_info)}명")
+    member_info, current_members = fetch_member_info()
+    print(f"[국회의원 인적사항 조회 완료] 역대 {len(member_info)}명 / {CURRENT_ERA} 현역 {len(current_members)}명")
+    save_members(current_members)
 
     seen = {}
     for row in rows:
