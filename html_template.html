@@ -126,6 +126,19 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .news-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin-bottom: 12px; }
 .news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1.02em; font-weight: 700; letter-spacing: -0.1px; white-space: nowrap; }
+/* 셀렉트 묶음은 데스크톱에선 없는 셈 치고 부모 flex에 그대로 참여시킨다(기존 한 줄 배치 유지).
+   모바일에서만 실제 flex 컨테이너가 되어 셀렉트 3개가 한 줄로 묶인다. */
+.filter-selects { display: contents; }
+/* 접기 UI는 모바일 전용 - 데스크톱에서는 캐럿/현재선택/접기줄을 모두 숨긴다 */
+.stat-toggle-row { display: none; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 8px 12px; border: 1px solid var(--app-border); border-radius: 10px;
+  background: var(--app-secondary-bg); font-size: 0.82em; font-weight: 700; color: var(--app-text); }
+.news-filter-row h5 .toggle-caret,
+.news-filter-row h5 .current-tag { display: none; }
+@media (max-width: 800px) {
+  .news-filter-row h5 .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  .news-filter-row h5 .current-tag { display: inline; }
+}
 .era-tag { font-size: 0.68em; font-weight: 600; opacity: 0.55; margin-left: 4px; }
 .bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; }
 .news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
@@ -302,13 +315,30 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .bill-title-line, .signal-item-head, .signal-item-body {
     word-break: keep-all; overflow-wrap: anywhere;
   }
+
+  /* ── 통계 타일 접기 ── */
+  .stat-toggle-row { display: flex; }        /* 데스크톱에선 none (아래 기본 규칙) */
+  #topStatRow.stats-collapsed .tile-collect,
+  #topStatRow.stats-collapsed .tile-law { display: none; }
+
+  /* ── 카테고리별 주요뉴스 접기 + 세로 배치 ── */
+  .news-filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .news-filter-row h5 { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .filter-selects { display: flex; gap: 8px; }
+  .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
+  .news-filter-row input[type=text] { width: 100%; }
+  #newsFilterSticky.news-collapsed .filter-selects,
+  #newsFilterSticky.news-collapsed #searchInput,
+  #newsFilterSticky.news-collapsed #catChipRow { display: none; }
+  #newsFilterSticky.news-collapsed .news-filter-row { gap: 0; margin-bottom: 8px; }
+  #newsFilterSticky.news-collapsed .toggle-caret { transform: rotate(-90deg); }
 }
 </style>
 </head>
 <body>
 <div class="block-container">
 
-  <div class="top-stat-row">
+  <div class="top-stat-row" id="topStatRow">
     <div class="tile-db">
       <div class="db-tile">
         <div class="db-left"><div class="app-header"><span class="app-title">Daily<br>Brief</span></div></div>
@@ -322,6 +352,10 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
         </div>
       </div>
     </div>
+    <!-- 모바일에서만 보이는 접기 줄. 접으면 아래 두 타일이 숨고 요약만 한 줄로 남는다. -->
+    <button class="stat-toggle-row" id="statToggleBtn">
+      <span id="statSummaryText"></span><span class="toggle-caret">▼</span>
+    </button>
     <div class="tile-collect"><div class="stat-card" id="statCollect"></div></div>
     <div class="tile-law"><div class="stat-card" id="statLaw"></div></div>
   </div>
@@ -340,24 +374,29 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 
     <div class="bill-filter-sticky" id="newsFilterSticky">
       <div class="news-filter-row">
-        <h5>카테고리별 주요뉴스</h5>
-        <select id="periodSelect">
-          <option value="0">오늘만</option>
-          <option value="6">최근 7일</option>
-          <option value="29">최근 30일</option>
-        </select>
-        <select id="sortSelect">
-          <option value="importance">중요도순</option>
-          <option value="press">보도량순</option>
-          <option value="latest">최신순</option>
-        </select>
-        <select id="sentimentSelect" class="sel-sentiment">
-          <option value="">논조 전체</option>
-          <option value="긍정">긍정</option>
-          <option value="중립">중립</option>
-          <option value="부정">부정</option>
-          <option value="판단 실패">판단 실패</option>
-        </select>
+        <!-- 모바일에서 이 제목이 접기 버튼이 된다(데스크톱에서는 그냥 제목) -->
+        <h5 id="newsFilterToggle">카테고리별 주요뉴스<span class="toggle-caret">▼</span><span class="current-tag" id="newsCurrentTag"></span></h5>
+        <!-- 데스크톱에서는 display:contents 로 부모 flex에 그대로 참여해 기존 한 줄 배치를
+             유지하고, 모바일에서만 셀렉트 3개가 한 줄로 묶인다. -->
+        <div class="filter-selects">
+          <select id="periodSelect">
+            <option value="0">오늘만</option>
+            <option value="6">최근 7일</option>
+            <option value="29">최근 30일</option>
+          </select>
+          <select id="sortSelect">
+            <option value="importance">중요도순</option>
+            <option value="press">보도량순</option>
+            <option value="latest">최신순</option>
+          </select>
+          <select id="sentimentSelect" class="sel-sentiment">
+            <option value="">논조 전체</option>
+            <option value="긍정">긍정</option>
+            <option value="중립">중립</option>
+            <option value="부정">부정</option>
+            <option value="판단 실패">판단 실패</option>
+          </select>
+        </div>
         <input type="text" id="searchInput" placeholder="제목, 요약에서 검색">
       </div>
 
@@ -603,6 +642,10 @@ function renderTopTiles() {
        </div>
      </div>`;
 
+  // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약
+  document.getElementById('statSummaryText').textContent =
+    `수집 ${groups.length}건 · 입법 ${BILL_DATA.length}건 (발의 ${draftCount})`;
+
   return { dr, groups, sentCounts };
 }
 
@@ -682,11 +725,20 @@ function renderNewsView(dr, allGroups) {
     const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
     return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
   }).join('');
+  // 모바일에서 접었을 때도 지금 무슨 카테고리를 보고 있는지 제목 옆에 남긴다
+  // ("전체"면 굳이 표시하지 않음).
+  const updateNewsCurrentTag = () => {
+    const c = state.selectedCategory;
+    document.getElementById('newsCurrentTag').textContent =
+      c === '전체' ? '' : `${c} ${catCounts[c] || 0}`;
+  };
+  updateNewsCurrentTag();
   chipRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => {
       state.selectedCategory = btn.dataset.cat;
       state.page = 1;
       chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
+      updateNewsCurrentTag();
       renderMainList(scoped, allGroups);
     });
   });
@@ -1175,6 +1227,25 @@ document.getElementById('pageSizeSel').addEventListener('change', e => {
   savePageSize('news', state.pageSize);
   state.page = 1;
   renderAll();
+});
+
+// 모바일 전용 접기 두 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
+const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed';
+function readFlag(key) { try { return localStorage.getItem(key) === '1'; } catch(e) { return false; } }
+function writeFlag(key, on) { try { localStorage.setItem(key, on ? '1' : '0'); } catch(e) {} }
+
+const topStatRow = document.getElementById('topStatRow');
+topStatRow.classList.toggle('stats-collapsed', readFlag(STAT_COLLAPSE_KEY));
+document.getElementById('statToggleBtn').addEventListener('click', () => {
+  const on = topStatRow.classList.toggle('stats-collapsed');
+  writeFlag(STAT_COLLAPSE_KEY, on);
+});
+
+const newsFilterSticky = document.getElementById('newsFilterSticky');
+newsFilterSticky.classList.toggle('news-collapsed', readFlag(NEWS_COLLAPSE_KEY));
+document.getElementById('newsFilterToggle').addEventListener('click', () => {
+  const on = newsFilterSticky.classList.toggle('news-collapsed');
+  writeFlag(NEWS_COLLAPSE_KEY, on);
 });
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
