@@ -1,9 +1,11 @@
 """
-news_list.csv + config/personnel.csv 를 읽어서 app.py(Streamlit)와 동일한 화면 구성을 갖는
-정적 HTML 한 장(docs/index.html)을 생성한다.
+news_list.csv + bill_list.csv + config/personnel.csv 를 읽어서 정적 HTML 한 장
+(docs/index.html)을 생성한다. 화면 골격은 html_template.html에 있고, 여기서는
+데이터만 JSON으로 끼워 넣는다.
 
-Streamlit이 필요 없는 이유는 딱 하나 - 이 파일은 GitHub Actions(서버) 안에서만 돌고,
-브라우저에서는 순수 HTML/CSS/JS로만 동작한다. 그래서 이 PC의 업로드 차단과 전혀 무관하다.
+이 파일은 GitHub Actions(서버) 안에서만 돌고 브라우저에서는 순수 HTML/CSS/JS로만
+동작하므로, 별도 서버나 런타임이 필요 없다(예전에는 Streamlit 앱을 같이 운영했지만
+같은 화면을 두 벌 유지하는 부담 때문에 정적 대시보드로 일원화했다).
 """
 import json
 import os
