@@ -302,6 +302,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .member-cmit-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
 .member-cmit-chip { border: 1px solid var(--app-border); background: var(--app-secondary-bg); border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
 .member-cmit-chip:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.member-speaker-badge { display: inline-block; border: 1px solid #d4a72c; background: rgba(212,167,44,0.14); color: #d4a72c; border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
 .member-contact { font-size: 0.78em; opacity: 0.7; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .member-contact a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
 .member-contact a:hover { color: var(--app-primary); }
@@ -872,6 +873,16 @@ function memberCommittees(m) {
   return (m.committees || "").split(",").map(s => s.trim()).filter(Boolean);
 }
 
+// 국회의장·부의장은 정치적 중립을 지키려고 관례상 상임위에 소속되지 않아
+// API의 위원회 칸이 비어 있다(예: 조정식 - 현직 국회의장). 위원회가 없는
+// 카드만 보면 왜 없는지 알 수 없으므로, 약력에서 찾아 그 자리에 표시한다.
+function memberSpeakerRole(m) {
+  if (!m.history) return '';
+  if (/現\s*국회의장/.test(m.history)) return '국회의장';
+  if (/現\s*국회부의장/.test(m.history)) return '국회부의장';
+  return '';
+}
+
 function filteredMembers() {
   let list = MEMBER_DATA.slice();
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
@@ -933,6 +944,7 @@ function memberCardHtml(m) {
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
     .join('');
+  const speakerRole = memberSpeakerRole(m);
   // 전화만 바로 보여주고, 방 호실·이메일·홈페이지는 웬만해선 안 쓰니 접어 둔다.
   const telHtml = m.tel ? `<a href="tel:${m.tel}">${m.tel}</a>` : '';
   const moreContact = [
@@ -968,7 +980,8 @@ function memberCardHtml(m) {
         ${billBtn}
       </div>
       <div class="member-meta">${meta}</div>
-      ${committees ? `<div class="member-cmit-row">${committees}</div>` : ''}
+      ${committees ? `<div class="member-cmit-row">${committees}</div>`
+        : speakerRole ? `<div class="member-cmit-row"><span class="member-speaker-badge">${speakerRole} · 상임위 소속 없음</span></div>` : ''}
       ${telHtml ? `<div class="member-contact">${telHtml}</div>` : ''}
       ${moreContact ? `<details class="member-more"><summary>연락처 더보기</summary><div class="member-more-body">${moreContact}</div></details>` : ''}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
