@@ -309,7 +309,10 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
    것임을 색으로도 구분한다. 대표발의 건수 바로 밑, 사진 옆 좁은 칸에
    두므로 가로로 나열하지 않고 한 줄씩 쌓는다. */
 .member-pass-summary { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; }
-.pass-item { font-size: 0.76em; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+/* 대표발의 버튼처럼 눌러서 입법 탭의 그 결과만 보러 갈 수 있다 - 버튼 기본
+   테두리/배경은 지우고 색은 각 결과별 클래스(.pass-ok 등)가 정한다. */
+.pass-item { font: inherit; font-size: 0.76em; font-weight: 700; padding: 2px 7px; border-radius: 5px; border: none; cursor: pointer; }
+.pass-item:hover { filter: brightness(1.2); }
 .pass-item.pass-ok { background: rgba(67,160,71,0.15); color: #43a047; }
 .pass-item.pass-merged { background: rgba(138,180,248,0.15); color: #8ab4f8; }
 .pass-item.pass-reject { background: rgba(224,83,83,0.15); color: #e05353; }
@@ -317,6 +320,9 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 /* 이름 옆에 붙는 소속 위원회 배지 - 줄(row)이 아니라 헤드 줄의 한 조각이라
    inline-flex 로 둔다(단독 줄로 쓰던 이전 레이아웃의 흔적으로 이름이 남았다) */
 .member-cmit-row { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+/* 위원회가 없는 이유(의장단/직 변경/의원직 상실/위원회 없음)는 이름 옆
+   보다 메타 줄 바로 밑에 있는 게 눈에 더 잘 띄어서 따로 한 줄로 둔다. */
+.member-cmit-row-standalone { display: flex; margin-bottom: 7px; }
 .member-cmit-chip { border: 1px solid var(--app-border); background: var(--app-secondary-bg); border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
 .member-cmit-chip:hover { border-color: var(--app-primary); color: var(--app-primary); }
 /* 위원회가 없을 때 그 자리에 오는 배지 3종 - 이유별로 색을 다르게 준다 */
@@ -678,7 +684,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-28 12:56 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-28 13:13 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -770,6 +776,7 @@ const state = {
   billPage: 1,
   billPageSize: getSavedPageSize('bill'),
   billProposer: '',   // 의원 탭에서 "대표발의 N건"을 눌러 들어왔을 때만 채워진다
+  billOutcomeBucket: '', // 의원 탭에서 "가결"/"대안반영" 등을 눌러 들어왔을 때만 채워진다
   memberParty: '전체',
   memberCommittee: '전체',
   memberSearch: '',
@@ -1076,10 +1083,11 @@ function memberCardHtml(m) {
   // 원래 법안은 형식상 폐기되는 것 - 이걸 그냥 "폐기"로 뭉치면 실질적으로
   // 성사된 걸 실패로 보이게 만든다. 그래서 "대안반영"을 따로 뗀다.
   const PASS_BUCKET_CLASS = { '가결': 'pass-ok', '대안반영': 'pass-merged', '부결': 'pass-reject', '폐기': 'pass-drop' };
+  // 대표발의 버튼처럼 눌러서 입법 탭의 그 결과만 걸러 보게 한다.
   const passSummary = m.passResults
     ? Object.entries(m.passResults)
         .sort((a, b) => Object.keys(PASS_BUCKET_CLASS).indexOf(a[0]) - Object.keys(PASS_BUCKET_CLASS).indexOf(b[0]))
-        .map(([bucket, cnt]) => `<span class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}">${bucket} ${cnt}</span>`).join('')
+        .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${cnt}</button>`).join('')
     : '';
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
@@ -1137,10 +1145,10 @@ function memberCardHtml(m) {
       <div class="member-head">
         ${nameHtml}
         ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
-        ${committees ? `<span class="member-cmit-row">${committees}</span>`
-          : `<span class="member-cmit-row"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.detail ? special.detail + ' — ' : ''}${special.bucket} 카테고리로 보기">${special.badge}</button></span>`}
+        ${committees ? `<span class="member-cmit-row">${committees}</span>` : ''}
       </div>
       <div class="member-meta">${meta}</div>
+      ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.detail ? special.detail + ' — ' : ''}${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
       ${history}
@@ -1168,24 +1176,31 @@ function renderMembers() {
     b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; renderMembers(); window.scrollTo(0, 0); });
   });
   // "대표발의 N건"을 누르면 입법 탭으로 넘어가 그 의원 법안만 걸어준다
+  // "대표발의 N", "가결 2"/"대안반영 5" 둘 다 같은 방식으로 입법 탭으로
+  // 넘어가 그 의원 법안만 걸러 보여준다 - 뒤엣것은 처리결과까지 같이 건다.
+  const goToBills = (name, outcomeBucket) => {
+    state.activeTab = '입법';
+    saveActiveTab(state.activeTab);
+    // 검색창에 이름을 넣으면 요약문에 이름이 스친 법안까지 걸려서 카드의 건수와
+    // 어긋난다(강경숙: 카드 74건 vs 검색 75건). 대표발의자로 정확히 거른다.
+    state.billProposer = name;
+    state.billOutcomeBucket = outcomeBucket || '';
+    state.billSearch = '';
+    state.billCommittee = '전체';
+    state.billStage = '전체';
+    state.billResult = '전체';
+    state.billStarredOnly = false;
+    state.billPage = 1;
+    const input = document.getElementById('billSearchInput');
+    if (input) input.value = '';
+    renderAll();
+    window.scrollTo(0, 0);
+  };
   listEl.querySelectorAll('.member-bill-btn').forEach(b => {
-    b.addEventListener('click', () => {
-      state.activeTab = '입법';
-      saveActiveTab(state.activeTab);
-      // 검색창에 이름을 넣으면 요약문에 이름이 스친 법안까지 걸려서 카드의 건수와
-      // 어긋난다(강경숙: 카드 74건 vs 검색 75건). 대표발의자로 정확히 거른다.
-      state.billProposer = b.dataset.name;
-      state.billSearch = '';
-      state.billCommittee = '전체';
-      state.billStage = '전체';
-      state.billResult = '전체';
-      state.billStarredOnly = false;
-      state.billPage = 1;
-      const input = document.getElementById('billSearchInput');
-      if (input) input.value = '';
-      renderAll();
-      window.scrollTo(0, 0);
-    });
+    b.addEventListener('click', () => goToBills(b.dataset.name));
+  });
+  listEl.querySelectorAll('.pass-item').forEach(b => {
+    b.addEventListener('click', () => goToBills(b.dataset.name, b.dataset.bucket));
   });
 }
 
@@ -1490,6 +1505,18 @@ function resultRank(v) {
   return idx === -1 ? RESULT_ORDER.length : idx;
 }
 
+// 의원 카드의 "가결"/"대안반영" 요약과 같은 기준(generate_html.py의
+// bill_outcome_bucket과 동일한 규칙) - 세부 결과를 4갈래로 묶어서, 카드에서
+// 누른 요약과 여기서 걸리는 법안이 정확히 같은 기준이 되게 한다.
+function billOutcomeBucket(result) {
+  if (!result || result === '심사중') return null;
+  if (result.includes('부결')) return '부결';
+  if (result.includes('대안반영')) return '대안반영';
+  if (result.includes('가결')) return '가결';
+  if (result.includes('철회') || result.includes('폐기')) return '폐기';
+  return null;
+}
+
 function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect, allBtnId, currentTagId) {
   displayFn = displayFn || (v => v);
   const source = filterFn ? BILL_DATA.filter(filterFn) : BILL_DATA;
@@ -1543,6 +1570,7 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
 function billMatchesGlobalFilters(b, starred) {
   if (state.billStarredOnly && !starred.has(b.id)) return false;
   if (state.billProposer && b.repProposer !== state.billProposer) return false;
+  if (state.billOutcomeBucket && billOutcomeBucket(b.result) !== state.billOutcomeBucket) return false;
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
     if (!((b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q))) return false;
@@ -1649,6 +1677,7 @@ function renderBillList() {
   if (RESULT_STAGES.includes(state.billStage) && state.billResult !== '전체') filtered = filtered.filter(b => b.result === state.billResult);
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
   if (state.billProposer) filtered = filtered.filter(b => b.repProposer === state.billProposer);
+  if (state.billOutcomeBucket) filtered = filtered.filter(b => billOutcomeBucket(b.result) === state.billOutcomeBucket);
   if (state.billSearch) {
     const q = state.billSearch.toLowerCase();
     filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q));
@@ -1665,15 +1694,21 @@ function renderBillList() {
   const captionText = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
     `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.billPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
   const captionEl = document.getElementById('billResultCaption');
-  // 의원 탭에서 넘어와 대표발의자로 걸려 있으면, 왜 걸렸는지 보이게 하고 바로 풀 수 있게 한다
-  captionEl.innerHTML = state.billProposer
-    ? `<button class="proposer-pill" id="billProposerPill" title="이 조건 해제">${state.billProposer} 대표발의 ✕</button> ${captionText}`
+  // 의원 탭에서 넘어와 대표발의자/처리결과로 걸려 있으면, 왜 걸렸는지 보이게
+  // 하고 바로 풀 수 있게 한다. 대표발의자 없이 처리결과만 거는 경우는 없어서
+  // (의원 카드에서만 눌러 들어오므로) 하나의 알약에 같이 담는다.
+  const proposerPillText = state.billProposer
+    ? state.billOutcomeBucket ? `${state.billProposer} · ${state.billOutcomeBucket}` : `${state.billProposer} 대표발의`
+    : '';
+  captionEl.innerHTML = proposerPillText
+    ? `<button class="proposer-pill" id="billProposerPill" title="이 조건 해제">${proposerPillText} ✕</button> ${captionText}`
     : captionText;
   const pill = document.getElementById('billProposerPill');
   if (pill) pill.addEventListener('click', () => {
     state.billProposer = '';
+    state.billOutcomeBucket = '';
     state.billPage = 1;
-    renderBills(); // 위원회/처리단계 칩 건수도 대표발의자 조건 해제에 맞춰 다시 계산
+    renderBills(); // 위원회/처리단계 칩 건수도 조건 해제에 맞춰 다시 계산
   });
   document.getElementById('billPageSizeSel').value = String(state.billPageSize);
 
