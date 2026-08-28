@@ -286,8 +286,12 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .org-dept-title { font-size: 0.96em; font-weight: 700; margin: 18px 0 10px; letter-spacing: -0.1px; }
 .org-person-row { margin-bottom: 7px; font-size: 0.9em; }
 .info-box { background: var(--app-secondary-bg); border: 1px solid var(--app-border); border-radius: 8px; padding: 16px; font-size: 0.9em; line-height: 1.5; }
-/* ── 국회의원 검색 ── */
-.member-card { display: flex; gap: 14px; align-items: flex-start; }
+/* ── 국회의원 검색 ──
+   법안/뉴스 카드와 달리 내용이 짧아서, 전체 폭(1100px) 한 줄로 쭉 늘어놓으면
+   오른쪽이 텅 비어 보인다. 카드 하나가 필요한 만큼만 차지하도록 그리드로 깐다. */
+#memberListArea { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: start; }
+#memberListArea > .info-box { grid-column: 1 / -1; }
+.member-card { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 0; height: 100%; }
 .member-photo { width: 62px; height: 78px; flex-shrink: 0; border-radius: 8px; object-fit: cover; background: var(--app-secondary-bg); border: 1px solid var(--app-border); }
 .member-photo-blank { display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; opacity: 0.35; }
 .member-body { flex: 1 1 auto; min-width: 0; }
@@ -440,6 +444,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .stage-flow-compact .flow-cnt { display: none; }
 
   /* ── 국회의원 카드 ── */
+  #memberListArea { grid-template-columns: 1fr; }
   .member-card { gap: 10px; }
   .member-photo { width: 48px; height: 60px; }
   /* 좁은 화면에서 "대표발의 N건"까지 이름 줄에 밀어 넣으면 이름이 눌리므로 아래로 내린다 */
@@ -1189,7 +1194,15 @@ const COMMITTEE_ABBR = {
 function committeeAbbr(name) {
   if (!name) return name;
   if (COMMITTEE_ABBR[name]) return COMMITTEE_ABBR[name];
-  return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+  // 국정조사/인사청문 특별위원회는 사건마다 이름이 다른데 그 사건 설명이 통째로
+  // 앞에 붙는다(의원 소속 위원회 데이터에서 실제로 40자 넘는 이름이 나왔다).
+  // 어떤 사건이 올지 미리 다 나열할 수 없으니 위원회 성격만 남긴다.
+  if (name.endsWith("국정조사특별위원회")) return "국정조사특위";
+  if (name.endsWith("인사청문특별위원회")) return "인사청문특위";
+  const abbr = name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+  // 위 규칙으로도 못 줄인 긴 이름이 남으면(또 다른 형태의 특별위 등) 칩이
+  // 안 깨지게 자른다 - 전체 이름은 title 속성으로 여전히 볼 수 있다.
+  return abbr.length > 12 ? abbr.slice(0, 10) + "…" : abbr;
 }
 
 // 정무위/법사위/산자위/기후에너지환경노동위/재경위를 앞에 고정하고, 그 뒤는
