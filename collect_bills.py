@@ -53,16 +53,22 @@ CURRENT_ERA = "제22대"
 # 2026-06-03 제9회 전국동시지방선거에서 당선돼 의원직을 사퇴한 사람들 -
 # 당선자 명단(위키백과)과 news_list.csv 실제 보도(또는 취임 보도 검색)로
 # 하나하나 대조해서 확인함. 앞으로 비슷한 경우가 생기면 이름만 추가하면 된다.
-RESIGNED_MEMBERS = {
-    "추미애": "경기도지사 취임 (국회의원-지자체장 겸직 금지)",
-    "민형배": "전남광주통합특별시 초대 시장 취임",
-    "전재수": "부산광역시장 취임",
-    "추경호": "대구광역시장 취임",
-    "박찬대": "인천광역시장 취임",
-    "김상욱": "울산광역시장 취임",
-    "박수현": "충청남도지사 취임",
-    "이원택": "전북특별자치도지사 취임",
-    "위성곤": "제주특별자치도지사 취임",
+# 지자체장 등으로 옮겨서(국회의원과 겸직 금지) 사실상 의정활동을 안 하는
+# 사람들 - API에는 여전히 22대 현역으로 남아 있으므로(위 주석 참고), 명단에서
+# 빼는 대신 "現 OOO" 처럼 지금 맡은 자리를 알 수 있게 표시만 한다.
+# 값은 카드에 그대로 "現 {값}"으로 찍히는 짧은 직함이다.
+MEMBER_ROLE_CHANGES = {
+    "추미애": "경기도지사",
+    "민형배": "전남광주통합특별시장",
+    "전재수": "부산광역시장",
+    "추경호": "대구광역시장",
+    "박찬대": "인천광역시장",
+    "김상욱": "울산광역시장",
+    "박수현": "충청남도지사",
+    "이원택": "전북특별자치도지사",
+    "위성곤": "제주특별자치도지사",
+    # 2025-06 취임. 대통령도 국회의원과 겸직 금지 대상이라 같은 문제가 생긴다.
+    "이재명": "대통령",
 }
 
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
@@ -270,11 +276,9 @@ def fetch_member_info():
     if info and not current_rows:
         print(f"[국회의원 인적사항 조회 - 22대 0명] GTELT_ERACO 값 예시: {era_samples}")
 
-    resigned = [row for row in current_rows if row.get("NAAS_NM") in RESIGNED_MEMBERS]
-    if resigned:
-        current_rows = [row for row in current_rows if row.get("NAAS_NM") not in RESIGNED_MEMBERS]
-        names = ", ".join(f"{r.get('NAAS_NM')}({RESIGNED_MEMBERS[r.get('NAAS_NM')]})" for r in resigned)
-        print(f"[의원 명단] 의원직 사퇴로 검색 목록에서 제외: {names}")
+    changed = [row.get("NAAS_NM") for row in current_rows if row.get("NAAS_NM") in MEMBER_ROLE_CHANGES]
+    if changed:
+        print(f"[의원 명단] 지자체장 등으로 옮긴 의원(명단엔 유지, 現 직함만 표시): {', '.join(changed)}")
     return info, current_rows
 
 
@@ -282,6 +286,7 @@ MEMBER_COLUMNS = [
     "의원코드", "이름", "한자명", "정당", "이전정당", "선수", "당선대수",
     "지역구", "선거구구분", "소속위원회", "성별", "생년월일", "전화", "이메일",
     "홈페이지", "사무실", "보좌관", "비서관", "비서", "약력", "사진",
+    "영문명", "현직변경",
 ]
 
 
@@ -332,6 +337,11 @@ def save_members(rows):
             "비서": row.get("SCRT_NM", "") or "",
             "약력": row.get("BRF_HST", "") or "",
             "사진": row.get("NAAS_PIC", "") or "",
+            # 의원 홈페이지 프로필 주소는 영문명에서 공백만 뺀 문자열이다
+            # (실제로 확인함: "KANG KYUNGSOOK" -> .../22nd/KANGKYUNGSOOK).
+            # 영문명이 없는 사람은 이 칸도 비어서 화면에서 링크를 안 만든다.
+            "영문명": (row.get("NAAS_EN_NM") or "").replace(" ", ""),
+            "현직변경": MEMBER_ROLE_CHANGES.get(row.get("NAAS_NM", ""), ""),
         })
     members.sort(key=lambda m: m["이름"])
     pd.DataFrame(members).to_csv(MEMBER_LIST_PATH, index=False, encoding="utf-8-sig")

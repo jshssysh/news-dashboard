@@ -178,6 +178,9 @@ def load_members(bills):
     records = []
     for _, row in mdf.iterrows():
         name = nz(row.get("이름"), "")
+        en_name = nz(row.get("영문명"), "")
+        # 의원 홈페이지 프로필 주소. 영문명이 없으면 링크를 못 만드므로 빈 채로 둔다.
+        profile_url = f"https://www.assembly.go.kr/members/22nd/{en_name}" if en_name else ""
         records.append({
             "name": name,
             "hanja": nz(row.get("한자명"), ""),
@@ -199,6 +202,10 @@ def load_members(bills):
             "history": nz(row.get("약력"), ""),
             "photo": nz(row.get("사진"), ""),
             "billCount": bill_counts.get(name, 0),
+            "profileUrl": profile_url,
+            # 지자체장·대통령 등으로 옮겨서 사실상 의정활동을 안 하는 사람의 지금 직함
+            # (예: "경기도지사"). collect_bills.py의 MEMBER_ROLE_CHANGES 참고.
+            "roleChange": nz(row.get("현직변경"), ""),
         })
     # 값이 빈 칸은 키까지 빼서 가볍게 만든다(화면은 전부 truthy 검사로 쓴다)
     return [{k: v for k, v in r.items() if v not in (None, "")} for r in records]
