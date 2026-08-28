@@ -1143,6 +1143,17 @@ function renderMembers() {
   });
 }
 
+// 카테고리(기간 범위 안에서 각 칩이 다르게 세야 하는 값)만 빼고, 나머지
+// 필터(논조·검색어)는 목록과 카테고리 칩 건수 양쪽에 똑같이 적용해야 한다.
+function newsMatchesGlobalFilters(r) {
+  if (state.sentiment && r.sentiment !== state.sentiment) return false;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    if (!((r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q))) return false;
+  }
+  return true;
+}
+
 function scopedRows() {
   if (state.period === 0) return dailyRows();
   const idx = allDates.indexOf(state.currentDate);
@@ -1166,7 +1177,11 @@ function renderNewsView(dr, allGroups) {
   const scoped = scopedRows();
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
   // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
-  const scopedGroups = buildIssueGroups(scoped).filter(g => g.mainPress !== '미상');
+  // 검색어·논조 필터도 목록과 똑같이 걸어야 한다(검색창에 "쿠팡"을 치면
+  // 칩도 그 89건 기준으로 줄어야지, 카테고리 선택 자체는 칩마다 다르게
+  // 세야 하는 값이라 여기엔 안 넣는다).
+  const countsBase = scoped.filter(newsMatchesGlobalFilters);
+  const scopedGroups = buildIssueGroups(countsBase).filter(g => g.mainPress !== '미상');
   const catCounts = {};
   scopedGroups.forEach(g => { catCounts[g.category] = (catCounts[g.category]||0) + 1; });
   const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => newsCategoryRank(a) - newsCategoryRank(b)));
@@ -1260,11 +1275,7 @@ function updateSidebarTag() {
 function renderMainList(scoped, allGroups) {
   updateSidebarTag();
   let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
-  if (state.sentiment) filtered = filtered.filter(r => r.sentiment === state.sentiment);
-  if (state.search) {
-    const q = state.search.toLowerCase();
-    filtered = filtered.filter(r => (r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q));
-  }
+  filtered = filtered.filter(newsMatchesGlobalFilters);
   let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
   if (state.sort === 'latest') {
     groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
