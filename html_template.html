@@ -364,6 +364,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .proposer-pill:hover { filter: brightness(1.1); }
 /* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
 #memberPartyChipRow, #memberCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
+/* 위원회 없음/직 변경/의원직 상실 그룹을 특별위원회 그룹과 살짝 띄워
+   "실제 위원회는 아니다"가 시각적으로도 보이게 한다 */
+#memberCommitteeChipRow button.chip-gap-before { margin-left: 14px; }
 #memberPartyChipRow button, #memberCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
 /* 정당 칩만 --party-color(JS가 심어준 값)로 물들인다. 안 고른 칩은 옅게
    물든 배경 + 그 색 글자, 고른 칩은 그 정당 색으로 꽉 채운다(빨간 기본
@@ -947,8 +950,15 @@ function memberCommitteesForFilter(m) {
   return list.length ? list : [memberSpecialCategory(m).bucket];
 }
 
+// 지자체장 등으로 옮겼거나(직 변경) 확정판결로 의원직을 잃은(의원직 상실)
+// 사람은 이제 실제로 의정활동을 하는 현역이 아니다. 그런데도 "전체"에
+// 그대로 다 세면(320명) 실제 재적 인원(300명)보다 부풀려 보인다 - 그래서
+// "전체"에는 안 세되, 두 카테고리를 직접 골랐을 때만 그 사람들이 보이게 한다.
+function isActiveMember(m) { return !m.roleChange && !m.seatLost; }
+function isDepartedCategory(v) { return v === ROLE_CHANGE_CATEGORY || v === SEAT_LOST_CATEGORY; }
+
 function filteredMembers() {
-  let list = MEMBER_DATA.slice();
+  let list = isDepartedCategory(state.memberCommittee) ? MEMBER_DATA.slice() : MEMBER_DATA.filter(isActiveMember);
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
   if (state.memberCommittee !== '전체') list = list.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   if (state.memberSearch) {
@@ -985,23 +995,39 @@ function partyColor(name) { return PARTY_COLOR[name] || '#8a8a8a'; }
 
 function renderMemberChipRows() {
   // 칩 건수는 "다른 필터를 적용한 뒤" 기준으로 세야 눌렀을 때 0건이 되는 일이 없다.
+  // 다만 위원회가 "전체"일 땐 활성 의원만 센다(그래야 정당 칩 합도 "전체"
+  // 인원수와 맞는다) - 직 변경/의원직 상실 카테고리를 직접 골랐을 땐 원래
+  // 그 사람들을 보려는 거니 전체 데이터에서 그대로 거른다.
   const byParty = state.memberCommittee === '전체'
-    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
+    ? MEMBER_DATA.filter(isActiveMember)
+    : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
+  // 위원회 칩 자체의 건수(committeeCounts)는 "직 변경 17"처럼 이탈 인원도
+  // 정확히 세야 하므로 활성 여부와 무관하게 전체에서 정당만 걸러 센다.
   const byCommittee = state.memberParty === '전체'
     ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty);
+  // "위원회 전체" 버튼에 찍을 숫자만 따로 - 그 버튼을 누르면 활성 의원만
+  // 보이므로, 버튼 숫자도 활성 의원 수와 같아야 한다.
+  const committeeAllTotal = byCommittee.filter(isActiveMember).length;
 
   const partyCounts = {};
   byParty.forEach(m => { const p = m.party || '무소속'; partyCounts[p] = (partyCounts[p] || 0) + 1; });
   const committeeCounts = {};
   byCommittee.forEach(m => memberCommitteesForFilter(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
 
-  // 실제 위원회가 아닌 가짜 카테고리 셋은 건수와 상관없이 맨 끝에 - 법안 쪽
-  // "배정 안됨"과 같은 관례.
-  const SPECIAL_CATEGORIES = new Set([SPEAKER_CATEGORY, ROLE_CHANGE_CATEGORY, SEAT_LOST_CATEGORY, NO_COMMITTEE]);
+  // 소속위원회 칩 순서: 의장단(0) -> 일반 상임위(1) -> 특별위원회(2) ->
+  // [한 칸 띄우고] 위원회 없음/직 변경/의원직 상실(3). 정당 칩은 전부 tier 1로
+  // 떨어져 기존처럼 건수순 그대로다.
+  const NO_REAL_COMMITTEE = new Set([ROLE_CHANGE_CATEGORY, SEAT_LOST_CATEGORY, NO_COMMITTEE]);
+  const committeeTier = (n) => {
+    if (n === SPEAKER_CATEGORY) return 0;
+    if (NO_REAL_COMMITTEE.has(n)) return 3;
+    if (/특별위|특위/.test(n)) return 2;
+    return 1;
+  };
   const chipRow = (el, counts, total, selected, attr, colorFn, showPercent) => {
     const names = Object.keys(counts).sort((a, b) => {
-      const aSpecial = SPECIAL_CATEGORIES.has(a), bSpecial = SPECIAL_CATEGORIES.has(b);
-      if (aSpecial !== bSpecial) return aSpecial ? 1 : -1;
+      const ta = committeeTier(a), tb = committeeTier(b);
+      if (ta !== tb) return ta - tb;
       return counts[b] - counts[a];
     });
     const style = (n) => colorFn ? ` style="--party-color:${colorFn(n)}"` : '';
@@ -1012,12 +1038,20 @@ function renderMemberChipRows() {
     // 비율도 같이 보여준다 - 위원회를 바꾸면 total도 같이 바뀌어 자동으로
     // 그 위원회 안에서의 비율이 된다.
     const pctHtml = (n) => showPercent && total > 0 ? `, ${Math.round(counts[n] / total * 100)}%` : '';
+    let prevTier = null;
+    const items = names.map(n => {
+      const tier = committeeTier(n);
+      // 특별위원회 다음, "위원회 없음" 계열 시작 지점에서만 한 칸 더 띄운다.
+      const gapCls = (tier === 3 && prevTier !== null && prevTier < 3) ? ' chip-gap-before' : '';
+      prevTier = tier;
+      return `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}${gapCls}"${style(n)}>${committeeAbbr(n) || n} ${counts[n]}${pctHtml(n)}</button>`;
+    });
     el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}"${allStyle}>전체 ${total}</button>`]
-      .concat(names.map(n => `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}"${style(n)}>${committeeAbbr(n) || n} ${counts[n]}${pctHtml(n)}</button>`))
+      .concat(items)
       .join('');
   };
   chipRow(document.getElementById('memberPartyChipRow'), partyCounts, byParty.length, state.memberParty, 'party', partyColor, true);
-  chipRow(document.getElementById('memberCommitteeChipRow'), committeeCounts, byCommittee.length, state.memberCommittee, 'committee');
+  chipRow(document.getElementById('memberCommitteeChipRow'), committeeCounts, committeeAllTotal, state.memberCommittee, 'committee');
 
   document.getElementById('partyCurrentTag').textContent =
     state.memberParty === '전체' ? '' : `${state.memberParty} ${partyCounts[state.memberParty] || 0}`;
