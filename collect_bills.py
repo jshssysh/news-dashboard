@@ -26,6 +26,7 @@ import json
 import os
 import re
 import time
+import traceback
 import requests
 import yaml
 import pandas as pd
@@ -198,15 +199,24 @@ def fetch_member_info():
     쓰는데, 같은 API를 두 번 훑지 않으려고 여기서 같이 걷어 온다."""
     info = {}
     current_rows = []
+    era_samples = []  # 22대를 하나도 못 찾았을 때, GTELT_ERACO가 기대와 다른 형태인지 보려고 남긴다
     p_index = 1
     while p_index <= 50:  # 안전장치: 전체 역대 의원 약 3300명 수준이면 충분
         params = {"Type": "json", "pIndex": p_index, "pSize": 100}
         if ASSEMBLY_API_KEY:
             params["KEY"] = ASSEMBLY_API_KEY
         try:
-            res = get_assembly_api_with_retry(f"{BASE_URL}/{MEMBER_INFO_API}", params)
+            # 각 행에 약력(BRF_HST) 같은 긴 텍스트가 붙어 있어 계류의안 API보다
+            # 페이지당 응답이 무겁다. 15초로는 첫 페이지부터 타임아웃이 나서
+            # 전체가 빈 채로 끝난 적이 있어(2026-08-28) 넉넉히 준다.
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{MEMBER_INFO_API}", params, timeout=40)
+            if res.status_code != 200:
+                print(f"[국회의원 인적사항 조회 실패] {p_index}페이지: status={res.status_code} body={res.text[:300]}")
+                break
             rows = _extract_rows(res.json(), MEMBER_INFO_API)
             if not rows:
+                if p_index == 1:
+                    print(f"[국회의원 인적사항 조회 - 결과 없음] status={res.status_code} body={res.text[:300]}")
                 break
             for row in rows:
                 name = row.get("NAAS_NM")
@@ -221,15 +231,24 @@ def fetch_member_info():
                     "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
                     "term": row.get("RLCT_DIV_NM") or "",
                 }
-                if CURRENT_ERA in (row.get("GTELT_ERACO") or ""):
+                era = row.get("GTELT_ERACO") or ""
+                if CURRENT_ERA in era:
                     current_rows.append(row)
+                elif len(era_samples) < 5:
+                    era_samples.append(era)
             if len(rows) < 100:
                 break
             p_index += 1
             time.sleep(0.1)
-        except Exception as e:
-            print(f"[국회의원 인적사항 조회 예외] {p_index}페이지: {e}")
+        except Exception:
+            # 예전엔 여기서 str(e)만 남겨서(예: "'NoneType' object has no attribute
+            # 'get'") 실제로 어디가 문제였는지 다음 실행에서 원인을 못 짚었다.
+            # traceback을 그대로 남겨서 다음 실패 때는 바로 보이게 한다.
+            print(f"[국회의원 인적사항 조회 예외] {p_index}페이지:\n{traceback.format_exc()}")
             break
+    print(f"[국회의원 인적사항 조회] {p_index}페이지까지 훑음, 역대 {len(info)}명 / {CURRENT_ERA} 현역 {len(current_rows)}명")
+    if info and not current_rows:
+        print(f"[국회의원 인적사항 조회 - 22대 0명] GTELT_ERACO 값 예시: {era_samples}")
     return info, current_rows
 
 
