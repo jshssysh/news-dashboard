@@ -45,6 +45,16 @@ MEMBER_LIST_PATH = "member_list.csv"
 # 다루므로 현역만 남긴다. 당선 대수 칸(GTELT_ERACO)이 "제21대, 제22대" 형태다.
 CURRENT_ERA = "제22대"
 
+# ALLNAMEMBER는 인적사항 "이력"만 주고 지금 실제로 의석을 지키고 있는지는
+# 안 알려준다 - 궐원/사퇴 여부를 알려주는 API를 찾지 못했다. 그래서 지자체장
+# 당선 등으로 국회의원과 겸직 금지가 걸려 의원직을 내려놓은 사람도 API에는
+# 한동안(계속) "22대 현역"으로 남는다(확인: 추미애 - 2026년 경기도지사
+# 취임 이후에도 API에 22대 의원으로 계속 잡힘). 확인되는 대로 여기 적어서
+# 의원 검색 목록에서만 뺀다(대표발의 이력 등 과거 기록은 그대로 둔다).
+RESIGNED_MEMBERS = {
+    "추미애": "경기도지사 취임으로 의원직 사퇴 (국회의원-지자체장 겸직 금지)",
+}
+
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
 MEMBER_INFO_API = "ALLNAMEMBER"  # 국회의원 인적사항 (정당/선수/지역구)
@@ -249,6 +259,12 @@ def fetch_member_info():
     print(f"[국회의원 인적사항 조회] {p_index}페이지까지 훑음, 역대 {len(info)}명 / {CURRENT_ERA} 현역 {len(current_rows)}명")
     if info and not current_rows:
         print(f"[국회의원 인적사항 조회 - 22대 0명] GTELT_ERACO 값 예시: {era_samples}")
+
+    resigned = [row for row in current_rows if row.get("NAAS_NM") in RESIGNED_MEMBERS]
+    if resigned:
+        current_rows = [row for row in current_rows if row.get("NAAS_NM") not in RESIGNED_MEMBERS]
+        names = ", ".join(f"{r.get('NAAS_NM')}({RESIGNED_MEMBERS[r.get('NAAS_NM')]})" for r in resigned)
+        print(f"[의원 명단] 의원직 사퇴로 검색 목록에서 제외: {names}")
     return info, current_rows
 
 

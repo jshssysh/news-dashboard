@@ -589,7 +589,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="bill-filter-sticky">
       <div class="news-filter-row">
         <h5>국회의원 <span class="era-tag">제22대</span></h5>
-        <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당에서 검색">
+        <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">
       </div>
       <div class="filter-section" id="partyFilterSection">
         <div class="filter-section-header">
@@ -858,9 +858,14 @@ function filteredMembers() {
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
   if (state.memberCommittee !== '전체') list = list.filter(m => memberCommittees(m).includes(state.memberCommittee));
   if (state.memberSearch) {
+    // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
+    // 예: "강영석"(보좌관 이름)을 검색하면 그 보좌관이 속한 의원이 나오고,
+    // "746호"를 검색하면 그 방을 쓰는 의원이 나온다.
     const q = state.memberSearch.toLowerCase();
-    list = list.filter(m => [m.name, m.hanja, m.party, m.district, m.committees, m.term]
-      .some(v => (v || '').toLowerCase().includes(q)));
+    list = list.filter(m => [
+      m.name, m.hanja, m.party, m.prevParty, m.district, m.committees, m.term,
+      m.office, m.tel, m.email, m.aide, m.chiefSecretary, m.secretary,
+    ].some(v => (v || '').toLowerCase().includes(q)));
   }
   if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
