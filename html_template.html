@@ -186,6 +186,9 @@ a.badge-skipped:hover { text-decoration: underline; }
   flex-shrink: 0; white-space: nowrap; padding: 5px 10px; border-radius: 8px;
   border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-weight: 700; font-size: 0.78em;
 }
+/* 처리상태 칸(입안/상임위/법사위/본회의)은 이름+건수를 별개 span으로 둬서,
+   좁은 화면에서 건수를 숨기지 않고 이름 아래 줄로 내려 보이게 할 수 있다 */
+.stage-flow-compact .flow-plain { display: inline-flex; align-items: center; gap: 4px; }
 .flow-plain:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
 .flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; margin-top: 10px; }
@@ -495,15 +498,16 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .kw-row-total .sentiment-track { height: 16px; }
 
   /* ── 처리상태 흐름을 좁은 화면에서도 한 줄로 ──
-     칸 5개 + 화살표 4개를 폭 안에 넣으려면 단계별 건수까지는 못 들어간다.
-     '전체'의 건수만 남기고 단계는 이름만 보인다(고른 단계의 건수는 바로 아래
-     "전체 N건 중 ..." 줄에 어차피 다시 나온다). */
+     칸 5개 + 화살표 4개를 폭 안에 넣으려면 이름 옆에 건수를 나란히 못 둔다.
+     숨기는 대신 이름 아래 줄에 작게 내려서 칸 너비는 그대로, 세로로만 살짝
+     늘려 건수가 계속 보이게 한다. */
   .filter-section { padding: 10px 10px; }
   .stage-flow-compact { flex-wrap: nowrap; gap: 2px; }
   .stage-flow-header { gap: 2px; }
-  .stage-flow-header .flow-plain { padding: 5px 5px; font-size: 0.68em; }
+  .stage-flow-header .flow-plain { padding: 4px 5px; font-size: 0.68em; }
   .stage-flow-header .bill-step-arrow { font-size: 0.55em; padding: 0; }
-  .stage-flow-compact .flow-cnt { display: none; }
+  .stage-flow-compact .flow-plain { flex-direction: column; gap: 0; line-height: 1.3; }
+  .stage-flow-compact .flow-cnt { font-size: 0.86em; }
 
   /* ── 국회의원 카드 ── */
   #memberListArea { grid-template-columns: 1fr; }
@@ -1607,13 +1611,13 @@ function renderStageFlowRow() {
   const RESULT_STAGE_SET = RESULT_STAGES;
   const allBtn = document.getElementById('billStageAllBtn');
 
-  // 라벨은 짧게(입안/상임위/법사위/본회의) 두고 건수는 따로 감싼다.
-  // 좁은 화면에서는 고른 칸의 건수만 남겨서 흐름이 한 줄로 유지되게 한다(CSS).
+  // 라벨은 짧게(입안/상임위/법사위/본회의) 두고 건수는 따로 감싼다 - 둘 다
+  // 별도 span이라 좁은 화면에서도 숨기지 않고 이름 아래 줄로 내릴 수 있다(CSS).
   const stageChip = (stage, label) => {
     const cnt = stageCounts[stage];
     const isActive = state.billStage === stage;
-    const cntHtml = cnt !== undefined ? ` <span class="flow-cnt">${cnt}</span>` : '';
-    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}" title="${stage}">${label}${cntHtml}</button>`;
+    const cntHtml = cnt !== undefined ? `<span class="flow-cnt">${cnt}</span>` : '';
+    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}" title="${stage}"><span class="flow-label">${label}</span>${cntHtml}</button>`;
   };
 
   const compactHtml = [
