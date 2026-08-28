@@ -233,13 +233,28 @@ def fetch_member_info():
     return info, current_rows
 
 
+MEMBER_COLUMNS = [
+    "의원코드", "이름", "한자명", "정당", "이전정당", "선수", "당선대수",
+    "지역구", "선거구구분", "소속위원회", "성별", "생년월일", "전화", "이메일",
+    "홈페이지", "사무실", "보좌관", "비서관", "비서", "약력", "사진",
+]
+
+
 def save_members(rows):
     """22대 현역 의원을 member_list.csv 로 저장한다 (의원 검색 화면용).
 
     정당/선거구/위원회 칸은 거쳐온 이력이 '/'로 이어져 있어서 마지막 조각이 현재값이다.
     위원회는 한 사람이 여러 곳에 속하므로 쉼표로 이어진 문자열을 그대로 둔다."""
     if not rows:
-        print("[의원 명단] 22대 현역을 못 찾아 member_list.csv를 건드리지 않습니다.")
+        # API가 그 순간 잠깐 안 붙어서 못 받은 것뿐일 수 있으므로, 이미 어제 받아둔
+        # 파일이 있으면 빈 값으로 덮어써서 명단을 날리지 않는다. 파일이 아예
+        # 없을 때만(맨 처음 실행) 헤더만 있는 빈 CSV를 만든다 - git add가
+        # "그런 파일 없음"으로 실패하지 않게 하기 위한 최소한의 존재 보장이다.
+        if os.path.exists(MEMBER_LIST_PATH):
+            print("[의원 명단] 22대 현역을 못 찾아 기존 member_list.csv를 그대로 둡니다.")
+        else:
+            pd.DataFrame(columns=MEMBER_COLUMNS).to_csv(MEMBER_LIST_PATH, index=False, encoding="utf-8-sig")
+            print("[의원 명단] 22대 현역을 못 찾아 빈 member_list.csv를 만듭니다.")
         return
 
     def last(value):
