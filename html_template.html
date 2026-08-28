@@ -306,7 +306,26 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .member-contact a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
 .member-contact a:hover { color: var(--app-primary); }
 .dot-sep { opacity: 0.35; }
-.member-staff { font-size: 0.75em; opacity: 0.5; margin-top: 5px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 방 호실·이메일·홈페이지는 웬만해선 안 봐서 접어 둔다(펼치면 한 줄씩) */
+.member-more { margin-top: 3px; font-size: 0.78em; }
+.member-more summary { cursor: pointer; opacity: 0.5; font-weight: 600; list-style: none; }
+.member-more summary::-webkit-details-marker { display: none; }
+.member-more summary::before { content: "▶ "; font-size: 0.75em; }
+.member-more[open] summary::before { content: "▼ "; }
+.member-more summary:hover { opacity: 0.8; }
+.member-more-body { margin-top: 4px; opacity: 0.7; display: flex; flex-direction: column; gap: 2px; }
+.member-more-body a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.member-more-body a:hover { color: var(--app-primary); }
+
+/* 보좌관(4급 상당)·비서관(5급)·비서(6~9급) 순으로 직급이 낮아지므로,
+   역할표를 진하게(보좌관)→연하게(비서) 둬서 한눈에 위아래가 구분되게 한다. */
+.member-staff { margin-top: 7px; font-size: 0.8em; display: flex; flex-direction: column; gap: 3px; }
+.staff-row { display: flex; align-items: baseline; gap: 7px; }
+.staff-role { flex-shrink: 0; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
+.role-aide { background: rgba(255,75,75,0.15); color: var(--app-primary); }
+.role-chief { background: rgba(138,180,248,0.15); color: #8ab4f8; }
+.role-sec { background: rgba(128,128,128,0.16); opacity: 0.85; }
+.staff-names { opacity: 0.85; word-break: keep-all; overflow-wrap: anywhere; }
 .member-bill-btn { margin-left: auto; flex-shrink: 0; border: 1px solid var(--app-primary); color: var(--app-primary); background: transparent; border-radius: 7px; padding: 3px 10px; font-size: 0.76em; font-weight: 700; }
 .member-bill-btn:hover { background: var(--app-primary); color: #fff; }
 .member-bill-none { margin-left: auto; flex-shrink: 0; font-size: 0.74em; opacity: 0.35; }
@@ -914,18 +933,22 @@ function memberCardHtml(m) {
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
     .join('');
-  const contact = [
-    // API가 주는 값이 이미 "의원회관 515호" 형태라 앞뒤로 덧붙이면 안 된다
-    m.office ? `<span>${m.office}</span>` : '',
-    m.tel ? `<a href="tel:${m.tel}">${m.tel}</a>` : '',
-    m.email ? `<a href="mailto:${m.email}">${m.email}</a>` : '',
-    m.homepage ? `<a href="${m.homepage}" target="_blank" rel="noopener">홈페이지</a>` : '',
-  ].filter(Boolean).join('<span class="dot-sep">·</span>');
+  // 전화만 바로 보여주고, 방 호실·이메일·홈페이지는 웬만해선 안 쓰니 접어 둔다.
+  const telHtml = m.tel ? `<a href="tel:${m.tel}">${m.tel}</a>` : '';
+  const moreContact = [
+    m.office ? `<div>${m.office}</div>` : '',
+    m.email ? `<div><a href="mailto:${m.email}">${m.email}</a></div>` : '',
+    m.homepage ? `<div><a href="${m.homepage}" target="_blank" rel="noopener">홈페이지</a></div>` : '',
+  ].filter(Boolean).join('');
+  // 보좌관(4급 상당) · 비서관(5급) · 비서(6~9급) 순으로 직급이 낮아지므로,
+  // 색을 진하게-연하게 둬서 한눈에 구분되게 한다.
+  const staffRow = (role, cls, names) => names
+    ? `<div class="staff-row"><span class="staff-role ${cls}">${role}</span><span class="staff-names">${names}</span></div>` : '';
   const staff = [
-    m.aide ? `보좌관 ${m.aide}` : '',
-    m.chiefSecretary ? `비서관 ${m.chiefSecretary}` : '',
-    m.secretary ? `비서 ${m.secretary}` : '',
-  ].filter(Boolean).join(' / ');
+    staffRow('보좌관', 'role-aide', m.aide),
+    staffRow('비서관', 'role-chief', m.chiefSecretary),
+    staffRow('비서', 'role-sec', m.secretary),
+  ].filter(Boolean).join('');
   // 사진은 국회 서버에서 받아오는데, 없거나 막히면 이름 첫 글자로 대체한다.
   const photo = m.photo
     ? `<img class="member-photo" src="${m.photo}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'member-photo member-photo-blank',textContent:'${(m.name || '?').slice(0, 1)}'}))">`
@@ -946,7 +969,8 @@ function memberCardHtml(m) {
       </div>
       <div class="member-meta">${meta}</div>
       ${committees ? `<div class="member-cmit-row">${committees}</div>` : ''}
-      ${contact ? `<div class="member-contact">${contact}</div>` : ''}
+      ${telHtml ? `<div class="member-contact">${telHtml}</div>` : ''}
+      ${moreContact ? `<details class="member-more"><summary>연락처 더보기</summary><div class="member-more-body">${moreContact}</div></details>` : ''}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
       ${history}
     </div>
