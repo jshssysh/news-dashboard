@@ -304,6 +304,15 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-side > a { display: inline-block; line-height: 0; }
 .member-hanja { font-size: 0.78em; opacity: 0.45; }
 .member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 대표발의 법안 중 결과가 난 것만 요약 - "대안반영"은 폐기(빨강)도
+   가결(초록)도 아닌 중립색으로 둬서, 실패가 아니라 다른 법안에 흡수된
+   것임을 색으로도 구분한다. */
+.member-pass-summary { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.pass-item { font-size: 0.76em; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.pass-item.pass-ok { background: rgba(67,160,71,0.15); color: #43a047; }
+.pass-item.pass-merged { background: rgba(138,180,248,0.15); color: #8ab4f8; }
+.pass-item.pass-reject { background: rgba(224,83,83,0.15); color: #e05353; }
+.pass-item.pass-drop { background: rgba(128,128,128,0.16); opacity: 0.8; }
 /* 이름 옆에 붙는 소속 위원회 배지 - 줄(row)이 아니라 헤드 줄의 한 조각이라
    inline-flex 로 둔다(단독 줄로 쓰던 이전 레이아웃의 흔적으로 이름이 남았다) */
 .member-cmit-row { display: inline-flex; flex-wrap: wrap; gap: 4px; }
@@ -331,7 +340,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
    역할표를 진하게(보좌관)→연하게(비서) 둬서 한눈에 위아래가 구분되게 한다. */
 .member-staff { margin-top: 7px; font-size: 0.8em; display: flex; flex-direction: column; gap: 3px; }
 .staff-row { display: flex; align-items: baseline; gap: 7px; }
-.staff-role { flex-shrink: 0; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
+/* "비서"(2자)가 "보좌관"·"비서관"(3자)보다 짧아서 뱃지 폭이 들쭉날쭉하면
+   그 옆 이름들도 줄이 안 맞는다 - 폭을 고정하고 가운데 정렬해서 맞춘다. */
+.staff-role { flex-shrink: 0; min-width: 44px; text-align: center; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
 .role-aide { background: rgba(255,75,75,0.15); color: var(--app-primary); }
 .role-chief { background: rgba(138,180,248,0.15); color: #8ab4f8; }
 .role-sec { background: rgba(128,128,128,0.16); opacity: 0.85; }
@@ -662,7 +673,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-28 11:20 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-28 12:29 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -1013,6 +1024,17 @@ function memberCardHtml(m) {
   const partyText = m.prevParty && m.prevParty !== m.party
     ? `${m.party || '무소속'}(前 ${m.prevParty})` : (m.party || '무소속');
   const meta = [partyText, m.term, m.district].filter(Boolean).join(' · ');
+  // 대표발의 법안 중 결과가 난 것만 요약한다("심사중"인 나머지는 대표발의
+  // 건수에 이미 다 포함돼 있으니 따로 안 보여준다). 대부분(95%)이 원안
+  // 그대로가 아니라 "대안반영폐기"로 끝나므로 - 위원회 대안에 흡수되고
+  // 원래 법안은 형식상 폐기되는 것 - 이걸 그냥 "폐기"로 뭉치면 실질적으로
+  // 성사된 걸 실패로 보이게 만든다. 그래서 "대안반영"을 따로 뗀다.
+  const PASS_BUCKET_CLASS = { '가결': 'pass-ok', '대안반영': 'pass-merged', '부결': 'pass-reject', '폐기': 'pass-drop' };
+  const passSummary = m.passResults
+    ? Object.entries(m.passResults)
+        .sort((a, b) => Object.keys(PASS_BUCKET_CLASS).indexOf(a[0]) - Object.keys(PASS_BUCKET_CLASS).indexOf(b[0]))
+        .map(([bucket, cnt]) => `<span class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}">${bucket} ${cnt}</span>`).join('')
+    : '';
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
     .join('');
@@ -1072,6 +1094,7 @@ function memberCardHtml(m) {
           : `<span class="member-cmit-row"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></span>`}
       </div>
       <div class="member-meta">${meta}</div>
+      ${passSummary ? `<div class="member-pass-summary">${passSummary}</div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
       ${history}
@@ -1120,6 +1143,17 @@ function renderMembers() {
   });
 }
 
+// 카테고리(기간 범위 안에서 각 칩이 다르게 세야 하는 값)만 빼고, 나머지
+// 필터(논조·검색어)는 목록과 카테고리 칩 건수 양쪽에 똑같이 적용해야 한다.
+function newsMatchesGlobalFilters(r) {
+  if (state.sentiment && r.sentiment !== state.sentiment) return false;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    if (!((r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q))) return false;
+  }
+  return true;
+}
+
 function scopedRows() {
   if (state.period === 0) return dailyRows();
   const idx = allDates.indexOf(state.currentDate);
@@ -1143,7 +1177,11 @@ function renderNewsView(dr, allGroups) {
   const scoped = scopedRows();
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
   // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
-  const scopedGroups = buildIssueGroups(scoped).filter(g => g.mainPress !== '미상');
+  // 검색어·논조 필터도 목록과 똑같이 걸어야 한다(검색창에 "쿠팡"을 치면
+  // 칩도 그 89건 기준으로 줄어야지, 카테고리 선택 자체는 칩마다 다르게
+  // 세야 하는 값이라 여기엔 안 넣는다).
+  const countsBase = scoped.filter(newsMatchesGlobalFilters);
+  const scopedGroups = buildIssueGroups(countsBase).filter(g => g.mainPress !== '미상');
   const catCounts = {};
   scopedGroups.forEach(g => { catCounts[g.category] = (catCounts[g.category]||0) + 1; });
   const cats = ['전체'].concat(Object.keys(catCounts).sort((a,b) => newsCategoryRank(a) - newsCategoryRank(b)));
@@ -1237,11 +1275,7 @@ function updateSidebarTag() {
 function renderMainList(scoped, allGroups) {
   updateSidebarTag();
   let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
-  if (state.sentiment) filtered = filtered.filter(r => r.sentiment === state.sentiment);
-  if (state.search) {
-    const q = state.search.toLowerCase();
-    filtered = filtered.filter(r => (r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q));
-  }
+  filtered = filtered.filter(newsMatchesGlobalFilters);
   let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
   if (state.sort === 'latest') {
     groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
@@ -1454,11 +1488,27 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
   updateCurrentTag();
 }
 
+// 위원회/처리단계 칩 건수를 셀 때 "그 칩 자신이 나타내는 값"만 빼고 나머지
+// 필터(검색어·대표발의자·즐겨찾기)는 다 적용해야 한다. 안 그러면 검색어를
+// 넣었을 때 목록은 줄어드는데 칩 건수는 그대로라 서로 안 맞아 보인다.
+// starred는 호출부에서 한 번만 구해 넘긴다 - 법안이 14000건이 넘어서, 이
+// 함수를 매 건마다 부르면서 그때그때 localStorage를 다시 읽으면(JSON.parse
+// 포함) 검색창에 한 글자 칠 때마다 그 비용이 배로 든다.
+function billMatchesGlobalFilters(b, starred) {
+  if (state.billStarredOnly && !starred.has(b.id)) return false;
+  if (state.billProposer && b.repProposer !== state.billProposer) return false;
+  if (state.billSearch) {
+    const q = state.billSearch.toLowerCase();
+    if (!((b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q))) return false;
+  }
+  return true;
+}
+
 // 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
 // 위 단계 선택이 아래 단계의 칩 건수를 다시 계산하게 만든다.
 function renderCommitteeChipRow() {
   const starred = getStarredBills();
-  const filterFn = state.billStarredOnly ? (b => starred.has(b.id)) : null;
+  const filterFn = (b) => billMatchesGlobalFilters(b, starred);
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn', 'committeeCurrentTag');
 }
 
@@ -1470,8 +1520,7 @@ function renderCommitteeChipRow() {
 function renderStageFlowRow() {
   const starred = getStarredBills();
   const source = BILL_DATA.filter(b =>
-    (state.billCommittee === '전체' || b.committee === state.billCommittee) &&
-    (!state.billStarredOnly || starred.has(b.id))
+    (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesGlobalFilters(b, starred)
   );
   const stageCounts = {};
   source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
@@ -1578,7 +1627,7 @@ function renderBillList() {
   if (pill) pill.addEventListener('click', () => {
     state.billProposer = '';
     state.billPage = 1;
-    renderBillList();
+    renderBills(); // 위원회/처리단계 칩 건수도 대표발의자 조건 해제에 맞춰 다시 계산
   });
   document.getElementById('billPageSizeSel').value = String(state.billPageSize);
 
@@ -1686,7 +1735,7 @@ document.getElementById('periodSelect').addEventListener('change', e => { state.
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
-document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBillList(); });
+document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBills(); });
 document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; renderMembers(); });
 document.getElementById('memberSortSel').addEventListener('change', e => { state.memberSort = e.target.value; renderMembers(); });
 document.getElementById('billStarredToggle').addEventListener('click', () => {
