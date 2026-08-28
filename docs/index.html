@@ -286,35 +286,77 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .org-dept-title { font-size: 0.96em; font-weight: 700; margin: 18px 0 10px; letter-spacing: -0.1px; }
 .org-person-row { margin-bottom: 7px; font-size: 0.9em; }
 .info-box { background: var(--app-secondary-bg); border: 1px solid var(--app-border); border-radius: 8px; padding: 16px; font-size: 0.9em; line-height: 1.5; }
-/* ── 국회의원 검색 ── */
-.member-card { display: flex; gap: 14px; align-items: flex-start; }
+/* ── 국회의원 검색 ──
+   법안/뉴스 카드와 달리 내용이 짧아서, 전체 폭(1100px) 한 줄로 쭉 늘어놓으면
+   오른쪽이 텅 비어 보인다. 카드 하나가 필요한 만큼만 차지하도록 그리드로 깐다. */
+#memberListArea { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: start; }
+#memberListArea > .info-box { grid-column: 1 / -1; }
+.member-card { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 0; height: 100%; }
+/* 사진 밑에 대표발의 버튼·약력 토글을 세로로 쌓는 왼쪽 칸. 버튼 글자가
+   사진 폭(62px)보다 넓어서, 칸 자체는 좀 더 넓게 잡고 가운데 정렬한다. */
+.member-side { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; width: 86px; text-align: center; }
 .member-photo { width: 62px; height: 78px; flex-shrink: 0; border-radius: 8px; object-fit: cover; background: var(--app-secondary-bg); border: 1px solid var(--app-border); }
 .member-photo-blank { display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; opacity: 0.35; }
 .member-body { flex: 1 1 auto; min-width: 0; }
-.member-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; margin-bottom: 4px; }
-.member-name { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; }
+.member-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.member-name { font-size: 1.05em; font-weight: 800; letter-spacing: -0.2px; color: inherit; text-decoration: none; }
+a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
+.member-side > a { display: inline-block; line-height: 0; }
 .member-hanja { font-size: 0.78em; opacity: 0.45; }
 .member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
-.member-cmit-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+/* 이름 옆에 붙는 소속 위원회 배지 - 줄(row)이 아니라 헤드 줄의 한 조각이라
+   inline-flex 로 둔다(단독 줄로 쓰던 이전 레이아웃의 흔적으로 이름이 남았다) */
+.member-cmit-row { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .member-cmit-chip { border: 1px solid var(--app-border); background: var(--app-secondary-bg); border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
 .member-cmit-chip:hover { border-color: var(--app-primary); color: var(--app-primary); }
-.member-contact { font-size: 0.78em; opacity: 0.7; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.member-contact a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
-.member-contact a:hover { color: var(--app-primary); }
+/* 위원회가 없을 때 그 자리에 오는 배지 3종 - 이유별로 색을 다르게 준다 */
+.member-badge-speaker { border-color: #d4a72c; background: rgba(212,167,44,0.14); color: #d4a72c; }
+.member-badge-rolechange { border-color: #7c4dff; background: rgba(124,77,255,0.14); color: #9575ff; }
+.member-badge-none { opacity: 0.6; }
 .dot-sep { opacity: 0.35; }
-.member-staff { font-size: 0.75em; opacity: 0.5; margin-top: 5px; word-break: keep-all; overflow-wrap: anywhere; }
-.member-bill-btn { margin-left: auto; flex-shrink: 0; border: 1px solid var(--app-primary); color: var(--app-primary); background: transparent; border-radius: 7px; padding: 3px 10px; font-size: 0.76em; font-weight: 700; }
+/* 연락처 한 줄 - "746호 02-784-2760~2 ▼". 이메일·홈페이지가 있을 때만
+   <details>로 펼쳐지고, 없으면 그냥 고정된 한 줄(펼칠 것도 없다). */
+.member-contact-line { font-size: 0.78em; opacity: 0.7; margin-bottom: 5px; }
+.member-contact-line a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.member-contact-line a:hover { color: var(--app-primary); }
+details.member-contact-line summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; }
+details.member-contact-line summary::-webkit-details-marker { display: none; }
+details.member-contact-line .toggle-caret { opacity: 0.5; font-size: 0.75em; transition: transform .15s var(--ease); }
+details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
+.member-more-body { margin-top: 4px; opacity: 0.85; display: flex; flex-direction: column; gap: 2px; }
+.member-more-body a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.member-more-body a:hover { color: var(--app-primary); }
+
+/* 보좌관(4급 상당)·비서관(5급)·비서(6~9급) 순으로 직급이 낮아지므로,
+   역할표를 진하게(보좌관)→연하게(비서) 둬서 한눈에 위아래가 구분되게 한다. */
+.member-staff { margin-top: 7px; font-size: 0.8em; display: flex; flex-direction: column; gap: 3px; }
+.staff-row { display: flex; align-items: baseline; gap: 7px; }
+.staff-role { flex-shrink: 0; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
+.role-aide { background: rgba(255,75,75,0.15); color: var(--app-primary); }
+.role-chief { background: rgba(138,180,248,0.15); color: #8ab4f8; }
+.role-sec { background: rgba(128,128,128,0.16); opacity: 0.85; }
+.staff-names { opacity: 0.85; word-break: keep-all; overflow-wrap: anywhere; }
+/* 사진 밑 칸에서는 폭이 좁으니 버튼/토글 모두 그 폭에 맞춰 줄바꿈되게 둔다 */
+.member-side .member-bill-btn, .member-side .member-bill-none { margin-left: 0; width: 100%; white-space: normal; line-height: 1.3; }
+.member-bill-btn { flex-shrink: 0; border: 1px solid var(--app-primary); color: var(--app-primary); background: transparent; border-radius: 7px; padding: 3px 8px; font-size: 0.72em; font-weight: 700; }
 .member-bill-btn:hover { background: var(--app-primary); color: #fff; }
-.member-bill-none { margin-left: auto; flex-shrink: 0; font-size: 0.74em; opacity: 0.35; }
-.member-history { margin-top: 8px; font-size: 0.78em; }
+.member-bill-none { flex-shrink: 0; font-size: 0.7em; opacity: 0.35; }
+.member-side .member-history { margin-top: 0; }
+.member-history { font-size: 0.78em; }
 .member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-history summary:hover { opacity: 0.9; }
-.member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; }
+.member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; text-align: left; }
 .proposer-pill { background: var(--app-primary); color: #fff; border: none; border-radius: 20px; padding: 2px 10px; font-size: 0.92em; font-weight: 700; margin-right: 4px; }
 .proposer-pill:hover { filter: brightness(1.1); }
 /* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
 #memberPartyChipRow, #memberCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
 #memberPartyChipRow button, #memberCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
+/* 정당 칩만 --party-color(JS가 심어준 값)로 물들인다. 안 고른 칩은 옅게
+   물든 배경 + 그 색 글자, 고른 칩은 그 정당 색으로 꽉 채운다(빨간 기본
+   active 색을 정당 칩에마저 그대로 두면 다른 당인데 다 빨갛게 보였다). */
+#memberPartyChipRow button:not(.active) { background: color-mix(in srgb, var(--party-color) 16%, var(--app-secondary-bg)); border-color: color-mix(in srgb, var(--party-color) 35%, var(--app-border)); color: var(--party-color); }
+#memberPartyChipRow button:not(.active):hover { background: color-mix(in srgb, var(--party-color) 26%, var(--app-secondary-bg)); }
+#memberPartyChipRow button.active { background: var(--party-color); border-color: var(--party-color); box-shadow: 0 2px 8px color-mix(in srgb, var(--party-color) 45%, transparent); }
 
 .generated-note { font-size: 0.72em; opacity: 0.45; text-align: center; margin-top: 36px; }
 .view { display: none; }
@@ -440,12 +482,12 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .stage-flow-compact .flow-cnt { display: none; }
 
   /* ── 국회의원 카드 ── */
+  #memberListArea { grid-template-columns: 1fr; }
   .member-card { gap: 10px; }
+  .member-side { width: 70px; }
   .member-photo { width: 48px; height: 60px; }
-  /* 좁은 화면에서 "대표발의 N건"까지 이름 줄에 밀어 넣으면 이름이 눌리므로 아래로 내린다 */
-  .member-bill-btn, .member-bill-none { margin-left: 0; }
   .member-head { gap: 5px; }
-  .member-contact { font-size: 0.74em; }
+  .member-contact-line { font-size: 0.74em; }
 }
 </style>
 </head>
@@ -584,7 +626,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="bill-filter-sticky">
       <div class="news-filter-row">
         <h5>국회의원 <span class="era-tag">제22대</span></h5>
-        <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당에서 검색">
+        <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">
       </div>
       <div class="filter-section" id="partyFilterSection">
         <div class="filter-section-header">
@@ -619,7 +661,7 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-28 09:44 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-28 10:57 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -848,14 +890,56 @@ function memberCommittees(m) {
   return (m.committees || "").split(",").map(s => s.trim()).filter(Boolean);
 }
 
+// 상임위 소속이 없는 이유는 크게 셋으로 갈린다 - 그때그때 다른 "위원회 없음"
+// 하나로 뭉치면 왜 없는지가 안 보이므로, 이유가 확인된 둘은 "소속위원회"
+// 필터에서도 별도 카테고리로 분리한다(법안의 "배정 안됨"과 같은 개념).
+//   1) 의장단 - 국회의장·부의장은 정치적 중립 때문에 관례상 배정하지 않는다.
+//      약력에 "現 국회의장"처럼 남아 있어서 여기서 찾아낸다.
+//   2) 직 변경 - 지자체장·대통령 당선으로 의원직과 겸직이 금지돼 사실상
+//      의정활동을 안 하는데, API가 궐원 처리를 안 해서 계속 현역으로 잡힌다
+//      (collect_bills.py의 MEMBER_ROLE_CHANGES, 확인된 사람만 수동으로 채움).
+//   3) 위원회 없음 - 위 둘로 설명 안 되는 나머지(원내대표 관례, API가 그냥
+//      비워둔 경우 등 - 실제로 몇몇은 약력엔 위원회가 있는데 이 칸만 비어
+//      있었다. 확신 없는 이유를 함부로 못 붙이니 이유 없이 그대로 둔다).
+const SPEAKER_CATEGORY = '의장단';
+const ROLE_CHANGE_CATEGORY = '직 변경';
+const NO_COMMITTEE = '위원회 없음';
+
+function memberSpeakerRole(m) {
+  if (!m.history) return '';
+  if (/現\s*국회의장/.test(m.history)) return '국회의장';
+  if (/現\s*국회부의장/.test(m.history)) return '국회부의장';
+  return '';
+}
+
+// 위원회가 없을 때 카드에 보여줄 배지 문구와, 필터에서 묶일 카테고리를 함께 정한다.
+function memberSpecialCategory(m) {
+  const speaker = memberSpeakerRole(m);
+  if (speaker) return { bucket: SPEAKER_CATEGORY, badge: `${speaker} · 상임위 소속 없음`, cls: 'member-badge-speaker' };
+  if (m.roleChange) return { bucket: ROLE_CHANGE_CATEGORY, badge: `現 ${m.roleChange}`, cls: 'member-badge-rolechange' };
+  return { bucket: NO_COMMITTEE, badge: NO_COMMITTEE, cls: 'member-badge-none' };
+}
+
+// 소속위원회 필터/집계 전용. 카드 렌더링(memberCardHtml)은 진짜 위원회 유무를
+// 그대로 봐야 하므로 memberCommittees()는 안 건드리고 이쪽만 이걸 쓴다.
+function memberCommitteesForFilter(m) {
+  const list = memberCommittees(m);
+  return list.length ? list : [memberSpecialCategory(m).bucket];
+}
+
 function filteredMembers() {
   let list = MEMBER_DATA.slice();
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
-  if (state.memberCommittee !== '전체') list = list.filter(m => memberCommittees(m).includes(state.memberCommittee));
+  if (state.memberCommittee !== '전체') list = list.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   if (state.memberSearch) {
+    // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
+    // 예: "강영석"(보좌관 이름)을 검색하면 그 보좌관이 속한 의원이 나오고,
+    // "746호"를 검색하면 그 방을 쓰는 의원이 나온다.
     const q = state.memberSearch.toLowerCase();
-    list = list.filter(m => [m.name, m.hanja, m.party, m.district, m.committees, m.term]
-      .some(v => (v || '').toLowerCase().includes(q)));
+    list = list.filter(m => [
+      m.name, m.hanja, m.party, m.prevParty, m.district, m.committees, m.term,
+      m.office, m.tel, m.email, m.aide, m.chiefSecretary, m.secretary, m.roleChange,
+    ].some(v => (v || '').toLowerCase().includes(q)));
   }
   if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
@@ -863,25 +947,52 @@ function filteredMembers() {
   return list;
 }
 
+// 정당별 상징색 - 각 당의 공식/통용 브랜드 컬러에 가깝게 맞췄다.
+// 위성정당(국민의미래/더불어민주연합)은 모정당과 같은 계열이되 좀 더 옅은 색을 써서
+// "같은 편이지만 다른 교섭단체"라는 게 한눈에 보이게 했다.
+const PARTY_COLOR = {
+  "민주당": "#0050a2",
+  "더불어민주연합": "#4d8fcf",
+  "국민의힘": "#e61e2b",
+  "국민의미래": "#ef6b6b",
+  "조국혁신당": "#e8b400",
+  "개혁신당": "#ff7210",
+  "진보당": "#c2185b",
+  "새로운미래": "#14b8a6",
+  "무소속": "#8a8a8a",
+};
+function partyColor(name) { return PARTY_COLOR[name] || '#8a8a8a'; }
+
 function renderMemberChipRows() {
   // 칩 건수는 "다른 필터를 적용한 뒤" 기준으로 세야 눌렀을 때 0건이 되는 일이 없다.
   const byParty = state.memberCommittee === '전체'
-    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommittees(m).includes(state.memberCommittee));
+    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   const byCommittee = state.memberParty === '전체'
     ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty);
 
   const partyCounts = {};
   byParty.forEach(m => { const p = m.party || '무소속'; partyCounts[p] = (partyCounts[p] || 0) + 1; });
   const committeeCounts = {};
-  byCommittee.forEach(m => memberCommittees(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
+  byCommittee.forEach(m => memberCommitteesForFilter(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
 
-  const chipRow = (el, counts, total, selected, attr) => {
-    const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-    el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}">전체 ${total}</button>`]
-      .concat(names.map(n => `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}">${committeeAbbr(n) || n} ${counts[n]}</button>`))
+  // 실제 위원회가 아닌 가짜 카테고리 셋은 건수와 상관없이 맨 끝에 - 법안 쪽
+  // "배정 안됨"과 같은 관례.
+  const SPECIAL_CATEGORIES = new Set([SPEAKER_CATEGORY, ROLE_CHANGE_CATEGORY, NO_COMMITTEE]);
+  const chipRow = (el, counts, total, selected, attr, colorFn) => {
+    const names = Object.keys(counts).sort((a, b) => {
+      const aSpecial = SPECIAL_CATEGORIES.has(a), bSpecial = SPECIAL_CATEGORIES.has(b);
+      if (aSpecial !== bSpecial) return aSpecial ? 1 : -1;
+      return counts[b] - counts[a];
+    });
+    const style = (n) => colorFn ? ` style="--party-color:${colorFn(n)}"` : '';
+    // "전체" 칩은 특정 정당이 없으니 --party-color가 안 채워져 무색(투명)으로
+    // 빠진다 - 기본 강조색으로 채워서 다른 칩들처럼 눌렸을 때 색이 있게 한다.
+    const allStyle = colorFn ? ` style="--party-color:var(--app-primary)"` : '';
+    el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}"${allStyle}>전체 ${total}</button>`]
+      .concat(names.map(n => `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}"${style(n)}>${committeeAbbr(n) || n} ${counts[n]}</button>`))
       .join('');
   };
-  chipRow(document.getElementById('memberPartyChipRow'), partyCounts, byParty.length, state.memberParty, 'party');
+  chipRow(document.getElementById('memberPartyChipRow'), partyCounts, byParty.length, state.memberParty, 'party', partyColor);
   chipRow(document.getElementById('memberCommitteeChipRow'), committeeCounts, byCommittee.length, state.memberCommittee, 'committee');
 
   document.getElementById('partyCurrentTag').textContent =
@@ -904,41 +1015,65 @@ function memberCardHtml(m) {
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
     .join('');
-  const contact = [
-    // API가 주는 값이 이미 "의원회관 515호" 형태라 앞뒤로 덧붙이면 안 된다
-    m.office ? `<span>${m.office}</span>` : '',
-    m.tel ? `<a href="tel:${m.tel}">${m.tel}</a>` : '',
-    m.email ? `<a href="mailto:${m.email}">${m.email}</a>` : '',
-    m.homepage ? `<a href="${m.homepage}" target="_blank" rel="noopener">홈페이지</a>` : '',
-  ].filter(Boolean).join('<span class="dot-sep">·</span>');
+  // 위원회가 없을 때만 계산한다 - 있으면 아예 안 쓰인다.
+  const special = committees ? null : memberSpecialCategory(m);
+  // 방 호실 + 전화를 한 줄로("746호 02-784-2760~2 ▼"). 전화는 링크라
+  // 누르면 그대로 걸리게, 클릭이 <summary> 토글로 안 새게 막는다.
+  // 이메일·홈페이지는 웬만해선 안 써서 그 줄을 펼쳐야만 나온다.
+  const contactLine = [m.office, m.tel].filter(Boolean).join(' ');
+  const contactLineHtml = m.tel
+    ? contactLine.replace(m.tel, `<a href="tel:${m.tel}" onclick="event.stopPropagation()">${m.tel}</a>`)
+    : contactLine;
+  const moreContact = [
+    m.email ? `<div><a href="mailto:${m.email}">${m.email}</a></div>` : '',
+    m.homepage ? `<div><a href="${m.homepage}" target="_blank" rel="noopener">홈페이지</a></div>` : '',
+  ].filter(Boolean).join('');
+  const contactHtml = !moreContact
+    ? (contactLineHtml ? `<div class="member-contact-line">${contactLineHtml}</div>` : '')
+    : `<details class="member-contact-line">
+         <summary>${contactLineHtml || '연락처'}<span class="toggle-caret">▼</span></summary>
+         <div class="member-more-body">${moreContact}</div>
+       </details>`;
+  // 보좌관(4급 상당) · 비서관(5급) · 비서(6~9급) 순으로 직급이 낮아지므로,
+  // 색을 진하게-연하게 둬서 한눈에 구분되게 한다.
+  const staffRow = (role, cls, names) => names
+    ? `<div class="staff-row"><span class="staff-role ${cls}">${role}</span><span class="staff-names">${names}</span></div>` : '';
   const staff = [
-    m.aide ? `보좌관 ${m.aide}` : '',
-    m.chiefSecretary ? `비서관 ${m.chiefSecretary}` : '',
-    m.secretary ? `비서 ${m.secretary}` : '',
-  ].filter(Boolean).join(' / ');
+    staffRow('보좌관', 'role-aide', m.aide),
+    staffRow('비서관', 'role-chief', m.chiefSecretary),
+    staffRow('비서', 'role-sec', m.secretary),
+  ].filter(Boolean).join('');
   // 사진은 국회 서버에서 받아오는데, 없거나 막히면 이름 첫 글자로 대체한다.
-  const photo = m.photo
+  const photoInner = m.photo
     ? `<img class="member-photo" src="${m.photo}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'member-photo member-photo-blank',textContent:'${(m.name || '?').slice(0, 1)}'}))">`
     : `<div class="member-photo member-photo-blank">${(m.name || '?').slice(0, 1)}</div>`;
+  // 사진·이름을 누르면 국회 홈페이지 프로필로 - 영문명이 없는 사람은 못 만드니 그냥 둔다.
+  const photo = m.profileUrl
+    ? `<a href="${m.profileUrl}" target="_blank" rel="noopener" title="${m.name} 의원 국회 프로필 보기">${photoInner}</a>` : photoInner;
+  const nameHtml = m.profileUrl
+    ? `<a class="member-name" href="${m.profileUrl}" target="_blank" rel="noopener">${m.name}</a>` : `<span class="member-name">${m.name}</span>`;
   const billBtn = m.billCount
-    ? `<button class="member-bill-btn" data-name="${m.name}" title="${m.name} 의원이 대표발의한 계류 법안 보기">대표발의 ${m.billCount}건 ›</button>`
+    ? `<button class="member-bill-btn" data-name="${m.name}" title="${m.name} 의원이 대표발의한 계류 법안 보기">대표발의 ${m.billCount} ›</button>`
     : `<span class="member-bill-none">대표발의 계류 법안 없음</span>`;
   const history = m.history
     ? `<details class="member-history"><summary>약력</summary><div>${m.history.replace(/\r?\n/g, '<br>')}</div></details>`
     : '';
   return `<div class="article-card member-card">
-    ${photo}
+    <div class="member-side">
+      ${photo}
+      ${billBtn}
+      ${history}
+    </div>
     <div class="member-body">
       <div class="member-head">
-        <span class="member-name">${m.name}</span>
+        ${nameHtml}
         ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
-        ${billBtn}
+        ${committees ? `<span class="member-cmit-row">${committees}</span>`
+          : `<span class="member-cmit-row"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></span>`}
       </div>
       <div class="member-meta">${meta}</div>
-      ${committees ? `<div class="member-cmit-row">${committees}</div>` : ''}
-      ${contact ? `<div class="member-contact">${contact}</div>` : ''}
+      ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
-      ${history}
     </div>
   </div>`;
 }
@@ -1189,7 +1324,15 @@ const COMMITTEE_ABBR = {
 function committeeAbbr(name) {
   if (!name) return name;
   if (COMMITTEE_ABBR[name]) return COMMITTEE_ABBR[name];
-  return name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+  // 국정조사/인사청문 특별위원회는 사건마다 이름이 다른데 그 사건 설명이 통째로
+  // 앞에 붙는다(의원 소속 위원회 데이터에서 실제로 40자 넘는 이름이 나왔다).
+  // 어떤 사건이 올지 미리 다 나열할 수 없으니 위원회 성격만 남긴다.
+  if (name.endsWith("국정조사특별위원회")) return "국정조사특위";
+  if (name.endsWith("인사청문특별위원회")) return "인사청문특위";
+  const abbr = name.endsWith("위원회") ? name.slice(0, -3) + "위" : name;
+  // 위 규칙으로도 못 줄인 긴 이름이 남으면(또 다른 형태의 특별위 등) 칩이
+  // 안 깨지게 자른다 - 전체 이름은 title 속성으로 여전히 볼 수 있다.
+  return abbr.length > 12 ? abbr.slice(0, 10) + "…" : abbr;
 }
 
 // 정무위/법사위/산자위/기후에너지환경노동위/재경위를 앞에 고정하고, 그 뒤는
