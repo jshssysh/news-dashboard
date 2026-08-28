@@ -27,12 +27,12 @@ on:
   workflow_dispatch:
     inputs:
       skip_ai:
-        description: '체크 시 AI 분석 건너뛰기 (개발/UI 테스트용 - 빠르고 무료, 분류 없이 원본만 수집). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[뉴스] 체크 시 뉴스 AI 분석(Gemini) 건너뛰기 (개발/UI 테스트용 - 빠르고 무료, 분류 없이 원본만 수집). 법안+의원 수집(skip_bills)과는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
       skip_bills:
-        description: '체크 시 계류 법안 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[법안+의원] 체크 시 계류 법안 + 의원 정보 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 뉴스 수집(skip_ai)과는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
