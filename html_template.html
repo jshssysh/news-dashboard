@@ -885,6 +885,17 @@ function memberCommittees(m) {
   return (m.committees || "").split(",").map(s => s.trim()).filter(Boolean);
 }
 
+// 상임위 소속 자체가 없는 의원(국회의장·부의장, 원내대표 등 관례상 배정
+// 안 하는 자리, 혹은 그냥 API가 비워둔 경우)도 "소속위원회" 필터에서
+// 고를 수 있어야 하므로 이 가짜 카테고리로 잡는다. 법안의 "배정 안됨"과
+// 같은 개념이다. 카드 렌더링(memberCardHtml)은 진짜 위원회 유무를 그대로
+// 봐야 하므로 memberCommittees()는 안 건드리고, 필터/집계 쪽만 이걸 쓴다.
+const NO_COMMITTEE = '위원회 없음';
+function memberCommitteesForFilter(m) {
+  const list = memberCommittees(m);
+  return list.length ? list : [NO_COMMITTEE];
+}
+
 // 국회의장·부의장은 정치적 중립을 지키려고 관례상 상임위에 소속되지 않아
 // API의 위원회 칸이 비어 있다(예: 조정식 - 현직 국회의장). 위원회가 없는
 // 카드만 보면 왜 없는지 알 수 없으므로, 약력에서 찾아 그 자리에 표시한다.
@@ -898,7 +909,7 @@ function memberSpeakerRole(m) {
 function filteredMembers() {
   let list = MEMBER_DATA.slice();
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
-  if (state.memberCommittee !== '전체') list = list.filter(m => memberCommittees(m).includes(state.memberCommittee));
+  if (state.memberCommittee !== '전체') list = list.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   if (state.memberSearch) {
     // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
     // 예: "강영석"(보좌관 이름)을 검색하면 그 보좌관이 속한 의원이 나오고,
@@ -934,17 +945,22 @@ function partyColor(name) { return PARTY_COLOR[name] || '#8a8a8a'; }
 function renderMemberChipRows() {
   // 칩 건수는 "다른 필터를 적용한 뒤" 기준으로 세야 눌렀을 때 0건이 되는 일이 없다.
   const byParty = state.memberCommittee === '전체'
-    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommittees(m).includes(state.memberCommittee));
+    ? MEMBER_DATA : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   const byCommittee = state.memberParty === '전체'
     ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty);
 
   const partyCounts = {};
   byParty.forEach(m => { const p = m.party || '무소속'; partyCounts[p] = (partyCounts[p] || 0) + 1; });
   const committeeCounts = {};
-  byCommittee.forEach(m => memberCommittees(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
+  byCommittee.forEach(m => memberCommitteesForFilter(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
 
   const chipRow = (el, counts, total, selected, attr, colorFn) => {
-    const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    // "위원회 없음"은 건수와 상관없이 맨 끝에 - 법안 쪽 "배정 안됨"과 같은 관례.
+    const names = Object.keys(counts).sort((a, b) => {
+      if (a === NO_COMMITTEE) return 1;
+      if (b === NO_COMMITTEE) return -1;
+      return counts[b] - counts[a];
+    });
     const style = (n) => colorFn ? ` style="--party-color:${colorFn(n)}"` : '';
     // "전체" 칩은 특정 정당이 없으니 --party-color가 안 채워져 무색(투명)으로
     // 빠진다 - 기본 강조색으로 채워서 다른 칩들처럼 눌렸을 때 색이 있게 한다.
@@ -1024,7 +1040,8 @@ function memberCardHtml(m) {
         <span class="member-name">${m.name}</span>
         ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
         ${committees ? `<span class="member-cmit-row">${committees}</span>`
-          : speakerRole ? `<span class="member-speaker-badge">${speakerRole} · 상임위 소속 없음</span>` : ''}
+          : speakerRole ? `<span class="member-speaker-badge">${speakerRole} · 상임위 소속 없음</span>`
+          : `<span class="member-cmit-row"><button class="member-cmit-chip" data-committee="${NO_COMMITTEE}" title="위원회가 없는 의원만 보기">${NO_COMMITTEE}</button></span>`}
       </div>
       <div class="member-meta">${meta}</div>
       ${contactHtml}
