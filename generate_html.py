@@ -237,6 +237,9 @@ def load_members(bills):
             # 지자체장·대통령 등으로 옮겨서 사실상 의정활동을 안 하는 사람의 지금 직함
             # (예: "경기도지사"). collect_bills.py의 MEMBER_ROLE_CHANGES 참고.
             "roleChange": nz(row.get("현직변경"), ""),
+            # 확정판결로 의원직을 잃은 경우 - 자리를 "옮긴" 것과는 성격이
+            # 달라서 roleChange와 구분해 별도로 둔다.
+            "seatLost": nz(row.get("의원직상실"), ""),
         })
     # 값이 빈 칸은 키까지 빼서 가볍게 만든다(화면은 전부 truthy 검사로 쓴다)
     return [{k: v for k, v in r.items() if v not in (None, "")} for r in records]

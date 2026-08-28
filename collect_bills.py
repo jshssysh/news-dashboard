@@ -69,6 +69,29 @@ MEMBER_ROLE_CHANGES = {
     "위성곤": "제주특별자치도지사",
     # 2025-06 취임. 대통령도 국회의원과 겸직 금지 대상이라 같은 문제가 생긴다.
     "이재명": "대통령",
+    # 대통령실/행정부로 옮긴 경우 - 전부 겸직 금지로 의원직 사퇴가 필요했다.
+    "강훈식": "대통령비서실장",
+    "위성락": "국가안보실장",
+    "임광현": "국세청장",
+    "정을호": "대통령비서실 정무비서관",
+    "강유정": "대통령실 수석대변인",
+    # 조국은 의원직 상실(아래 MEMBER_SEAT_LOST) 뒤 당대표를 거쳐 당 싱크탱크
+    # 원장으로 자리를 옮겼다 - 지금 맡은 자리가 있으니 여기 둔다.
+    "조국": "조국혁신당 혁신정책연구원장",
+    # 자진 사퇴(12·3 계엄 사태에 반발, 본업인 의사로 복귀) - 지자체장 등과
+    # 사유는 다르지만 "지금 의원이 아니고 이걸 하고 있다"는 성격은 같다.
+    "인요한": "의원직 사퇴 · 의사 복귀",
+}
+
+# 위 MEMBER_ROLE_CHANGES와 달리 "새 자리로 옮긴" 게 아니라 확정판결로 의원직
+# 자체를 잃은 경우다 - 성격이 달라 카드에도 다른 배지로 구분해서 보여준다.
+# 전부 법원 판결이 여러 언론에 보도된 공개된 사실만 담고, 혐의 내용은 배지
+# 문구가 아니라 값(상세 사유)에만 넣어 툴팁으로만 보이게 한다.
+MEMBER_SEAT_LOST = {
+    "권성동": "정치자금법 위반 확정판결 (2026-07)",
+    "신영대": "선거사무장 유죄 확정에 따른 당선무효 (2026-01)",
+    "이병진": "재산신고 누락 확정판결 (2026-01)",
+    "양문석": "대출 관련 확정판결 (2026)",
 }
 
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
@@ -278,7 +301,10 @@ def fetch_member_info():
 
     changed = [row.get("NAAS_NM") for row in current_rows if row.get("NAAS_NM") in MEMBER_ROLE_CHANGES]
     if changed:
-        print(f"[의원 명단] 지자체장 등으로 옮긴 의원(명단엔 유지, 現 직함만 표시): {', '.join(changed)}")
+        print(f"[의원 명단] 다른 자리로 옮긴 의원(명단엔 유지, 現 직함만 표시): {', '.join(changed)}")
+    lost = [row.get("NAAS_NM") for row in current_rows if row.get("NAAS_NM") in MEMBER_SEAT_LOST]
+    if lost:
+        print(f"[의원 명단] 확정판결로 의원직 상실(명단엔 유지, 별도 배지 표시): {', '.join(lost)}")
     return info, current_rows
 
 
@@ -286,7 +312,7 @@ MEMBER_COLUMNS = [
     "의원코드", "이름", "한자명", "정당", "이전정당", "선수", "당선대수",
     "지역구", "선거구구분", "소속위원회", "성별", "생년월일", "전화", "이메일",
     "홈페이지", "사무실", "보좌관", "비서관", "비서", "약력", "사진",
-    "영문명", "현직변경",
+    "영문명", "현직변경", "의원직상실",
 ]
 
 
@@ -342,6 +368,7 @@ def save_members(rows):
             # 영문명이 없는 사람은 이 칸도 비어서 화면에서 링크를 안 만든다.
             "영문명": (row.get("NAAS_EN_NM") or "").replace(" ", ""),
             "현직변경": MEMBER_ROLE_CHANGES.get(row.get("NAAS_NM", ""), ""),
+            "의원직상실": MEMBER_SEAT_LOST.get(row.get("NAAS_NM", ""), ""),
         })
     members.sort(key=lambda m: m["이름"])
     pd.DataFrame(members).to_csv(MEMBER_LIST_PATH, index=False, encoding="utf-8-sig")
