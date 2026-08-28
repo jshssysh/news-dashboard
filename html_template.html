@@ -1477,11 +1477,27 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
   updateCurrentTag();
 }
 
+// 위원회/처리단계 칩 건수를 셀 때 "그 칩 자신이 나타내는 값"만 빼고 나머지
+// 필터(검색어·대표발의자·즐겨찾기)는 다 적용해야 한다. 안 그러면 검색어를
+// 넣었을 때 목록은 줄어드는데 칩 건수는 그대로라 서로 안 맞아 보인다.
+// starred는 호출부에서 한 번만 구해 넘긴다 - 법안이 14000건이 넘어서, 이
+// 함수를 매 건마다 부르면서 그때그때 localStorage를 다시 읽으면(JSON.parse
+// 포함) 검색창에 한 글자 칠 때마다 그 비용이 배로 든다.
+function billMatchesGlobalFilters(b, starred) {
+  if (state.billStarredOnly && !starred.has(b.id)) return false;
+  if (state.billProposer && b.repProposer !== state.billProposer) return false;
+  if (state.billSearch) {
+    const q = state.billSearch.toLowerCase();
+    if (!((b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q))) return false;
+  }
+  return true;
+}
+
 // 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
 // 위 단계 선택이 아래 단계의 칩 건수를 다시 계산하게 만든다.
 function renderCommitteeChipRow() {
   const starred = getStarredBills();
-  const filterFn = state.billStarredOnly ? (b => starred.has(b.id)) : null;
+  const filterFn = (b) => billMatchesGlobalFilters(b, starred);
   renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn', 'committeeCurrentTag');
 }
 
@@ -1493,8 +1509,7 @@ function renderCommitteeChipRow() {
 function renderStageFlowRow() {
   const starred = getStarredBills();
   const source = BILL_DATA.filter(b =>
-    (state.billCommittee === '전체' || b.committee === state.billCommittee) &&
-    (!state.billStarredOnly || starred.has(b.id))
+    (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesGlobalFilters(b, starred)
   );
   const stageCounts = {};
   source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
@@ -1601,7 +1616,7 @@ function renderBillList() {
   if (pill) pill.addEventListener('click', () => {
     state.billProposer = '';
     state.billPage = 1;
-    renderBillList();
+    renderBills(); // 위원회/처리단계 칩 건수도 대표발의자 조건 해제에 맞춰 다시 계산
   });
   document.getElementById('billPageSizeSel').value = String(state.billPageSize);
 
@@ -1709,7 +1724,7 @@ document.getElementById('periodSelect').addEventListener('change', e => { state.
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
-document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBillList(); });
+document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBills(); });
 document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; renderMembers(); });
 document.getElementById('memberSortSel').addEventListener('change', e => { state.memberSort = e.target.value; renderMembers(); });
 document.getElementById('billStarredToggle').addEventListener('click', () => {
