@@ -340,7 +340,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
    역할표를 진하게(보좌관)→연하게(비서) 둬서 한눈에 위아래가 구분되게 한다. */
 .member-staff { margin-top: 7px; font-size: 0.8em; display: flex; flex-direction: column; gap: 3px; }
 .staff-row { display: flex; align-items: baseline; gap: 7px; }
-.staff-role { flex-shrink: 0; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
+/* "비서"(2자)가 "보좌관"·"비서관"(3자)보다 짧아서 뱃지 폭이 들쭉날쭉하면
+   그 옆 이름들도 줄이 안 맞는다 - 폭을 고정하고 가운데 정렬해서 맞춘다. */
+.staff-role { flex-shrink: 0; min-width: 44px; text-align: center; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
 .role-aide { background: rgba(255,75,75,0.15); color: var(--app-primary); }
 .role-chief { background: rgba(138,180,248,0.15); color: #8ab4f8; }
 .role-sec { background: rgba(128,128,128,0.16); opacity: 0.85; }
