@@ -55,7 +55,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 파이썬 스크립트 실행 (API 키 매핑 필수)
+      - name: 뉴스 수집 + AI 분석 (네이버 API + Gemini)
         # 07:12 / 07:47은 법안 전용 재수집이므로 뉴스(및 Gemini 분석)는 건너뛴다.
         # 여기 cron 문자열이 위 schedule과 어긋나면 법안 전용 실행에서 뉴스까지 돌아버린다.
         if: github.event.schedule != '12 22 * * *' && github.event.schedule != '47 22 * * *'
@@ -67,7 +67,7 @@ jobs:
         run: |
           python main.py
 
-      - name: 계류 법안 수집 (국회 열린국회정보 Open API)
+      - name: 법안 + 의원 정보 수집 (국회 열린국회정보 Open API)
         # 법안은 아침 세 번(06:07/07:12/07:47)만 수집한다.
         # 수동 실행(workflow_dispatch)은 schedule이 빈 값이라 아래 조건에서 통과한다.
         if: >-
