@@ -341,8 +341,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .member-bill-btn { flex-shrink: 0; border: 1px solid var(--app-primary); color: var(--app-primary); background: transparent; border-radius: 7px; padding: 3px 8px; font-size: 0.72em; font-weight: 700; }
 .member-bill-btn:hover { background: var(--app-primary); color: #fff; }
 .member-bill-none { flex-shrink: 0; font-size: 0.7em; opacity: 0.35; }
-.member-side .member-history { margin-top: 0; }
-.member-history { font-size: 0.78em; }
+/* 약력은 사진 옆 좁은 칸(86px)에 두면 펼쳤을 때 글이 너무 좁게 접혀 읽기
+   힘들어서, 카드 전체 폭을 쓰는 본문 쪽(맨 아래)에 둔다. */
+.member-history { margin-top: 8px; font-size: 0.78em; }
 .member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-history summary:hover { opacity: 0.9; }
 .member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; text-align: left; }
@@ -661,7 +662,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-28 10:57 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-28 11:09 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -1062,7 +1063,6 @@ function memberCardHtml(m) {
     <div class="member-side">
       ${photo}
       ${billBtn}
-      ${history}
     </div>
     <div class="member-body">
       <div class="member-head">
@@ -1074,6 +1074,7 @@ function memberCardHtml(m) {
       <div class="member-meta">${meta}</div>
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
+      ${history}
     </div>
   </div>`;
 }
