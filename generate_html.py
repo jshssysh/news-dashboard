@@ -155,12 +155,36 @@ def row_to_dict(row):
     }
 
 
+def bill_outcome_bucket(result):
+    """대표발의 성과 집계용으로 처리결과를 4갈래로 묶는다.
+
+    실제로 확인해보니(2026-08-28 기준 14,440건 중 결과가 난 216건) 그 중
+    205건(95%)이 "대안반영폐기"였다 - 원안 그대로 가결되는 게 아니라, 내용이
+    위원회 대안에 흡수되고 원래 법안은 형식상 폐기 처리되는 경우가 압도적으로
+    많다. 이를 그냥 "폐기"(부결과 같은 취급)로 뭉치면 실질적으로는 정책이
+    반영된 성과를 실패로 보이게 만든다 - 그래서 "대안반영"을 별도 갈래로 뗀다.
+    "대안가결"(위원회 대안 자체가 가결된 기록)은 원안이 아니라 그 대안 쪽
+    이야기라 일반 "가결"에 놔둔다."""
+    if not result or result == "심사중":
+        return None
+    if "부결" in result:
+        return "부결"
+    if "대안반영" in result:
+        return "대안반영"
+    if "가결" in result:
+        return "가결"
+    if "철회" in result or "폐기" in result:
+        return "폐기"
+    return None
+
+
 def load_members(bills):
     """member_list.csv(22대 현역)를 읽어서 의원 검색 화면용 목록을 만든다.
 
-    대표발의 건수는 여기서 미리 세어 붙인다. 화면에서 세려면 법안 목록(bills.json)이
-    있어야 하는데 그건 입법 탭을 볼 때만 받으므로, 의원 탭만 열어도 건수가 보이게
-    한다. 세는 기준은 카드에 적히는 이름과 같은 '대표발의자'다."""
+    대표발의 건수와 처리결과 요약은 여기서 미리 세어 붙인다. 화면에서 세려면
+    법안 목록(bills.json)이 있어야 하는데 그건 입법 탭을 볼 때만 받으므로,
+    의원 탭만 열어도 보이게 한다. 세는 기준은 카드에 적히는 이름과 같은
+    '대표발의자'다."""
     path = "member_list.csv"
     if not os.path.exists(path):
         return []
@@ -170,10 +194,16 @@ def load_members(bills):
         return []
 
     bill_counts = {}
+    pass_results = {}
     for bill in bills:
         rep = (bill.get("repProposer") or "").strip()
-        if rep:
-            bill_counts[rep] = bill_counts.get(rep, 0) + 1
+        if not rep:
+            continue
+        bill_counts[rep] = bill_counts.get(rep, 0) + 1
+        bucket = bill_outcome_bucket(bill.get("result"))
+        if bucket:
+            pass_results.setdefault(rep, {})
+            pass_results[rep][bucket] = pass_results[rep].get(bucket, 0) + 1
 
     records = []
     for _, row in mdf.iterrows():
@@ -202,6 +232,7 @@ def load_members(bills):
             "history": nz(row.get("약력"), ""),
             "photo": nz(row.get("사진"), ""),
             "billCount": bill_counts.get(name, 0),
+            "passResults": pass_results.get(name) or None,
             "profileUrl": profile_url,
             # 지자체장·대통령 등으로 옮겨서 사실상 의정활동을 안 하는 사람의 지금 직함
             # (예: "경기도지사"). collect_bills.py의 MEMBER_ROLE_CHANGES 참고.

@@ -304,6 +304,15 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-side > a { display: inline-block; line-height: 0; }
 .member-hanja { font-size: 0.78em; opacity: 0.45; }
 .member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 대표발의 법안 중 결과가 난 것만 요약 - "대안반영"은 폐기(빨강)도
+   가결(초록)도 아닌 중립색으로 둬서, 실패가 아니라 다른 법안에 흡수된
+   것임을 색으로도 구분한다. */
+.member-pass-summary { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.pass-item { font-size: 0.76em; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.pass-item.pass-ok { background: rgba(67,160,71,0.15); color: #43a047; }
+.pass-item.pass-merged { background: rgba(138,180,248,0.15); color: #8ab4f8; }
+.pass-item.pass-reject { background: rgba(224,83,83,0.15); color: #e05353; }
+.pass-item.pass-drop { background: rgba(128,128,128,0.16); opacity: 0.8; }
 /* 이름 옆에 붙는 소속 위원회 배지 - 줄(row)이 아니라 헤드 줄의 한 조각이라
    inline-flex 로 둔다(단독 줄로 쓰던 이전 레이아웃의 흔적으로 이름이 남았다) */
 .member-cmit-row { display: inline-flex; flex-wrap: wrap; gap: 4px; }
@@ -1013,6 +1022,17 @@ function memberCardHtml(m) {
   const partyText = m.prevParty && m.prevParty !== m.party
     ? `${m.party || '무소속'}(前 ${m.prevParty})` : (m.party || '무소속');
   const meta = [partyText, m.term, m.district].filter(Boolean).join(' · ');
+  // 대표발의 법안 중 결과가 난 것만 요약한다("심사중"인 나머지는 대표발의
+  // 건수에 이미 다 포함돼 있으니 따로 안 보여준다). 대부분(95%)이 원안
+  // 그대로가 아니라 "대안반영폐기"로 끝나므로 - 위원회 대안에 흡수되고
+  // 원래 법안은 형식상 폐기되는 것 - 이걸 그냥 "폐기"로 뭉치면 실질적으로
+  // 성사된 걸 실패로 보이게 만든다. 그래서 "대안반영"을 따로 뗀다.
+  const PASS_BUCKET_CLASS = { '가결': 'pass-ok', '대안반영': 'pass-merged', '부결': 'pass-reject', '폐기': 'pass-drop' };
+  const passSummary = m.passResults
+    ? Object.entries(m.passResults)
+        .sort((a, b) => Object.keys(PASS_BUCKET_CLASS).indexOf(a[0]) - Object.keys(PASS_BUCKET_CLASS).indexOf(b[0]))
+        .map(([bucket, cnt]) => `<span class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}">${bucket} ${cnt}</span>`).join('')
+    : '';
   const committees = memberCommittees(m)
     .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
     .join('');
@@ -1072,6 +1092,7 @@ function memberCardHtml(m) {
           : `<span class="member-cmit-row"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></span>`}
       </div>
       <div class="member-meta">${meta}</div>
+      ${passSummary ? `<div class="member-pass-summary">${passSummary}</div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
       ${history}
