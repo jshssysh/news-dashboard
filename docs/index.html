@@ -311,12 +311,13 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-pass-summary { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; }
 /* 대표발의 버튼처럼 눌러서 입법 탭의 그 결과만 보러 갈 수 있다 - 버튼 기본
    테두리/배경은 지우고 색은 각 결과별 클래스(.pass-ok 등)가 정한다. */
-.pass-item { font: inherit; font-size: 0.76em; font-weight: 700; padding: 2px 7px; border-radius: 5px; border: none; cursor: pointer; }
-.pass-item:hover { filter: brightness(1.2); }
-.pass-item.pass-ok { background: rgba(67,160,71,0.15); color: #43a047; }
-.pass-item.pass-merged { background: rgba(138,180,248,0.15); color: #8ab4f8; }
-.pass-item.pass-reject { background: rgba(224,83,83,0.15); color: #e05353; }
-.pass-item.pass-drop { background: rgba(128,128,128,0.16); opacity: 0.8; }
+/* 대표발의 버튼과 같은 느낌(테두리만 있는 빈 알약, 호버하면 꽉 찬다) */
+.pass-item { font: inherit; font-size: 0.72em; font-weight: 700; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--pass-color); color: var(--pass-color); background: transparent; cursor: pointer; width: 100%; box-sizing: border-box; }
+.pass-item:hover { background: var(--pass-color); color: #fff; }
+.pass-item.pass-ok { --pass-color: #43a047; }
+.pass-item.pass-merged { --pass-color: #8ab4f8; }
+.pass-item.pass-reject { --pass-color: #e05353; }
+.pass-item.pass-drop { --pass-color: #9a9a9a; }
 /* 이름 옆에 붙는 소속 위원회 배지 - 줄(row)이 아니라 헤드 줄의 한 조각이라
    inline-flex 로 둔다(단독 줄로 쓰던 이전 레이아웃의 흔적으로 이름이 남았다) */
 .member-cmit-row { display: inline-flex; flex-wrap: wrap; gap: 4px; }
@@ -684,7 +685,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-28 14:07 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-28 14:26 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -946,7 +947,10 @@ function memberSpecialCategory(m) {
   if (m.roleChange) return { bucket: ROLE_CHANGE_CATEGORY, badge: `現 ${m.roleChange}`, cls: 'member-badge-rolechange' };
   // 배지 자체는 "의원직 상실"까지만 짧게 보여주고, 구체적인 사유(죄명 등)는
   // 굳이 배지에 못박지 않고 title(마우스 오버)로만 드러낸다.
-  if (m.seatLost) return { bucket: SEAT_LOST_CATEGORY, badge: SEAT_LOST_CATEGORY, cls: 'member-badge-lost', detail: m.seatLost };
+  // 배지에 사유까지 몇 글자로 바로 보여준다("의원직 상실, 정치자금법 위반")
+  // - 확정된 공개 사실이니 배지에 넣되, 날짜·"확정판결" 같은 상세는 뺐다
+  // (collect_bills.py의 MEMBER_SEAT_LOST가 이미 짧게 정리해서 준다).
+  if (m.seatLost) return { bucket: SEAT_LOST_CATEGORY, badge: `${SEAT_LOST_CATEGORY}, ${m.seatLost}`, cls: 'member-badge-lost' };
   return { bucket: NO_COMMITTEE, badge: NO_COMMITTEE, cls: 'member-badge-none' };
 }
 
@@ -1148,7 +1152,7 @@ function memberCardHtml(m) {
         ${committees ? `<span class="member-cmit-row">${committees}</span>` : ''}
       </div>
       <div class="member-meta">${meta}</div>
-      ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.detail ? special.detail + ' — ' : ''}${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
+      ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
       ${history}
