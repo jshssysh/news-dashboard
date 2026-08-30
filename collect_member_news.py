@@ -5,8 +5,9 @@ member_list.csv(collect_bills.py가 만듦)가 먼저 있어야 하므로 그 �
 검색어는 "{이름} 의원"으로 좁혀서 동명이인 기사 노출을 줄인다(완벽하진 않음).
 같은 사건을 여러 언론사가 그대로 받아쓴 기사는 정규화한 제목으로 묶어 대표
 기사 하나만 남기고("관련보도수"로 나머지 개수만 기록), 이미 저장돼 있는
-기사와 제목이 같으면(재보도) 다시 추가하지 않는다. 한 사람당 최근
-MAX_PER_MEMBER건만 남기고 그보다 오래된 건 버려서 파일이 무한정 커지지 않게 한다.
+기사와 제목이 같으면(재보도) 다시 추가하지 않는다. 과거 이슈 이력을 계속
+보고 싶다는 요청이라 사람당 상한 없이 전부 누적한다(news_list.csv/
+bill_list.csv와 같은 방식 - 무한정 쌓이지만 하루 증분만 새로 API를 태운다).
 
 요약은 Gemini로 1문장만 받는다 - 법안 요약(collect_bills.py)과 같은 방식으로
 배치+서킷브레이커를 쓴다. 이미 요약이 있는 기사(재실행)는 다시 요약하지 않는다.
@@ -32,7 +33,6 @@ KST = timezone(timedelta(hours=9))
 MEMBER_LIST_PATH = "member_list.csv"
 OUT_PATH = "member_news.csv"
 OUT_COLUMNS = ["의원명", "제목", "언론사", "링크", "발행일", "요약", "관련보도수"]
-MAX_PER_MEMBER = 30
 DISPLAY_PER_QUERY = 20
 
 
@@ -230,10 +230,11 @@ def main():
         print("[의원 뉴스] 저장할 기사가 없습니다.")
         return
 
+    # 과거에 무슨 이슈가 있었는지 계속 남겨두고 싶다는 요청이라, 사람당 상한 없이
+    # 전부 누적한다(중복은 이미 위에서 걸렀으니 여기선 정렬만).
     combined = combined.sort_values("발행일", ascending=False)
-    combined = combined.groupby("의원명", group_keys=False).head(MAX_PER_MEMBER)
     combined.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
-    print(f"[의원 뉴스 저장 완료] 총 {len(combined)}건(사람당 최대 {MAX_PER_MEMBER}건) -> {OUT_PATH}")
+    print(f"[의원 뉴스 저장 완료] 총 {len(combined)}건 -> {OUT_PATH}")
 
 
 if __name__ == "__main__":

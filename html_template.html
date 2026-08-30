@@ -375,6 +375,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .member-news { margin-top: 8px; font-size: 0.78em; flex: 1 1 200px; }
 .member-news summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-news summary:hover { opacity: 0.9; }
+/* 접힌 상태에서도 최신 이슈를 보여주되, 길다고 칸을 늘리지 않고 말줄임표로 자른다 */
+.news-latest-preview { font-weight: 400; opacity: 0.7; display: inline-block; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: bottom; }
 .member-news > div { margin-top: 6px; max-height: 320px; overflow-y: auto; text-align: left; }
 .news-item { padding: 6px 0; border-top: 1px solid var(--app-border); }
 .news-item:first-child { border-top: none; }
@@ -1166,9 +1168,9 @@ function memberCardHtml(m) {
   const history = m.history
     ? `<details class="member-history"><summary>약력</summary><div>${m.history.replace(/\r?\n/g, '<br>')}</div></details>`
     : '';
-  // 카드엔 최신 5건만 보여주고, 나머지(최대 30건까지 - collect_member_news.py의
-  // MAX_PER_MEMBER)는 "전체보기"로 누르면 뜨는 팝업에서 본다. 같은 사건을 여러
-  // 언론사가 받아쓴 건 이미 수집 단계에서 대표 기사 하나로 합쳐져 있다.
+  // 카드엔 최신 5건만 보여주고, 나머지(collect_member_news.py가 상한 없이 계속
+  // 누적한 과거 이슈 전부)는 "전체보기"로 누르면 뜨는 모달에서 본다. 같은 사건을
+  // 여러 언론사가 받아쓴 건 이미 수집 단계에서 대표 기사 하나로 합쳐져 있다.
   const newsList = m.news || [];
   const newsCards = newsList.slice(0, 5).map(n => `
     <div class="news-item">
@@ -1178,8 +1180,13 @@ function memberCardHtml(m) {
     </div>`).join('');
   const newsMoreBtn = newsList.length > 5
     ? `<button class="news-more-btn" data-name="${m.name}">전체 ${newsList.length}건 보기</button>` : '';
+  // 접혀 있을 때도 "뉴스" 옆에 최신 이슈를 바로 보여준다 - 약력과 나란히 두는
+  // 칸 폭은 그대로 두고(늘리지 않고), 길면 말줄임표로 잘리게 CSS에서 처리한다.
+  const newsPreview = newsList[0]
+    ? ` <span class="news-latest-preview">${newsList[0].title}${newsList[0].date ? ` (${newsList[0].date.slice(5)})` : ''}</span>`
+    : '';
   const news = newsList.length
-    ? `<details class="member-news"><summary>뉴스</summary><div>${newsCards}${newsMoreBtn}</div></details>`
+    ? `<details class="member-news"><summary>뉴스${newsPreview}</summary><div>${newsCards}${newsMoreBtn}</div></details>`
     : '';
   return `<div class="article-card member-card">
     <div class="member-side">
@@ -1257,7 +1264,7 @@ function renderMembers() {
   });
 }
 
-// 카드엔 5건만 보이므로, "전체보기"는 페이지 안 모달로 전부(최대 30건) 띄운다.
+// 카드엔 5건만 보이므로, "전체보기"는 페이지 안 모달로 누적된 전체 이력을 띄운다.
 // window.open 팝업은 브라우저 팝업 차단에 걸릴 수 있어(특히 모바일) 쓰지 않는다.
 function openMemberNewsPopup(m) {
   const list = m.news || [];
