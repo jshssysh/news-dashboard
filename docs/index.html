@@ -689,7 +689,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-31 07:16 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-31 08:42 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -1308,7 +1308,8 @@ function renderNewsView(dr, allGroups) {
       <div class="sentiment-track">${seg(negPct,neg,'sentiment-neg','부정')}${seg(neuPct,neu,'sentiment-neu','중립')}${seg(posPct,pos,'sentiment-pos','긍정')}</div></div>`;
   };
   let sidebarHtml = panelRows.length ? renderKwRow('전체', panelRows, 'kw-row-total') + '<hr class="kw-divider">' : '';
-  Object.keys(dailyCatCounts).sort((a,b) => dailyCatCounts[b]-dailyCatCounts[a]).forEach(cat => {
+  // 건수 많은 순이 아니라, 위 "카테고리별 주요뉴스" 칩과 같은 순서(NEWS_CATEGORY_ORDER)로 맞춘다.
+  Object.keys(dailyCatCounts).sort((a,b) => newsCategoryRank(a) - newsCategoryRank(b)).forEach(cat => {
     sidebarHtml += renderKwRow(cat, panelRows.filter(r => r.category === cat));
   });
   // 접었을 때 제목 옆에 지금 보고 있는 카테고리를 남긴다.
