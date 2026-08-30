@@ -153,6 +153,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
+.custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
+.custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
+.custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 .filter-section-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -463,8 +467,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* ── 카테고리별 주요뉴스 접기 + 세로 배치 ── */
   .news-filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .news-filter-row h5 { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .filter-selects { display: flex; gap: 8px; }
+  .filter-selects { display: flex; flex-wrap: wrap; gap: 8px; }
   .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
+  /* 달력 두 개는 셀렉트 사이에 끼워 넣으면 너무 좁아지니 자기 줄을 통째로 쓴다 */
+  .custom-range-inputs { flex: 1 1 100%; }
   .news-filter-row input[type=text] { width: 100%; }
   #newsFilterSticky.news-collapsed .filter-selects,
   #newsFilterSticky.news-collapsed #searchInput,
@@ -590,9 +596,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="filter-selects">
           <select id="periodSelect">
             <option value="0">오늘만</option>
+            <option value="2">주말간</option>
             <option value="6">최근 7일</option>
             <option value="29">최근 30일</option>
+            <option value="custom">날짜 지정</option>
           </select>
+          <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
+            <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
+          </span>
           <select id="sortSelect">
             <option value="importance">중요도순</option>
             <option value="press">보도량순</option>
@@ -792,6 +803,9 @@ const state = {
   currentDate: null,   // news.json 을 받은 뒤 가장 최근 날짜로 채운다
   selectedCategory: '전체',
   period: 0,
+  // period === 'custom'일 때만 쓰는 직접 지정한 날짜 범위(YYYY-MM-DD, 둘 다 있어야 유효)
+  customFrom: null,
+  customTo: null,
   sort: 'importance',
   sentiment: '',
   search: '',
@@ -1298,6 +1312,17 @@ function newsMatchesGlobalFilters(r) {
 }
 
 function scopedRows() {
+  if (state.period === 'custom') {
+    // 시작/끝 날짜를 둘 다 고르기 전에는(달력 하나만 찍은 상태) 아무것도 안 보여준다.
+    if (!state.customFrom || !state.customTo) return [];
+    // <input type="date">는 "YYYY-MM-DD"만 주는데 r.date는 "YYYY/MM/DD"라 그대로
+    // 비교하면 구분자 문자 코드값 때문에 늘 어긋난다 - 구분자를 맞춰서 비교한다.
+    const a = state.customFrom.replace(/-/g, '/');
+    const b = state.customTo.replace(/-/g, '/');
+    const from = a <= b ? a : b;
+    const to = a <= b ? b : a;
+    return NEWS_DATA.filter(r => r.date >= from && r.date <= to);
+  }
   if (state.period === 0) return dailyRows();
   const idx = allDates.indexOf(state.currentDate);
   const startIdx = Math.max(0, idx - state.period);
@@ -1895,7 +1920,24 @@ document.getElementById('dateNext').addEventListener('click', () => {
   const i = allDates.indexOf(state.currentDate);
   if (i !== -1 && i < allDates.length - 1) { state.currentDate = allDates[i+1]; renderAll(); }
 });
-document.getElementById('periodSelect').addEventListener('change', e => { state.period = parseInt(e.target.value,10); state.selectedCategory = '전체'; state.page = 1; renderAll(); });
+document.getElementById('periodSelect').addEventListener('change', e => {
+  const raw = e.target.value;
+  state.period = raw === 'custom' ? 'custom' : parseInt(raw, 10);
+  document.getElementById('customRangeInputs').style.display = raw === 'custom' ? '' : 'none';
+  state.selectedCategory = '전체';
+  state.page = 1;
+  renderAll();
+});
+document.getElementById('customFromInput').addEventListener('change', e => {
+  state.customFrom = e.target.value || null;
+  state.page = 1;
+  renderAll();
+});
+document.getElementById('customToInput').addEventListener('change', e => {
+  state.customTo = e.target.value || null;
+  state.page = 1;
+  renderAll();
+});
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
@@ -2024,6 +2066,16 @@ loadJson('news.json').then(rows => {
   NEWS_DATA = rows;
   allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
   state.currentDate = allDates.length ? allDates[allDates.length - 1] : null;
+  // "날짜 지정" 달력이 실제로 기사가 있는 범위 밖을 고르지 못하게 막는다.
+  // <input type="date">의 min/max는 "YYYY-MM-DD"만 인식하므로 allDates("YYYY/MM/DD")를 바꿔서 넣는다.
+  if (allDates.length) {
+    const minD = allDates[0].replace(/\//g, '-');
+    const maxD = allDates[allDates.length - 1].replace(/\//g, '-');
+    document.getElementById('customFromInput').min = minD;
+    document.getElementById('customFromInput').max = maxD;
+    document.getElementById('customToInput').min = minD;
+    document.getElementById('customToInput').max = maxD;
+  }
   renderAll();
   // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
   // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
