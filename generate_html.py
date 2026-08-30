@@ -178,6 +178,34 @@ def bill_outcome_bucket(result):
     return None
 
 
+def load_member_news():
+    """collect_member_news.py가 쌓은 member_news.csv를 의원 이름별로 묶는다.
+    (최신순 정렬은 여기서 한 번만 해두면 화면은 그대로 앞에서부터 자르기만 하면 된다.)"""
+    path = "member_news.csv"
+    if not os.path.exists(path):
+        return {}
+    try:
+        ndf = pd.read_csv(path)
+    except Exception:
+        return {}
+    news_by_member = {}
+    for _, row in ndf.iterrows():
+        name = nz(row.get("의원명"), "")
+        if not name:
+            continue
+        news_by_member.setdefault(name, []).append({
+            "title": nz(row.get("제목"), ""),
+            "press": nz(row.get("언론사"), ""),
+            "link": nz(row.get("링크"), ""),
+            "date": nz(row.get("발행일"), ""),
+            "summary": nz(row.get("요약"), ""),
+            "relatedCount": int(row["관련보도수"]) if pd.notna(row.get("관련보도수")) else 1,
+        })
+    for name in news_by_member:
+        news_by_member[name].sort(key=lambda n: n["date"] or "", reverse=True)
+    return news_by_member
+
+
 def load_members(bills):
     """member_list.csv(22대 현역)를 읽어서 의원 검색 화면용 목록을 만든다.
 
@@ -204,6 +232,8 @@ def load_members(bills):
         if bucket:
             pass_results.setdefault(rep, {})
             pass_results[rep][bucket] = pass_results[rep].get(bucket, 0) + 1
+
+    news_by_member = load_member_news()
 
     records = []
     for _, row in mdf.iterrows():
@@ -233,6 +263,7 @@ def load_members(bills):
             "photo": nz(row.get("사진"), ""),
             "billCount": bill_counts.get(name, 0),
             "passResults": pass_results.get(name) or None,
+            "news": news_by_member.get(name) or None,
             "profileUrl": profile_url,
             # 지자체장·대통령 등으로 옮겨서 사실상 의정활동을 안 하는 사람의 지금 직함
             # (예: "경기도지사"). collect_bills.py의 MEMBER_ROLE_CHANGES 참고.

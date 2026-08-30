@@ -82,6 +82,21 @@ jobs:
         run: |
           python collect_bills.py
 
+      - name: 의원별 뉴스 수집 (네이버 API + Gemini)
+        # member_list.csv(바로 위 단계가 만듦)가 있어야 하므로 같은 조건으로 묶는다.
+        if: >-
+          github.event.inputs.skip_bills != 'true'
+          && (github.event_name != 'schedule'
+              || github.event.schedule == '7 21 * * *'
+              || github.event.schedule == '12 22 * * *'
+              || github.event.schedule == '47 22 * * *')
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python collect_member_news.py
+
       - name: 정적 대시보드(docs/) 생성
         run: |
           python generate_html.py
@@ -95,7 +110,7 @@ jobs:
           # 파일마다 존재 여부를 확인하고 add 한다. 한 번에 나열해서 add 하면 그 중
           # 하나라도 없을 때(예: member_list.csv 생성이 실패한 실행) "did not match
           # any files"로 스크립트 전체가 죽어, 뉴스/법안까지 커밋되지 않은 적이 있었다.
-          for f in news_list.csv bill_list.csv member_list.csv docs/index.html docs/news.json docs/bills.json docs/members.json; do
+          for f in news_list.csv bill_list.csv member_list.csv member_news.csv docs/index.html docs/news.json docs/bills.json docs/members.json; do
             [ -f "$f" ] && git add "$f"
           done
           if ! git diff --quiet || ! git diff --staged --quiet; then

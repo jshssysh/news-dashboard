@@ -370,6 +370,29 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-history summary:hover { opacity: 0.9; }
 .member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; text-align: left; }
+/* 약력 옆에 나란히 두는 뉴스 토글 - 둘 다 펼쳐도 서로 안 밀리게 줄바꿈 허용 */
+.member-history-row { display: flex; flex-wrap: wrap; gap: 14px; }
+.member-news { margin-top: 8px; font-size: 0.78em; flex: 1 1 200px; }
+.member-news summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
+.member-news summary:hover { opacity: 0.9; }
+.member-news > div { margin-top: 6px; max-height: 320px; overflow-y: auto; text-align: left; }
+.news-item { padding: 6px 0; border-top: 1px solid var(--app-border); }
+.news-item:first-child { border-top: none; }
+.news-item-head { opacity: 0.55; font-size: 0.92em; margin-bottom: 2px; }
+.news-item-title { display: block; text-decoration: none; font-weight: 700; line-height: 1.35; }
+.news-item-title:hover { text-decoration: underline; }
+.news-item-summary { opacity: 0.85; line-height: 1.4; margin-top: 2px; }
+.news-more-btn { margin-top: 8px; width: 100%; padding: 5px; border-radius: 6px; border: 1px solid var(--app-border); background: transparent; color: inherit; opacity: 0.7; cursor: pointer; font: inherit; font-size: 0.95em; }
+.news-more-btn:hover { opacity: 1; border-color: var(--app-border-strong); }
+/* "전체보기" 모달 - window.open 팝업은 차단될 수 있어(특히 모바일) 페이지 안에 직접 띄운다 */
+.news-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.news-modal { background: var(--app-bg); color: var(--app-text); border-radius: 10px; width: 100%; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+.news-modal-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--app-border); }
+.news-modal-count { opacity: 0.6; font-size: 0.85em; }
+.news-modal-close { margin-left: auto; background: none; border: none; color: inherit; font-size: 1.1em; cursor: pointer; opacity: 0.6; padding: 4px; }
+.news-modal-close:hover { opacity: 1; }
+.news-modal-body { padding: 4px 16px 16px; overflow-y: auto; }
+.news-modal-body .news-item:first-child { border-top: none; }
 .proposer-pill { background: var(--app-primary); color: #fff; border: none; border-radius: 20px; padding: 2px 10px; font-size: 0.92em; font-weight: 700; margin-right: 4px; }
 .proposer-pill:hover { filter: brightness(1.1); }
 /* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
@@ -1143,6 +1166,21 @@ function memberCardHtml(m) {
   const history = m.history
     ? `<details class="member-history"><summary>약력</summary><div>${m.history.replace(/\r?\n/g, '<br>')}</div></details>`
     : '';
+  // 카드엔 최신 5건만 보여주고, 나머지(최대 30건까지 - collect_member_news.py의
+  // MAX_PER_MEMBER)는 "전체보기"로 누르면 뜨는 팝업에서 본다. 같은 사건을 여러
+  // 언론사가 받아쓴 건 이미 수집 단계에서 대표 기사 하나로 합쳐져 있다.
+  const newsList = m.news || [];
+  const newsCards = newsList.slice(0, 5).map(n => `
+    <div class="news-item">
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
+      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+    </div>`).join('');
+  const newsMoreBtn = newsList.length > 5
+    ? `<button class="news-more-btn" data-name="${m.name}">전체 ${newsList.length}건 보기</button>` : '';
+  const news = newsList.length
+    ? `<details class="member-news"><summary>뉴스</summary><div>${newsCards}${newsMoreBtn}</div></details>`
+    : '';
   return `<div class="article-card member-card">
     <div class="member-side">
       ${photo}
@@ -1159,7 +1197,7 @@ function memberCardHtml(m) {
       ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
-      ${history}
+      ${history || news ? `<div class="member-history-row">${history}${news}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1210,6 +1248,35 @@ function renderMembers() {
   listEl.querySelectorAll('.pass-item').forEach(b => {
     b.addEventListener('click', () => goToBills(b.dataset.name, b.dataset.bucket));
   });
+  listEl.querySelectorAll('.news-more-btn').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const m = MEMBER_DATA.find(x => x.name === b.dataset.name);
+      if (m) openMemberNewsPopup(m);
+    });
+  });
+}
+
+// 카드엔 5건만 보이므로, "전체보기"는 페이지 안 모달로 전부(최대 30건) 띄운다.
+// window.open 팝업은 브라우저 팝업 차단에 걸릴 수 있어(특히 모바일) 쓰지 않는다.
+function openMemberNewsPopup(m) {
+  const list = m.news || [];
+  const itemsHtml = list.map(n => `
+    <div class="news-item">
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
+      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+    </div>`).join('') || '<div class="info-box">기사가 없습니다.</div>';
+  const overlay = document.createElement('div');
+  overlay.className = 'news-modal-backdrop';
+  overlay.innerHTML = `<div class="news-modal">
+      <div class="news-modal-head"><b>${m.name} 의원 관련 뉴스</b><span class="news-modal-count">총 ${list.length}건</span><button class="news-modal-close" title="닫기">✕</button></div>
+      <div class="news-modal-body">${itemsHtml}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.news-modal-close').addEventListener('click', close);
 }
 
 // 카테고리(기간 범위 안에서 각 칩이 다르게 세야 하는 값)만 빼고, 나머지
