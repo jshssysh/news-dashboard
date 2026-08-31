@@ -247,6 +247,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .cnt-neu { color: #d99a2b; font-weight: 700; }
 .cnt-pos { color: #43a047; font-weight: 700; }
 .cnt-fail { color: #9c4dcc; font-weight: 700; opacity: 0.85; }
+/* 클러스터링이 비정상으로 커져서 그 이슈의 오늘 기사를 저장하지 않고 건너뛴 카테고리 표시.
+   마우스를 올리면(title) 어떤 이슈에 몇 건이 몰렸는지 짧게 보인다. */
+.cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
 .sentiment-track { display: flex; width: 100%; height: 8px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
 .sentiment-seg {
     display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
@@ -735,6 +738,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 let NEWS_DATA = [];
 let BILL_DATA = [];
 let MEMBER_DATA = [];
+let WARNINGS_DATA = [];
 let allDates = [];
 const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
 // 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
@@ -1330,6 +1334,26 @@ function scopedRows() {
   return NEWS_DATA.filter(r => rangeSet.has(r.date));
 }
 
+// 화면에 지금 보이는 날짜들(scoped 데이터의 date, "YYYY/MM/DD") 안에 있는 클러스터링
+// 경고만 추려 { 카테고리: [{date, issue, count}, ...] } 로 돌려준다. cluster_warnings.csv는
+// "YYYY-MM-DD"라 구분자를 맞춰서 비교한다(날짜 지정 달력과 같은 이유).
+function warningsForDates(dates) {
+  const dateSet = new Set(dates);
+  const map = {};
+  WARNINGS_DATA.forEach(w => {
+    const slashDate = (w.date || '').replace(/-/g, '/');
+    if (!dateSet.has(slashDate)) return;
+    (map[w.category] = map[w.category] || []).push(w);
+  });
+  return map;
+}
+function warningTooltip(entries) {
+  return entries.map(w => {
+    const md = (w.date || '').slice(5).replace('-', '/');
+    return `${md}: '${w.issue}'에 ${w.count}건이 몰려 클러스터링 이상 의심 - 그날 신규 기사는 반영 안 됨`;
+  }).join('\n');
+}
+
 function renderNewsView(dr, allGroups) {
   const top3 = allGroups.slice(0,3);
   document.getElementById('signalItems').innerHTML = top3.map((g,i) => {
@@ -1343,6 +1367,7 @@ function renderNewsView(dr, allGroups) {
   }).join('');
 
   const scoped = scopedRows();
+  const warnedCategories = warningsForDates(Array.from(new Set(scoped.map(r => r.date))));
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
   // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
   // 검색어·논조 필터도 목록과 똑같이 걸어야 한다(검색창에 "쿠팡"을 치면
@@ -1361,7 +1386,9 @@ function renderNewsView(dr, allGroups) {
   chipRow.innerHTML = cats.map(c => {
     let tip = c in topIssueByCat ? `${topIssueByCat[c].title} · 중요도 ${topIssueByCat[c].importance}/10` : '';
     const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
-    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
+    const warnEntries = warnedCategories[c];
+    const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
+    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c}${warnHtml} ${cnt}</button>`;
   }).join('');
   // 모바일에서 접었을 때도 지금 무슨 카테고리를 보고 있는지 제목 옆에 남긴다
   // ("전체"면 굳이 표시하지 않음).
@@ -1403,7 +1430,9 @@ function renderNewsView(dr, allGroups) {
     const failTag = fail > 0
       ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 실패만 보기">실패 ${fail}</span>`
       : '';
-    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
+    const warnEntries = catValue !== '전체' && warnedCategories[catValue];
+    const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
+    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue}${warnHtml} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
       <div class="sentiment-track">${seg(negPct,neg,'sentiment-neg','부정')}${seg(neuPct,neu,'sentiment-neu','중립')}${seg(posPct,pos,'sentiment-pos','긍정')}</div></div>`;
   };
   let sidebarHtml = panelRows.length ? renderKwRow('전체', panelRows, 'kw-row-total') + '<hr class="kw-divider">' : '';
@@ -2077,6 +2106,12 @@ loadJson('news.json').then(rows => {
     document.getElementById('customToInput').max = maxD;
   }
   renderAll();
+  // 클러스터링 경고("!" 표시)는 크기가 작아 급하지 않으므로 첫 렌더 뒤에 따로 받는다 -
+  // 늦게 도착해도 뉴스 탭을 보고 있으면 그때 다시 그려서 표시를 붙인다.
+  loadJson('warnings.json').then(rows => {
+    WARNINGS_DATA = rows;
+    if (state.activeTab === '뉴스') renderAll();
+  }).catch(() => {});
   // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
   // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
   const whenIdle = window.requestIdleCallback || (fn => setTimeout(fn, 2000));

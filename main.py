@@ -586,47 +586,75 @@ def apply_issue_merge(df):
 
 
 # 클러스터링 품질 안전장치.
-# Gemini가 컨디션이 나쁜 날 기사들을 "기업동향"/"지배구조 개편" 같은 거대 일반
-# 바구니에 쓸어담아, 1315건이 이슈 47개로 뭉개진 실행이 실제로 있었다(정상은 500개 내외).
-# 그런 결과로 기존 데이터를 덮어쓰면 하루치 화면이 통째로 망가지므로, 이슈당 평균
-# 기사 수가 비정상적으로 크면 저장을 건너뛴다(collect_bills.py의 30% 안전장치와 같은 취지).
-CLUSTER_SANITY_MIN_ROWS = 200   # 표본이 이보다 적으면 판단 유보(이른 아침 실행 등)
-CLUSTER_SANITY_MAX_AVG = 10.0   # 이슈당 평균 기사 수 상한 (정상 관측치는 2~3건)
+# Gemini가 컨디션이 나쁜 날 관련 없는 기사들을 "기업동향"/"지배구조 개편" 같은 거대 일반
+# 바구니에 쓸어담는 사고가 반복됐다(정상 이슈는 하루 2~3건인데 이런 바구니는 수십~수백 건).
+# 예전엔 하루 전체를 통째로 버렸는데, 그러면 그날 정상적으로 분류된 대부분(수백 건)까지
+# 같이 날아간다. 대신 "이상하게 큰 바구니만" 골라 그 이슈에 속한 기사만 이번 실행에서
+# 저장하지 않고(다음 실행 때 재시도됨), 나머지는 정상 저장한다. 화면 쪽엔 cluster_warnings.csv를
+# 통해 그 카테고리에 "!" 표시를 남겨 사용자가 알 수 있게 한다.
+CLUSTER_WARNINGS_PATH = "cluster_warnings.csv"
+CLUSTER_WARNINGS_RETENTION_DAYS = 35  # 화면의 "최근 30일" 조회 범위보다 넉넉하게 보관
+PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리면 의심(정상 관측치는 2~3건)
 
 
-def is_clustering_sane(new_df):
-    """이번 실행의 클러스터링 결과가 쓸 만한지 판정한다. 판단이 애매하면 True(저장 허용)."""
+def find_cluster_warnings(new_df):
+    """이번 실행에서 비정상적으로 커진 이슈(대표이슈)를 찾아
+    [{"issue": 이슈명, "category": 대표 분야, "count": 건수}] 로 반환한다."""
     try:
         analyzed = new_df[
             ~new_df["대표이슈"].isin(ERROR_ISSUE_TITLES)
             & (new_df["논조"] != "미분석")
             & new_df["대표이슈"].astype(str).str.strip().ne("")
         ]
-        total = len(analyzed)
-        if total < CLUSTER_SANITY_MIN_ROWS:
-            return True
-        issues = analyzed["대표이슈"].nunique()
-        if issues == 0:
-            return False
-        avg = total / issues
-        if avg > CLUSTER_SANITY_MAX_AVG:
-            print(f"[경고] 클러스터링 결과가 비정상입니다 - 분석 {total}건이 이슈 {issues}개로만 묶임 "
-                  f"(이슈당 평균 {avg:.1f}건, 상한 {CLUSTER_SANITY_MAX_AVG}건). "
-                  f"Gemini 클러스터링 실패로 의심되어 news_list.csv를 덮어쓰지 않고 건너뜁니다.")
-            return False
-        return True
+        warnings = []
+        for issue, group in analyzed.groupby("대표이슈"):
+            if len(group) <= PER_ISSUE_MAX_ROWS_PER_DAY:
+                continue
+            mode = group["분야"].mode()
+            category = mode.iloc[0] if not mode.empty else "기타"
+            warnings.append({"issue": issue, "category": category, "count": len(group)})
+        return warnings
     except Exception as e:
-        print(f"[클러스터링 점검 예외 - 저장은 진행] {e}")
-        return True
+        print(f"[클러스터링 점검 예외 - 검사 건너뜀] {e}")
+        return []
+
+
+def save_cluster_warnings(warnings, today_str):
+    """플래그된 이슈를 cluster_warnings.csv에 남긴다 - generate_html.py가 읽어서
+    화면의 카테고리 칩 옆에 '!' 표시 + 마우스 오버 설명으로 노출한다."""
+    date_str = today_str.split(" ")[0]
+    rows = [{"날짜": date_str, "카테고리": w["category"], "이슈명": w["issue"], "건수": w["count"]} for w in warnings]
+    new_wdf = pd.DataFrame(rows, columns=["날짜", "카테고리", "이슈명", "건수"])
+    if os.path.exists(CLUSTER_WARNINGS_PATH) and os.path.getsize(CLUSTER_WARNINGS_PATH) > 0:
+        try:
+            old_wdf = pd.read_csv(CLUSTER_WARNINGS_PATH)
+            combined = pd.concat([old_wdf, new_wdf], ignore_index=True)
+        except Exception:
+            combined = new_wdf
+    else:
+        combined = new_wdf
+    try:
+        cutoff = (datetime.now(KST) - timedelta(days=CLUSTER_WARNINGS_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        combined = combined[combined["날짜"] >= cutoff]
+    except Exception:
+        pass
+    combined.to_csv(CLUSTER_WARNINGS_PATH, index=False, encoding="utf-8-sig")
 
 
 def save_and_merge_data(new_rows, file_name="news_list.csv"):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
     new_df = pd.DataFrame(new_rows, columns=columns)
-    # 여기서 return하면 이후 워크플로우 스텝(법안 수집/HTML 생성/커밋)은 그대로 진행된다
-    # (예외를 던지면 스텝이 실패하면서 법안 수집까지 같이 스킵되므로 그렇게 하면 안 된다).
-    if not is_clustering_sane(new_df):
-        return
+
+    cluster_warnings = find_cluster_warnings(new_df)
+    if cluster_warnings:
+        for w in cluster_warnings:
+            print(f"[경고] 이슈 '{w['issue']}'({w['category']})에 {w['count']}건이 몰려 클러스터링 실패로 "
+                  f"의심됩니다 - 이 이슈에 속한 기사는 이번엔 저장하지 않고(다음 실행에서 재시도) "
+                  f"화면엔 '!' 표시를 남깁니다.")
+        flagged_issues = {w["issue"] for w in cluster_warnings}
+        new_df = new_df[~new_df["대표이슈"].isin(flagged_issues)]
+        save_cluster_warnings(cluster_warnings, datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
+
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
         try:
             old_df = pd.read_csv(file_name)

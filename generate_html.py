@@ -35,6 +35,7 @@ OUT_PATH = os.path.join(OUT_DIR, "index.html")
 NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
 BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
 MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
+WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
 TEMPLATE_PATH = "html_template.html"
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -101,6 +102,30 @@ def load_personnel():
             "verified": pd.isna(row.get("확인상태")) or str(row.get("확인상태")) != "자동감지",
         })
     return records
+
+
+def load_cluster_warnings():
+    """main.py가 남긴 cluster_warnings.csv를 읽는다 - 클러스터링이 비정상으로 커져서
+    그 이슈의 기사를 저장하지 않고 건너뛴 날짜/카테고리 기록. 화면은 이걸로 카테고리
+    칩 옆에 "!" 표시를 남긴다. news.json과 같은 최근 창(RECENT_DAYS_WINDOW)만 남긴다."""
+    path = "cluster_warnings.csv"
+    if not os.path.exists(path):
+        return []
+    try:
+        wdf = pd.read_csv(path)
+    except Exception:
+        return []
+    cutoff = (datetime.now(KST) - timedelta(days=RECENT_DAYS_WINDOW)).strftime("%Y-%m-%d")
+    wdf = wdf[wdf["날짜"].astype(str) >= cutoff]
+    return [
+        {
+            "date": nz(row.get("날짜"), ""),
+            "category": nz(row.get("카테고리"), ""),
+            "issue": nz(row.get("이슈명"), ""),
+            "count": int(row["건수"]) if pd.notna(row.get("건수")) else 0,
+        }
+        for _, row in wdf.iterrows()
+    ]
 
 
 def load_bills():
@@ -347,6 +372,7 @@ def build():
     personnel = load_personnel()
     bills = slim_bills(load_bills())
     members = load_members(bills)
+    cluster_warnings = load_cluster_warnings()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
@@ -366,13 +392,15 @@ def build():
     news_bytes = dump_json(NEWS_JSON_PATH, news_rows)
     bills_bytes = dump_json(BILLS_JSON_PATH, bills)
     members_bytes = dump_json(MEMBERS_JSON_PATH, members)
+    warnings_bytes = dump_json(WARNINGS_JSON_PATH, cluster_warnings)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
         f"  {OUT_PATH:<20} {html_kb:8.0f}KB (인사 {len(personnel)}명)\n"
         f"  {NEWS_JSON_PATH:<20} {news_bytes/1024:8.0f}KB (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건)\n"
         f"  {BILLS_JSON_PATH:<20} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)\n"
-        f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)"
+        f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)\n"
+        f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)"
     )
 
 
