@@ -3,14 +3,21 @@
 member_list.csv(collect_bills.py가 만듦)가 먼저 있어야 하므로 그 뒤에 실행한다.
 
 검색어는 "{이름} 의원"으로 좁혀서 동명이인 기사 노출을 줄인다(완벽하진 않음).
+검색 자체는 아무 기사나 다 걸리므로(지역구 행사 방문, 축하 인사 등), Gemini로
+"기업제재 / 국정감사 / 의원인사 / 법안발의" 4가지 중 하나에 해당하는지 걸러서
+그중 하나로 분류된 것만 저장한다 - 그 외(단순 동정 등)나 동명이인으로 실제
+무관한 기사는 아예 저장하지 않는다.
+
 같은 사건을 여러 언론사가 그대로 받아쓴 기사는 정규화한 제목으로 묶어 대표
 기사 하나만 남기고("관련보도수"로 나머지 개수만 기록), 이미 저장돼 있는
 기사와 제목이 같으면(재보도) 다시 추가하지 않는다. 과거 이슈 이력을 계속
 보고 싶다는 요청이라 사람당 상한 없이 전부 누적한다(news_list.csv/
 bill_list.csv와 같은 방식 - 무한정 쌓이지만 하루 증분만 새로 API를 태운다).
 
-요약은 Gemini로 1문장만 받는다 - 법안 요약(collect_bills.py)과 같은 방식으로
-배치+서킷브레이커를 쓴다. 이미 요약이 있는 기사(재실행)는 다시 요약하지 않는다.
+분류·요약은 Gemini로 한 번에 받는다 - 법안 요약(collect_bills.py)과 같은
+배치+서킷브레이커 방식. 4가지 분류 밖이거나 API 실패로 분류를 못 받은 기사는
+저장되지 않고 다음 실행에서 다시 검색·재시도된다(제목만으로 "이미 처리됨"을
+판단하므로, 저장된 기사는 전부 분류를 통과한 것들이다).
 
 실행: python collect_member_news.py
 """
@@ -103,9 +110,14 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     raise last_exc
 
 
-def summarize_member_news_with_gemini(items):
-    """[{"idx","name","title","description"}] -> {idx: 요약}. 법안 요약과 같은
-    배치(20건)+서킷브레이커(연속 3회 실패 시 포기) 방식."""
+# 이 4가지에 해당하는 기사만 저장한다(그 외 - 지역구 행사, 축하 인사, 동정,
+# SNS 논란 등 - 는 이 프로젝트가 다루는 공정거래·입법 동향과 무관해서 뺀다).
+RELEVANT_CATEGORIES = {"기업제재", "국정감사", "의원인사", "법안발의"}
+
+
+def classify_and_summarize_with_gemini(items):
+    """[{"idx","name","title","description"}] -> {idx: {"category","summary"}}.
+    법안 요약과 같은 배치(20건)+서킷브레이커(연속 3회 실패 시 포기) 방식."""
     if not GEMINI_API_KEY or not items:
         return {}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
@@ -114,24 +126,33 @@ def summarize_member_news_with_gemini(items):
     batches = [items[i:i + 20] for i in range(0, len(items), 20)]
     for batch in batches:
         if consecutive_failures >= 3:
-            print(f"[의원 뉴스 요약] 연속 {consecutive_failures}회 실패 - 남은 배치는 다음 실행으로 미룸")
+            print(f"[의원 뉴스 분류] 연속 {consecutive_failures}회 실패 - 남은 배치는 다음 실행으로 미룸")
             break
         input_data = [{"idx": it["idx"], "member": it["name"], "title": it["title"], "description": it["description"]} for it in batch]
-        prompt = f"""당신은 국회의원 관련 기사를 한 줄로 정리하는 담당자입니다.
+        prompt = f"""당신은 국회의원 관련 기사를 분류하고 한 줄로 정리하는 담당자입니다.
 입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
 
-각 기사가 해당 의원(member)과 관련해 어떤 이슈/소식인지 1문장으로 요약하세요.
-"이 의원은/그는" 같은 표현 없이 사실만 바로 쓰세요.
-신문 헤드라인처럼 짧고 간결하게 쓰세요(20자 안팎) - "~하는 과정에서", "~하는 도중",
-"~문제로", "~와 관련하여" 같은 배경 설명·연결어는 다 빼고 핵심 사실만 남기세요.
+각 기사가 해당 의원(member)과 관련해 아래 4가지 중 하나에 해당하는지 판단하세요:
+- 기업제재: 공정위 등 정부의 기업 제재·조사·처분에 그 의원이 관여(질의·비판·촉구 등)한 소식
+- 국정감사: 국정감사·상임위 회의에서 그 의원의 질의·발언 활동
+- 의원인사: 그 의원 자신의 보직 변경·임명·해임·사퇴 등 신상 변화
+- 법안발의: 그 의원이 대표발의·공동발의한 법안 소식
+
+이 4가지 중 하나에 해당하면 category를 그 이름 그대로 쓰고, summary는 신문
+헤드라인처럼 짧게(20자 안팎) 쓰세요. "이 의원은/그는" 같은 표현이나 "~하는
+과정에서", "~하는 도중", "~문제로" 같은 배경 설명·연결어는 다 빼고 핵심
+사실만 남기세요.
 예(좋음): "성평등가족부 장관 후보자로 지명", "자료 제출 시점 두고 여당과 설전"
 예(나쁨 - 너무 길고 풀어씀): "국회 상임위원회 회의 도중 자료로 제출 시점 문제로
 여당 의원들과 설전을 벌임"
-기사가 그 의원과 실제로는 무관하면(동명이인 등) summary를 빈 문자열로 두세요.
+
+4가지 어디에도 해당하지 않으면(단순 지역구 행사·방문, 축하 인사, 동정, SNS
+논란 등) 또는 기사가 그 의원과 실제로 무관하면(동명이인 등) category를
+"무관"으로, summary는 빈 문자열로 두세요.
 
 응답은 입력 개수만큼, 각 항목에 idx를 포함해 아래 형식의 JSON 배열로만 출력하세요:
 [
-  {{"idx": 0, "summary": "..."}}
+  {{"idx": 0, "category": "...", "summary": "..."}}
 ]
 """
         payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
@@ -149,13 +170,16 @@ def summarize_member_news_with_gemini(items):
                         continue
                     i = item.get("idx")
                     if i is not None:
-                        results[i] = (item.get("summary") or "").strip()
+                        results[i] = {
+                            "category": (item.get("category") or "무관").strip(),
+                            "summary": (item.get("summary") or "").strip(),
+                        }
             else:
                 consecutive_failures += 1
-                print(f"[의원 뉴스 요약 오류] status={res.status_code} body={res.text[:300]}")
+                print(f"[의원 뉴스 분류 오류] status={res.status_code} body={res.text[:300]}")
         except Exception as e:
             consecutive_failures += 1
-            print(f"[의원 뉴스 요약 예외] {e}")
+            print(f"[의원 뉴스 분류 예외] {e}")
     return results
 
 
@@ -175,16 +199,15 @@ def main():
     else:
         existing_df = pd.DataFrame(columns=OUT_COLUMNS)
 
-    # 요약 없이 저장된 기사(서킷브레이커 등으로 그날 요약을 못 받은 것)는 "이미 있는
-    # 기사" 취급에서 빼서, 다음 실행에서 다시 검색되면 요약을 재시도할 수 있게 한다.
-    # 안 그러면 한 번 실패한 요약은 영영 빈 채로 남는다.
+    # 저장되는 기사는 전부 아래에서 4가지 분류를 통과한 것들뿐이라, 제목만 봐도
+    # "이미 처리된 기사"로 판단해도 안전하다(분류에서 떨어진 기사는 애초에 저장 안 됨).
     existing_titles_by_member = {}
     for name, group in existing_df.groupby("의원명"):
-        summarized = group[group["요약"].astype(str).str.strip() != ""]
-        existing_titles_by_member[name] = set(normalize_title(t) for t in summarized["제목"])
+        existing_titles_by_member[name] = set(normalize_title(t) for t in group["제목"])
 
-    new_rows = []
-    summarize_items = []
+    # 검색 결과 자체는 아무 기사나 다 걸리므로, 일단 후보로만 모아두고 저장 여부는
+    # Gemini 분류(4가지 카테고리) 결과를 본 뒤에 결정한다.
+    candidates = []
     for i, name in enumerate(names):
         items = search_member_news(name)
         seen_norm = set()
@@ -208,28 +231,41 @@ def main():
             except Exception:
                 pub_date = ""
             link = item.get("originallink") or item.get("link") or ""
-            row_idx = len(new_rows)
-            new_rows.append({
-                "의원명": name,
-                "제목": title,
-                "언론사": press_display_name(link),
-                "링크": link,
-                "발행일": pub_date,
-                "요약": "",
-                "관련보도수": related_count,
-            })
-            summarize_items.append({
-                "idx": row_idx, "name": name, "title": title,
+            candidates.append({
+                "idx": len(candidates),
+                "name": name,
+                "title": title,
                 "description": clean_text(item.get("description", "")),
+                "press": press_display_name(link),
+                "link": link,
+                "date": pub_date,
+                "relatedCount": related_count,
             })
         if (i + 1) % 50 == 0:
             print(f"[의원 뉴스] {i + 1}/{len(names)}명 검색 완료")
         time.sleep(0.1)
 
-    print(f"[의원 뉴스] 신규(중복 제외) {len(new_rows)}건 발견 - 요약 시작")
-    summary_map = summarize_member_news_with_gemini(summarize_items)
-    for it in summarize_items:
-        new_rows[it["idx"]]["요약"] = summary_map.get(it["idx"], "")
+    print(f"[의원 뉴스] 신규(중복 제외) 후보 {len(candidates)}건 발견 - 분류/요약 시작")
+    result_map = classify_and_summarize_with_gemini(candidates)
+
+    new_rows = []
+    kept_by_category = {}
+    for c in candidates:
+        r = result_map.get(c["idx"])
+        if not r or r["category"] not in RELEVANT_CATEGORIES or not r["summary"]:
+            continue  # 분류 대상 밖(무관)이거나, 실패해서 분류를 못 받음 -> 다음 실행에서 재시도
+        kept_by_category[r["category"]] = kept_by_category.get(r["category"], 0) + 1
+        new_rows.append({
+            "의원명": c["name"],
+            "제목": c["title"],
+            "언론사": c["press"],
+            "링크": c["link"],
+            "발행일": c["date"],
+            "요약": r["summary"],
+            "관련보도수": c["relatedCount"],
+        })
+    breakdown = ", ".join(f"{k} {v}건" for k, v in kept_by_category.items()) if kept_by_category else "해당 없음"
+    print(f"[의원 뉴스] 분류 통과 {len(new_rows)}건 저장 ({breakdown})")
 
     if new_rows:
         combined = pd.concat([existing_df, pd.DataFrame(new_rows, columns=OUT_COLUMNS)], ignore_index=True)
@@ -240,14 +276,6 @@ def main():
         pd.DataFrame(columns=OUT_COLUMNS).to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
         print("[의원 뉴스] 저장할 기사가 없습니다.")
         return
-
-    # 요약 없이 저장됐던 기사가 이번에 재시도로 다시 들어와 요약까지 붙었으면, 같은
-    # 의원의 같은 사건이 두 줄(예전 빈 줄 + 이번 요약 줄)로 겹친다 - 요약 있는 쪽만 남긴다.
-    combined["_norm_title"] = combined["제목"].apply(normalize_title)
-    combined["_has_summary"] = (combined["요약"].astype(str).str.strip() != "").astype(int)
-    combined = combined.sort_values("_has_summary", ascending=False, kind="stable")
-    combined = combined.drop_duplicates(subset=["의원명", "_norm_title"], keep="first")
-    combined = combined.drop(columns=["_norm_title", "_has_summary"])
 
     # 과거에 무슨 이슈가 있었는지 계속 남겨두고 싶다는 요청이라, 사람당 상한 없이
     # 전부 누적한다.
