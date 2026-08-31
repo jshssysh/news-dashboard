@@ -153,6 +153,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
+.custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
+.custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
+.custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 .filter-section-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -370,6 +374,31 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-history summary:hover { opacity: 0.9; }
 .member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; text-align: left; }
+/* 약력 옆에 나란히 두는 뉴스 토글 - 둘 다 펼쳐도 서로 안 밀리게 줄바꿈 허용 */
+.member-history-row { display: flex; flex-wrap: wrap; gap: 14px; }
+.member-news { margin-top: 8px; font-size: 0.78em; flex: 1 1 200px; }
+.member-news summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
+.member-news summary:hover { opacity: 0.9; }
+/* 접힌 상태에서도 최신 이슈를 보여주되, 길다고 칸을 늘리지 않고 말줄임표로 자른다 */
+.news-latest-preview { font-weight: 400; opacity: 0.7; display: inline-block; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: bottom; }
+.member-news > div { margin-top: 6px; max-height: 320px; overflow-y: auto; text-align: left; }
+.news-item { padding: 6px 0; border-top: 1px solid var(--app-border); }
+.news-item:first-child { border-top: none; }
+.news-item-head { opacity: 0.55; font-size: 0.92em; margin-bottom: 2px; }
+.news-item-title { display: block; text-decoration: none; font-weight: 700; line-height: 1.35; }
+.news-item-title:hover { text-decoration: underline; }
+.news-item-summary { opacity: 0.85; line-height: 1.4; margin-top: 2px; }
+.news-more-btn { margin-top: 8px; width: 100%; padding: 5px; border-radius: 6px; border: 1px solid var(--app-border); background: transparent; color: inherit; opacity: 0.7; cursor: pointer; font: inherit; font-size: 0.95em; }
+.news-more-btn:hover { opacity: 1; border-color: var(--app-border-strong); }
+/* "전체보기" 모달 - window.open 팝업은 차단될 수 있어(특히 모바일) 페이지 안에 직접 띄운다 */
+.news-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.news-modal { background: var(--app-bg); color: var(--app-text); border-radius: 10px; width: 100%; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+.news-modal-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--app-border); }
+.news-modal-count { opacity: 0.6; font-size: 0.85em; }
+.news-modal-close { margin-left: auto; background: none; border: none; color: inherit; font-size: 1.1em; cursor: pointer; opacity: 0.6; padding: 4px; }
+.news-modal-close:hover { opacity: 1; }
+.news-modal-body { padding: 4px 16px 16px; overflow-y: auto; }
+.news-modal-body .news-item:first-child { border-top: none; }
 .proposer-pill { background: var(--app-primary); color: #fff; border: none; border-radius: 20px; padding: 2px 10px; font-size: 0.92em; font-weight: 700; margin-right: 4px; }
 .proposer-pill:hover { filter: brightness(1.1); }
 /* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
@@ -438,8 +467,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* ── 카테고리별 주요뉴스 접기 + 세로 배치 ── */
   .news-filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .news-filter-row h5 { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .filter-selects { display: flex; gap: 8px; }
+  .filter-selects { display: flex; flex-wrap: wrap; gap: 8px; }
   .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
+  /* 달력 두 개는 셀렉트 사이에 끼워 넣으면 너무 좁아지니 자기 줄을 통째로 쓴다 */
+  .custom-range-inputs { flex: 1 1 100%; }
   .news-filter-row input[type=text] { width: 100%; }
   #newsFilterSticky.news-collapsed .filter-selects,
   #newsFilterSticky.news-collapsed #searchInput,
@@ -565,9 +596,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="filter-selects">
           <select id="periodSelect">
             <option value="0">오늘만</option>
+            <option value="2">주말간</option>
             <option value="6">최근 7일</option>
             <option value="29">최근 30일</option>
+            <option value="custom">날짜 지정</option>
           </select>
+          <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
+            <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
+          </span>
           <select id="sortSelect">
             <option value="importance">중요도순</option>
             <option value="press">보도량순</option>
@@ -689,7 +725,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-31 08:42 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-31 09:21 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -767,6 +803,9 @@ const state = {
   currentDate: null,   // news.json 을 받은 뒤 가장 최근 날짜로 채운다
   selectedCategory: '전체',
   period: 0,
+  // period === 'custom'일 때만 쓰는 직접 지정한 날짜 범위(YYYY-MM-DD, 둘 다 있어야 유효)
+  customFrom: null,
+  customTo: null,
   sort: 'importance',
   sentiment: '',
   search: '',
@@ -1143,6 +1182,26 @@ function memberCardHtml(m) {
   const history = m.history
     ? `<details class="member-history"><summary>약력</summary><div>${m.history.replace(/\r?\n/g, '<br>')}</div></details>`
     : '';
+  // 카드엔 최신 5건만 보여주고, 나머지(collect_member_news.py가 상한 없이 계속
+  // 누적한 과거 이슈 전부)는 "전체보기"로 누르면 뜨는 모달에서 본다. 같은 사건을
+  // 여러 언론사가 받아쓴 건 이미 수집 단계에서 대표 기사 하나로 합쳐져 있다.
+  const newsList = m.news || [];
+  const newsCards = newsList.slice(0, 5).map(n => `
+    <div class="news-item">
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
+      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+    </div>`).join('');
+  const newsMoreBtn = newsList.length > 5
+    ? `<button class="news-more-btn" data-name="${m.name}">전체 ${newsList.length}건 보기</button>` : '';
+  // 접혀 있을 때도 "뉴스" 옆에 최신 이슈를 바로 보여준다 - 약력과 나란히 두는
+  // 칸 폭은 그대로 두고(늘리지 않고), 길면 말줄임표로 잘리게 CSS에서 처리한다.
+  const newsPreview = newsList[0]
+    ? ` <span class="news-latest-preview">${newsList[0].title}${newsList[0].date ? ` (${newsList[0].date.slice(5)})` : ''}</span>`
+    : '';
+  const news = newsList.length
+    ? `<details class="member-news"><summary>뉴스${newsPreview}</summary><div>${newsCards}${newsMoreBtn}</div></details>`
+    : '';
   return `<div class="article-card member-card">
     <div class="member-side">
       ${photo}
@@ -1159,7 +1218,7 @@ function memberCardHtml(m) {
       ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
       ${contactHtml}
       ${staff ? `<div class="member-staff">${staff}</div>` : ''}
-      ${history}
+      ${history || news ? `<div class="member-history-row">${history}${news}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1210,6 +1269,35 @@ function renderMembers() {
   listEl.querySelectorAll('.pass-item').forEach(b => {
     b.addEventListener('click', () => goToBills(b.dataset.name, b.dataset.bucket));
   });
+  listEl.querySelectorAll('.news-more-btn').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const m = MEMBER_DATA.find(x => x.name === b.dataset.name);
+      if (m) openMemberNewsPopup(m);
+    });
+  });
+}
+
+// 카드엔 5건만 보이므로, "전체보기"는 페이지 안 모달로 누적된 전체 이력을 띄운다.
+// window.open 팝업은 브라우저 팝업 차단에 걸릴 수 있어(특히 모바일) 쓰지 않는다.
+function openMemberNewsPopup(m) {
+  const list = m.news || [];
+  const itemsHtml = list.map(n => `
+    <div class="news-item">
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
+      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+    </div>`).join('') || '<div class="info-box">기사가 없습니다.</div>';
+  const overlay = document.createElement('div');
+  overlay.className = 'news-modal-backdrop';
+  overlay.innerHTML = `<div class="news-modal">
+      <div class="news-modal-head"><b>${m.name} 의원 관련 뉴스</b><span class="news-modal-count">총 ${list.length}건</span><button class="news-modal-close" title="닫기">✕</button></div>
+      <div class="news-modal-body">${itemsHtml}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.news-modal-close').addEventListener('click', close);
 }
 
 // 카테고리(기간 범위 안에서 각 칩이 다르게 세야 하는 값)만 빼고, 나머지
@@ -1224,6 +1312,17 @@ function newsMatchesGlobalFilters(r) {
 }
 
 function scopedRows() {
+  if (state.period === 'custom') {
+    // 시작/끝 날짜를 둘 다 고르기 전에는(달력 하나만 찍은 상태) 아무것도 안 보여준다.
+    if (!state.customFrom || !state.customTo) return [];
+    // <input type="date">는 "YYYY-MM-DD"만 주는데 r.date는 "YYYY/MM/DD"라 그대로
+    // 비교하면 구분자 문자 코드값 때문에 늘 어긋난다 - 구분자를 맞춰서 비교한다.
+    const a = state.customFrom.replace(/-/g, '/');
+    const b = state.customTo.replace(/-/g, '/');
+    const from = a <= b ? a : b;
+    const to = a <= b ? b : a;
+    return NEWS_DATA.filter(r => r.date >= from && r.date <= to);
+  }
   if (state.period === 0) return dailyRows();
   const idx = allDates.indexOf(state.currentDate);
   const startIdx = Math.max(0, idx - state.period);
@@ -1821,7 +1920,24 @@ document.getElementById('dateNext').addEventListener('click', () => {
   const i = allDates.indexOf(state.currentDate);
   if (i !== -1 && i < allDates.length - 1) { state.currentDate = allDates[i+1]; renderAll(); }
 });
-document.getElementById('periodSelect').addEventListener('change', e => { state.period = parseInt(e.target.value,10); state.selectedCategory = '전체'; state.page = 1; renderAll(); });
+document.getElementById('periodSelect').addEventListener('change', e => {
+  const raw = e.target.value;
+  state.period = raw === 'custom' ? 'custom' : parseInt(raw, 10);
+  document.getElementById('customRangeInputs').style.display = raw === 'custom' ? '' : 'none';
+  state.selectedCategory = '전체';
+  state.page = 1;
+  renderAll();
+});
+document.getElementById('customFromInput').addEventListener('change', e => {
+  state.customFrom = e.target.value || null;
+  state.page = 1;
+  renderAll();
+});
+document.getElementById('customToInput').addEventListener('change', e => {
+  state.customTo = e.target.value || null;
+  state.page = 1;
+  renderAll();
+});
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
@@ -1950,6 +2066,16 @@ loadJson('news.json').then(rows => {
   NEWS_DATA = rows;
   allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
   state.currentDate = allDates.length ? allDates[allDates.length - 1] : null;
+  // "날짜 지정" 달력이 실제로 기사가 있는 범위 밖을 고르지 못하게 막는다.
+  // <input type="date">의 min/max는 "YYYY-MM-DD"만 인식하므로 allDates("YYYY/MM/DD")를 바꿔서 넣는다.
+  if (allDates.length) {
+    const minD = allDates[0].replace(/\//g, '-');
+    const maxD = allDates[allDates.length - 1].replace(/\//g, '-');
+    document.getElementById('customFromInput').min = minD;
+    document.getElementById('customFromInput').max = maxD;
+    document.getElementById('customToInput').min = minD;
+    document.getElementById('customToInput').max = maxD;
+  }
   renderAll();
   // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
   // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
