@@ -247,6 +247,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .cnt-neu { color: #d99a2b; font-weight: 700; }
 .cnt-pos { color: #43a047; font-weight: 700; }
 .cnt-fail { color: #9c4dcc; font-weight: 700; opacity: 0.85; }
+/* 클러스터링이 비정상으로 커져서 그 이슈의 오늘 기사를 저장하지 않고 건너뛴 카테고리 표시.
+   마우스를 올리면(title) 어떤 이슈에 몇 건이 몰렸는지 짧게 보인다. */
+.cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
 .sentiment-track { display: flex; width: 100%; height: 8px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
 .sentiment-seg {
     display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
@@ -374,20 +377,22 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .member-history summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-history summary:hover { opacity: 0.9; }
 .member-history > div { margin-top: 6px; line-height: 1.55; opacity: 0.8; max-height: 260px; overflow-y: auto; text-align: left; }
-/* 약력 옆에 나란히 두는 뉴스 토글 - 둘 다 펼쳐도 서로 안 밀리게 줄바꿈 허용 */
+/* 약력 옆에 나란히 두는 뉴스 토글 - 둘 다 접혔을 땐 내용만큼만 차지해서 한 줄에
+   같이 들어가고, 펼치면 그쪽만 칸 전체 폭을 쓰도록 줄을 새로 차지한다. */
 .member-history-row { display: flex; flex-wrap: wrap; gap: 14px; }
-.member-news { margin-top: 8px; font-size: 0.78em; flex: 1 1 200px; }
+.member-history, .member-news { flex: 0 1 auto; max-width: 100%; }
+.member-history[open], .member-news[open] { flex: 1 1 100%; }
+.member-news { margin-top: 8px; font-size: 0.78em; }
 .member-news summary { cursor: pointer; opacity: 0.6; font-weight: 700; }
 .member-news summary:hover { opacity: 0.9; }
 /* 접힌 상태에서도 최신 이슈를 보여주되, 길다고 칸을 늘리지 않고 말줄임표로 자른다 */
-.news-latest-preview { font-weight: 400; opacity: 0.7; display: inline-block; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: bottom; }
+.news-latest-preview { font-weight: 400; opacity: 0.7; display: inline-block; max-width: 130px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: bottom; }
 .member-news > div { margin-top: 6px; max-height: 320px; overflow-y: auto; text-align: left; }
 .news-item { padding: 6px 0; border-top: 1px solid var(--app-border); }
 .news-item:first-child { border-top: none; }
 .news-item-head { opacity: 0.55; font-size: 0.92em; margin-bottom: 2px; }
 .news-item-title { display: block; text-decoration: none; font-weight: 700; line-height: 1.35; }
 .news-item-title:hover { text-decoration: underline; }
-.news-item-summary { opacity: 0.85; line-height: 1.4; margin-top: 2px; }
 .news-more-btn { margin-top: 8px; width: 100%; padding: 5px; border-radius: 6px; border: 1px solid var(--app-border); background: transparent; color: inherit; opacity: 0.7; cursor: pointer; font: inherit; font-size: 0.95em; }
 .news-more-btn:hover { opacity: 1; border-color: var(--app-border-strong); }
 /* "전체보기" 모달 - window.open 팝업은 차단될 수 있어(특히 모바일) 페이지 안에 직접 띄운다 */
@@ -725,7 +730,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-31 10:04 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-31 10:35 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -735,6 +740,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 let NEWS_DATA = [];
 let BILL_DATA = [];
 let MEMBER_DATA = [];
+let WARNINGS_DATA = [];
 let allDates = [];
 const PERSONNEL_DATA = [{"dept": "경인사무소", "role": "가맹유통소비자과장", "name": "문경만", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "건설하도급과장", "name": "신재규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "경인사무소장", "name": "황태호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "민원신속대응팀장", "name": "변동영", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "제조하도급과장", "name": "김성수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "총괄과장", "name": "하은광", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "경쟁과장", "name": "박종언", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "광주사무소장", "name": "김현철", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "소비자과장", "name": "김성봉", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "총괄과장", "name": "임수환", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "하도급과장", "name": "최현록", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "경쟁과장", "name": "윤영술", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "대구사무소장", "name": "남형우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "소비자과장", "name": "송호열", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "총괄과장", "name": "백성하", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "하도급과장", "name": "장재혁", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "경쟁과장", "name": "최경원", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "대전사무소장", "name": "최병국", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "소비자과장", "name": "김혜정", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "총괄과장", "name": "박진호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "하도급과장", "name": "송길용", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "경쟁과장", "name": "정문홍", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "부산사무소장", "name": "이상협", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "소비자과장", "name": "백성우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "총괄과장", "name": "박재생", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "하도급과장", "name": "백성우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부위원장실", "role": "감사담당관", "name": "노태근", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부위원장실", "role": "심판관리관", "name": "박세민", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "경쟁정책국장", "name": "선중규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "기업협력정책관", "name": "정창욱", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "기획조정관", "name": "김문식", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "대변인", "name": "전성복", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "법률자문관", "name": "이혜현", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "사무처장", "name": "신동열", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "소비자정책국장", "name": "정보름", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "운영지원과장", "name": "신용희", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "가맹유통팀장", "name": "김세겸", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "건설하도급과장", "name": "김태우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "경쟁과장", "name": "류용래", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "민원신속대응팀장", "name": "정운학", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "소비자과장", "name": "오갑수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "전자거래팀장", "name": "이성태", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "제조하도급과장", "name": "장혜림", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "총괄과장", "name": "박정웅", "start": null, "end": null, "source": null, "verified": true}, {"dept": "위원장실", "role": "부위원장", "name": "남동일", "start": null, "end": null, "source": null, "verified": true}, {"dept": "위원장실", "role": "위원장", "name": "주병기", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "가맹거래조사과장", "name": "이득규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "가맹유통심의관", "name": "오동욱", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "공시점검과장", "name": "문종숙", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "국제기업결합과장", "name": "신용호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "국제카르텔조사과장", "name": "전상훈", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기술유용조사과장", "name": "박정현", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업결합과장", "name": "김성한", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단감시국장", "name": "최장관", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단관리과장", "name": "음잔디", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단정보분석팀장", "name": "안석우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "내부거래감시과장", "name": "정신기", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "대리점거래조사과장", "name": "조원식", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "부당지원감시과장", "name": "김재진", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "서비스업감시과장", "name": "이준헌", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "서비스카르텔조사과장", "name": "임선정", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "시장감시국장", "name": "정희은", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "신산업하도급조사과장", "name": "김동명", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "약관특수거래과장", "name": "곽고은", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "유통거래조사과장", "name": "김수주", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "입찰담합조사과장", "name": "배문성", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "전자거래감시과장", "name": "정현일", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "제조업감시과장", "name": "석동수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "제조카르텔조사과장", "name": "이선미", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "조사관리관", "name": "문재호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "지식산업감시과장", "name": "고영환", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "카르텔조사국장", "name": "오행록", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "표시광고감시팀장", "name": "이영희", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "하도급조사과장", "name": "이태휘", "start": null, "end": null, "source": null, "verified": true}];
 // 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
@@ -1186,18 +1192,20 @@ function memberCardHtml(m) {
   // 누적한 과거 이슈 전부)는 "전체보기"로 누르면 뜨는 모달에서 본다. 같은 사건을
   // 여러 언론사가 받아쓴 건 이미 수집 단계에서 대표 기사 하나로 합쳐져 있다.
   const newsList = m.news || [];
+  // 제목 줄까지 더하면 기사 하나당 3줄이 되어 늘어지므로, 날짜·언론사 한 줄 +
+  // (AI 요약 또는 요약이 없으면 제목) 한 줄, 딱 2줄로 끝낸다.
   const newsCards = newsList.slice(0, 5).map(n => `
     <div class="news-item">
       <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
-      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
-      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.summary || n.title}</a>
     </div>`).join('');
   const newsMoreBtn = newsList.length > 5
     ? `<button class="news-more-btn" data-name="${m.name}">전체 ${newsList.length}건 보기</button>` : '';
-  // 접혀 있을 때도 "뉴스" 옆에 최신 이슈를 바로 보여준다 - 약력과 나란히 두는
-  // 칸 폭은 그대로 두고(늘리지 않고), 길면 말줄임표로 잘리게 CSS에서 처리한다.
+  // 접혀 있을 때도 "뉴스" 옆에 최신 이슈를 바로 보여준다 - 원본 제목은 길어서
+  // AI 한 줄 요약을 우선 쓰고(요약이 없는 경우만 제목으로 대체), 그래도 길면
+  // 칸을 늘리는 대신 CSS에서 말줄임표로 자른다.
   const newsPreview = newsList[0]
-    ? ` <span class="news-latest-preview">${newsList[0].title}${newsList[0].date ? ` (${newsList[0].date.slice(5)})` : ''}</span>`
+    ? ` <span class="news-latest-preview">${newsList[0].summary || newsList[0].title}${newsList[0].date ? ` (${newsList[0].date.slice(5)})` : ''}</span>`
     : '';
   const news = newsList.length
     ? `<details class="member-news"><summary>뉴스${newsPreview}</summary><div>${newsCards}${newsMoreBtn}</div></details>`
@@ -1285,8 +1293,7 @@ function openMemberNewsPopup(m) {
   const itemsHtml = list.map(n => `
     <div class="news-item">
       <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
-      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.title}</a>
-      ${n.summary ? `<div class="news-item-summary">${n.summary}</div>` : ''}
+      <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.summary || n.title}</a>
     </div>`).join('') || '<div class="info-box">기사가 없습니다.</div>';
   const overlay = document.createElement('div');
   overlay.className = 'news-modal-backdrop';
@@ -1330,6 +1337,26 @@ function scopedRows() {
   return NEWS_DATA.filter(r => rangeSet.has(r.date));
 }
 
+// 화면에 지금 보이는 날짜들(scoped 데이터의 date, "YYYY/MM/DD") 안에 있는 클러스터링
+// 경고만 추려 { 카테고리: [{date, issue, count}, ...] } 로 돌려준다. cluster_warnings.csv는
+// "YYYY-MM-DD"라 구분자를 맞춰서 비교한다(날짜 지정 달력과 같은 이유).
+function warningsForDates(dates) {
+  const dateSet = new Set(dates);
+  const map = {};
+  WARNINGS_DATA.forEach(w => {
+    const slashDate = (w.date || '').replace(/-/g, '/');
+    if (!dateSet.has(slashDate)) return;
+    (map[w.category] = map[w.category] || []).push(w);
+  });
+  return map;
+}
+function warningTooltip(entries) {
+  return entries.map(w => {
+    const md = (w.date || '').slice(5).replace('-', '/');
+    return `${md}: '${w.issue}'에 ${w.count}건이 몰려 클러스터링 이상 의심 - 그날 신규 기사는 반영 안 됨`;
+  }).join('\n');
+}
+
 function renderNewsView(dr, allGroups) {
   const top3 = allGroups.slice(0,3);
   document.getElementById('signalItems').innerHTML = top3.map((g,i) => {
@@ -1343,6 +1370,7 @@ function renderNewsView(dr, allGroups) {
   }).join('');
 
   const scoped = scopedRows();
+  const warnedCategories = warningsForDates(Array.from(new Set(scoped.map(r => r.date))));
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
   // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
   // 검색어·논조 필터도 목록과 똑같이 걸어야 한다(검색창에 "쿠팡"을 치면
@@ -1361,7 +1389,9 @@ function renderNewsView(dr, allGroups) {
   chipRow.innerHTML = cats.map(c => {
     let tip = c in topIssueByCat ? `${topIssueByCat[c].title} · 중요도 ${topIssueByCat[c].importance}/10` : '';
     const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
-    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c} ${cnt}</button>`;
+    const warnEntries = warnedCategories[c];
+    const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
+    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c}${warnHtml} ${cnt}</button>`;
   }).join('');
   // 모바일에서 접었을 때도 지금 무슨 카테고리를 보고 있는지 제목 옆에 남긴다
   // ("전체"면 굳이 표시하지 않음).
@@ -1403,7 +1433,9 @@ function renderNewsView(dr, allGroups) {
     const failTag = fail > 0
       ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 실패만 보기">실패 ${fail}</span>`
       : '';
-    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
+    const warnEntries = catValue !== '전체' && warnedCategories[catValue];
+    const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
+    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue}${warnHtml} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
       <div class="sentiment-track">${seg(negPct,neg,'sentiment-neg','부정')}${seg(neuPct,neu,'sentiment-neu','중립')}${seg(posPct,pos,'sentiment-pos','긍정')}</div></div>`;
   };
   let sidebarHtml = panelRows.length ? renderKwRow('전체', panelRows, 'kw-row-total') + '<hr class="kw-divider">' : '';
@@ -2077,6 +2109,12 @@ loadJson('news.json').then(rows => {
     document.getElementById('customToInput').max = maxD;
   }
   renderAll();
+  // 클러스터링 경고("!" 표시)는 크기가 작아 급하지 않으므로 첫 렌더 뒤에 따로 받는다 -
+  // 늦게 도착해도 뉴스 탭을 보고 있으면 그때 다시 그려서 표시를 붙인다.
+  loadJson('warnings.json').then(rows => {
+    WARNINGS_DATA = rows;
+    if (state.activeTab === '뉴스') renderAll();
+  }).catch(() => {});
   // 첫 화면을 다 그린 뒤 한가할 때 법안도 미리 받아둔다. 첫 렌더는 이미 끝난
   // 뒤라 느려지지 않고, 입법 탭을 누르면 기다림 없이 바로 뜬다.
   const whenIdle = window.requestIdleCallback || (fn => setTimeout(fn, 2000));
