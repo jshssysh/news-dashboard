@@ -301,7 +301,11 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
    오른쪽이 텅 비어 보인다. 카드 하나가 필요한 만큼만 차지하도록 그리드로 깐다. */
 #memberListArea { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: start; }
 #memberListArea > .info-box { grid-column: 1 / -1; }
-.member-card { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 0; height: 100%; }
+/* 약력/뉴스를 펼쳤을 때 사진·대표발의 칩이 있는 왼쪽 칸까지 포함해 카드 전체
+   폭을 쓰게 하려고, 사진+본문(가로 배치)과 약력/뉴스 줄(세로로 그 아래)을
+   분리했다 - 카드는 세로로 쌓고, 가로 배치는 안쪽 .member-card-row가 맡는다. */
+.member-card { display: flex; flex-direction: column; margin-bottom: 0; height: 100%; }
+.member-card-row { display: flex; gap: 12px; align-items: flex-start; }
 /* 사진 밑에 대표발의 버튼·약력 토글을 세로로 쌓는 왼쪽 칸. 버튼 글자가
    사진 폭(62px)보다 넓어서, 칸 자체는 좀 더 넓게 잡고 가운데 정렬한다. */
 .member-side { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; width: 86px; text-align: center; }
@@ -313,7 +317,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-side > a { display: inline-block; line-height: 0; }
 .member-hanja { font-size: 0.78em; opacity: 0.45; }
-.member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 지역구가 긴 의원("경북 영주시영양군봉화군" 등)은 줄바꿈 대신 말줄임표로 자르고,
+   전체 내용(이전 정당 포함)은 title로 마우스를 올리면 보이게 한다. */
+.member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help; }
 /* 대표발의 법안 중 결과가 난 것만 요약 - "대안반영"은 폐기(빨강)도
    가결(초록)도 아닌 중립색으로 둬서, 실패가 아니라 다른 법안에 흡수된
    것임을 색으로도 구분한다. 대표발의 건수 바로 밑, 사진 옆 좁은 칸에
@@ -547,7 +553,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
   /* ── 국회의원 카드 ── */
   #memberListArea { grid-template-columns: 1fr; }
-  .member-card { gap: 10px; }
+  .member-card-row { gap: 10px; }
   .member-side { width: 70px; }
   .member-photo { width: 48px; height: 60px; }
   .member-head { gap: 5px; }
@@ -714,11 +720,15 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
       <div class="bill-result-row">
         <div class="result-caption" id="memberResultCaption"></div>
-        <div class="pg-top"><select id="memberSortSel">
-          <option value="bills">발의순</option>
-          <option value="name">이름순</option>
-          <option value="term">선수순</option>
-        </select></div>
+        <div class="pg-top">
+          <select id="memberSortSel">
+            <option value="bills">발의순</option>
+            <option value="name">이름순</option>
+            <option value="term">선수순</option>
+          </select>
+          <select id="memberPageSizeSel"></select>
+        </div>
+        <div class="pg-nav" id="memberPgNav"></div>
       </div>
       <hr class="thin">
     </div>
@@ -730,7 +740,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-08-31 10:35 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-08-31 12:37 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -783,7 +793,7 @@ function saveActiveTab(tab) {
 
 // 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
 // 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
-const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize' };
+const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize' };
 // 좁은 화면에서는 한 화면에 한두 건씩 보고 넘기는 편이 편해서 1~5를 넣고 50은 뺀다.
 const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
 const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
@@ -795,9 +805,10 @@ function getSavedPageSize(kind) {
 }
 // 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
 function fillPageSizeOptions() {
-  ['pageSizeSel', 'billPageSizeSel'].forEach(id => {
+  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명' };
+  Object.keys(unitById).forEach(id => {
     const sel = document.getElementById(id);
-    if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}개</option>`).join('');
+    if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}${unitById[id]}</option>`).join('');
   });
 }
 function savePageSize(kind, size) {
@@ -831,6 +842,8 @@ const state = {
   memberCommittee: '전체',
   memberSearch: '',
   memberSort: 'bills',
+  memberPageSize: getSavedPageSize('member'),
+  memberPage: 1,
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1119,17 +1132,23 @@ function renderMemberChipRows() {
     state.memberCommittee === '전체' ? '' : `${committeeAbbr(state.memberCommittee) || state.memberCommittee} ${committeeCounts[state.memberCommittee] || 0}`;
 
   document.getElementById('memberPartyChipRow').querySelectorAll('button').forEach(b => {
-    b.addEventListener('click', () => { state.memberParty = b.dataset.party; renderMembers(); });
+    b.addEventListener('click', () => { state.memberParty = b.dataset.party; state.memberPage = 1; renderMembers(); });
   });
   document.getElementById('memberCommitteeChipRow').querySelectorAll('button').forEach(b => {
-    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; renderMembers(); });
+    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; state.memberPage = 1; renderMembers(); });
   });
 }
 
 function memberCardHtml(m) {
-  const partyText = m.prevParty && m.prevParty !== m.party
-    ? `${m.party || '무소속'}(前 ${m.prevParty})` : (m.party || '무소속');
-  const meta = [partyText, m.term, m.district].filter(Boolean).join(' · ');
+  // "국민의힘(前 통합당) · 4선 · 부산 강서구병"처럼 다 펼쳐두면 지역구가 긴
+  // 의원(예: "경북 영주시영양군봉화군")에서 줄이 넘친다. 화면엔 짧은 버전만
+  // 한 줄로 보여주고(넘치면 말줄임표), 이전 정당·지역구 전체는 title로 넘겨
+  // 마우스를 올리면 보이게 한다 - 정당/선수/지역구 세 조각 자체는 항상 다 있고,
+  // 길어서 시각적으로 잘릴 뿐이다.
+  const partyShort = m.party || '무소속';
+  const partyFull = m.prevParty && m.prevParty !== m.party ? `${partyShort}(前 ${m.prevParty})` : partyShort;
+  const meta = [partyShort, m.term, m.district].filter(Boolean).join(' · ');
+  const metaFull = [partyFull, m.term, m.district].filter(Boolean).join(' · ');
   // 대표발의 법안 중 결과가 난 것만 요약한다("심사중"인 나머지는 대표발의
   // 건수에 이미 다 포함돼 있으니 따로 안 보여준다). 대부분(95%)이 원안
   // 그대로가 아니라 "대안반영폐기"로 끝나므로 - 위원회 대안에 흡수되고
@@ -1143,7 +1162,7 @@ function memberCardHtml(m) {
         .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${cnt}</button>`).join('')
     : '';
   const committees = memberCommittees(m)
-    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
+    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeCardLabel(c)}</button>`)
     .join('');
   // 위원회가 없을 때만 계산한다 - 있으면 아예 안 쓰인다.
   const special = committees ? null : memberSpecialCategory(m);
@@ -1211,23 +1230,25 @@ function memberCardHtml(m) {
     ? `<details class="member-news"><summary>뉴스${newsPreview}</summary><div>${newsCards}${newsMoreBtn}</div></details>`
     : '';
   return `<div class="article-card member-card">
-    <div class="member-side">
-      ${photo}
-      ${billBtn}
-      ${passSummary ? `<div class="member-pass-summary">${passSummary}</div>` : ''}
-    </div>
-    <div class="member-body">
-      <div class="member-head">
-        ${nameHtml}
-        ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
-        ${committees ? `<span class="member-cmit-row">${committees}</span>` : ''}
+    <div class="member-card-row">
+      <div class="member-side">
+        ${photo}
+        ${billBtn}
+        ${passSummary ? `<div class="member-pass-summary">${passSummary}</div>` : ''}
       </div>
-      <div class="member-meta">${meta}</div>
-      ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
-      ${contactHtml}
-      ${staff ? `<div class="member-staff">${staff}</div>` : ''}
-      ${history || news ? `<div class="member-history-row">${history}${news}</div>` : ''}
+      <div class="member-body">
+        <div class="member-head">
+          ${nameHtml}
+          ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
+          ${committees ? `<span class="member-cmit-row">${committees}</span>` : ''}
+        </div>
+        <div class="member-meta" title="${metaFull.replace(/"/g,'&quot;')}">${meta}</div>
+        ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
+        ${contactHtml}
+        ${staff ? `<div class="member-staff">${staff}</div>` : ''}
+      </div>
     </div>
+    ${history || news ? `<div class="member-history-row">${history}${news}</div>` : ''}
   </div>`;
 }
 
@@ -1240,15 +1261,27 @@ function renderMembers() {
   }
   renderMemberChipRows();
   const list = filteredMembers();
-  document.getElementById('memberResultCaption').textContent = `전체 ${list.length}명 표시`;
+  // 299명을 한 번에 다 그리면 카드마다 있는 뉴스/약력 펼침 영역(스크롤 컨테이너)까지
+  // 전부 DOM에 올라가 스크롤이 무거워진다 - 뉴스/입법 탭처럼 페이지로 잘라서 그린다.
+  const totalCount = list.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.memberPageSize));
+  if (state.memberPage > totalPages) state.memberPage = totalPages;
+  if (state.memberPage < 1) state.memberPage = 1;
+  const startN = (state.memberPage - 1) * state.memberPageSize;
+  const pageMembers = list.slice(startN, startN + state.memberPageSize);
+  document.getElementById('memberResultCaption').textContent = totalCount === 0
+    ? '조건에 맞는 의원이 없습니다.'
+    : `전체 ${totalCount}명 중 ${startN + 1}~${Math.min(startN + state.memberPageSize, totalCount)}명 표시 (총 ${totalPages}쪽)`;
   document.getElementById('memberSortSel').value = state.memberSort;
-  listEl.innerHTML = list.length
-    ? list.map(memberCardHtml).join('')
+  document.getElementById('memberPageSizeSel').value = String(state.memberPageSize);
+  listEl.innerHTML = pageMembers.length
+    ? pageMembers.map(memberCardHtml).join('')
     : "<div class='info-box'>조건에 맞는 의원이 없습니다.</div>";
+  renderMemberPagination(totalPages);
 
   // 카드 안 위원회 칩으로도 필터가 걸리게
   listEl.querySelectorAll('.member-cmit-chip').forEach(b => {
-    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; renderMembers(); window.scrollTo(0, 0); });
+    b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; state.memberPage = 1; renderMembers(); window.scrollTo(0, 0); });
   });
   // "대표발의 N건"을 누르면 입법 탭으로 넘어가 그 의원 법안만 걸어준다
   // "대표발의 N", "가결 2"/"대안반영 5" 둘 다 같은 방식으로 입법 탭으로
@@ -1284,6 +1317,22 @@ function renderMembers() {
       if (m) openMemberNewsPopup(m);
     });
   });
+}
+
+function renderMemberPagination(totalPages) {
+  const pg = document.getElementById('memberPgNav');
+  const WINDOW = 10;
+  const startP = Math.max(1, Math.min(state.memberPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let navHtml = `<button id="memberPgPrev" ${state.memberPage<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.memberPage?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="memberPgNext" ${state.memberPage>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = navHtml;
+  document.getElementById('memberPgPrev').addEventListener('click', () => { if (state.memberPage>1) { state.memberPage--; renderMembers(); window.scrollTo(0,0); } });
+  document.getElementById('memberPgNext').addEventListener('click', () => { if (state.memberPage<totalPages) { state.memberPage++; renderMembers(); window.scrollTo(0,0); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.memberPage = parseInt(b.dataset.p,10); renderMembers(); window.scrollTo(0,0); }));
 }
 
 // 카드엔 5건만 보이므로, "전체보기"는 페이지 안 모달로 누적된 전체 이력을 띄운다.
@@ -1569,6 +1618,15 @@ function committeeAbbr(name) {
   // 위 규칙으로도 못 줄인 긴 이름이 남으면(또 다른 형태의 특별위 등) 칩이
   // 안 깨지게 자른다 - 전체 이름은 title 속성으로 여전히 볼 수 있다.
   return abbr.length > 12 ? abbr.slice(0, 10) + "…" : abbr;
+}
+
+// 의원 카드는 이름 옆 좁은 자리에 위원회가 여러 개 붙는 칸이라(예: 위원회 3개짜리
+// 카드), 필터 칩에 쓰는 committeeAbbr("기후에너지환경노동위" 10자)까지도 너무 길어서
+// 한 개씩 줄바꿈되는 문제가 있었다. 카드에서만 4자 넘으면 더 짧게 자르고,
+// 전체 이름은 마우스를 올리면(title) 보이게 한다.
+function committeeCardLabel(name) {
+  const abbr = committeeAbbr(name) || name;
+  return abbr.length > 4 ? abbr.slice(0, 3) + "…" : abbr;
 }
 
 // 정무위/법사위/산자위/기후에너지환경노동위/재경위를 앞에 고정하고, 그 뒤는
@@ -1974,8 +2032,14 @@ document.getElementById('sortSelect').addEventListener('change', e => { state.so
 document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBills(); });
-document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; renderMembers(); });
-document.getElementById('memberSortSel').addEventListener('change', e => { state.memberSort = e.target.value; renderMembers(); });
+document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; state.memberPage = 1; renderMembers(); });
+document.getElementById('memberSortSel').addEventListener('change', e => { state.memberSort = e.target.value; state.memberPage = 1; renderMembers(); });
+document.getElementById('memberPageSizeSel').addEventListener('change', e => {
+  state.memberPageSize = parseInt(e.target.value, 10);
+  savePageSize('member', state.memberPageSize);
+  state.memberPage = 1;
+  renderMembers();
+});
 document.getElementById('billStarredToggle').addEventListener('click', () => {
   state.billStarredOnly = !state.billStarredOnly;
   state.billPage = 1;
