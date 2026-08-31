@@ -175,9 +175,13 @@ def main():
     else:
         existing_df = pd.DataFrame(columns=OUT_COLUMNS)
 
+    # 요약 없이 저장된 기사(서킷브레이커 등으로 그날 요약을 못 받은 것)는 "이미 있는
+    # 기사" 취급에서 빼서, 다음 실행에서 다시 검색되면 요약을 재시도할 수 있게 한다.
+    # 안 그러면 한 번 실패한 요약은 영영 빈 채로 남는다.
     existing_titles_by_member = {}
     for name, group in existing_df.groupby("의원명"):
-        existing_titles_by_member[name] = set(normalize_title(t) for t in group["제목"])
+        summarized = group[group["요약"].astype(str).str.strip() != ""]
+        existing_titles_by_member[name] = set(normalize_title(t) for t in summarized["제목"])
 
     new_rows = []
     summarize_items = []
@@ -237,8 +241,16 @@ def main():
         print("[의원 뉴스] 저장할 기사가 없습니다.")
         return
 
+    # 요약 없이 저장됐던 기사가 이번에 재시도로 다시 들어와 요약까지 붙었으면, 같은
+    # 의원의 같은 사건이 두 줄(예전 빈 줄 + 이번 요약 줄)로 겹친다 - 요약 있는 쪽만 남긴다.
+    combined["_norm_title"] = combined["제목"].apply(normalize_title)
+    combined["_has_summary"] = (combined["요약"].astype(str).str.strip() != "").astype(int)
+    combined = combined.sort_values("_has_summary", ascending=False, kind="stable")
+    combined = combined.drop_duplicates(subset=["의원명", "_norm_title"], keep="first")
+    combined = combined.drop(columns=["_norm_title", "_has_summary"])
+
     # 과거에 무슨 이슈가 있었는지 계속 남겨두고 싶다는 요청이라, 사람당 상한 없이
-    # 전부 누적한다(중복은 이미 위에서 걸렀으니 여기선 정렬만).
+    # 전부 누적한다.
     combined = combined.sort_values("발행일", ascending=False)
     combined.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
     print(f"[의원 뉴스 저장 완료] 총 {len(combined)}건 -> {OUT_PATH}")
