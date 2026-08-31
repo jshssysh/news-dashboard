@@ -317,7 +317,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-side > a { display: inline-block; line-height: 0; }
 .member-hanja { font-size: 0.78em; opacity: 0.45; }
-.member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; word-break: keep-all; overflow-wrap: anywhere; }
+/* 지역구가 긴 의원("경북 영주시영양군봉화군" 등)은 줄바꿈 대신 말줄임표로 자르고,
+   전체 내용(이전 정당 포함)은 title로 마우스를 올리면 보이게 한다. */
+.member-meta { font-size: 0.85em; font-weight: 600; opacity: 0.75; margin-bottom: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help; }
 /* 대표발의 법안 중 결과가 난 것만 요약 - "대안반영"은 폐기(빨강)도
    가결(초록)도 아닌 중립색으로 둬서, 실패가 아니라 다른 법안에 흡수된
    것임을 색으로도 구분한다. 대표발의 건수 바로 밑, 사진 옆 좁은 칸에
@@ -1138,9 +1140,15 @@ function renderMemberChipRows() {
 }
 
 function memberCardHtml(m) {
-  const partyText = m.prevParty && m.prevParty !== m.party
-    ? `${m.party || '무소속'}(前 ${m.prevParty})` : (m.party || '무소속');
-  const meta = [partyText, m.term, m.district].filter(Boolean).join(' · ');
+  // "국민의힘(前 통합당) · 4선 · 부산 강서구병"처럼 다 펼쳐두면 지역구가 긴
+  // 의원(예: "경북 영주시영양군봉화군")에서 줄이 넘친다. 화면엔 짧은 버전만
+  // 한 줄로 보여주고(넘치면 말줄임표), 이전 정당·지역구 전체는 title로 넘겨
+  // 마우스를 올리면 보이게 한다 - 정당/선수/지역구 세 조각 자체는 항상 다 있고,
+  // 길어서 시각적으로 잘릴 뿐이다.
+  const partyShort = m.party || '무소속';
+  const partyFull = m.prevParty && m.prevParty !== m.party ? `${partyShort}(前 ${m.prevParty})` : partyShort;
+  const meta = [partyShort, m.term, m.district].filter(Boolean).join(' · ');
+  const metaFull = [partyFull, m.term, m.district].filter(Boolean).join(' · ');
   // 대표발의 법안 중 결과가 난 것만 요약한다("심사중"인 나머지는 대표발의
   // 건수에 이미 다 포함돼 있으니 따로 안 보여준다). 대부분(95%)이 원안
   // 그대로가 아니라 "대안반영폐기"로 끝나므로 - 위원회 대안에 흡수되고
@@ -1154,7 +1162,7 @@ function memberCardHtml(m) {
         .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${cnt}</button>`).join('')
     : '';
   const committees = memberCommittees(m)
-    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeAbbr(c) || c}</button>`)
+    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeCardLabel(c)}</button>`)
     .join('');
   // 위원회가 없을 때만 계산한다 - 있으면 아예 안 쓰인다.
   const special = committees ? null : memberSpecialCategory(m);
@@ -1234,7 +1242,7 @@ function memberCardHtml(m) {
           ${m.hanja ? `<span class="member-hanja">${m.hanja}</span>` : ''}
           ${committees ? `<span class="member-cmit-row">${committees}</span>` : ''}
         </div>
-        <div class="member-meta">${meta}</div>
+        <div class="member-meta" title="${metaFull.replace(/"/g,'&quot;')}">${meta}</div>
         ${!committees ? `<div class="member-cmit-row member-cmit-row-standalone"><button class="member-cmit-chip ${special.cls}" data-committee="${special.bucket}" title="${special.bucket} 카테고리로 보기">${special.badge}</button></div>` : ''}
         ${contactHtml}
         ${staff ? `<div class="member-staff">${staff}</div>` : ''}
@@ -1610,6 +1618,15 @@ function committeeAbbr(name) {
   // 위 규칙으로도 못 줄인 긴 이름이 남으면(또 다른 형태의 특별위 등) 칩이
   // 안 깨지게 자른다 - 전체 이름은 title 속성으로 여전히 볼 수 있다.
   return abbr.length > 12 ? abbr.slice(0, 10) + "…" : abbr;
+}
+
+// 의원 카드는 이름 옆 좁은 자리에 위원회가 여러 개 붙는 칸이라(예: 위원회 3개짜리
+// 카드), 필터 칩에 쓰는 committeeAbbr("기후에너지환경노동위" 10자)까지도 너무 길어서
+// 한 개씩 줄바꿈되는 문제가 있었다. 카드에서만 4자 넘으면 더 짧게 자르고,
+// 전체 이름은 마우스를 올리면(title) 보이게 한다.
+function committeeCardLabel(name) {
+  const abbr = committeeAbbr(name) || name;
+  return abbr.length > 4 ? abbr.slice(0, 3) + "…" : abbr;
 }
 
 // 정무위/법사위/산자위/기후에너지환경노동위/재경위를 앞에 고정하고, 그 뒤는
