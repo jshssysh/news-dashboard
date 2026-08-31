@@ -32,7 +32,12 @@ on:
         type: boolean
         default: false
       skip_bills:
-        description: '[법안+의원] 체크 시 계류 법안 + 의원 정보 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 뉴스 수집(skip_ai)과는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[법안+의원] 체크 시 계류 법안 + 의원 정보 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 뉴스 수집(skip_ai)·의원별 뉴스(skip_member_news)와는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
+        required: false
+        type: boolean
+        default: false
+      skip_member_news:
+        description: '[의원별 뉴스] 체크 시 의원별 뉴스 수집(네이버+Gemini) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). member_list.csv는 예전 것을 그대로 쓰므로 skip_bills를 체크해도 이 스텝은 돌 수 있음. 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
@@ -83,9 +88,10 @@ jobs:
           python collect_bills.py
 
       - name: 의원별 뉴스 수집 (네이버 API + Gemini)
-        # member_list.csv(바로 위 단계가 만듦)가 있어야 하므로 같은 조건으로 묶는다.
+        # member_list.csv는 저장소에 커밋된 파일이라 위 스텝을 건너뛰어도(skip_bills)
+        # 예전 것이 그대로 있으므로, 이 스텝은 skip_member_news로 따로 켜고 끈다.
         if: >-
-          github.event.inputs.skip_bills != 'true'
+          github.event.inputs.skip_member_news != 'true'
           && (github.event_name != 'schedule'
               || github.event.schedule == '7 21 * * *'
               || github.event.schedule == '12 22 * * *'
