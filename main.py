@@ -399,6 +399,13 @@ def load_analyzed_links(file_name="news_list.csv"):
         return set()
 
 
+# 예전에 클러스터링이 나쁘게 돌아간 날 생겨서 이미 수백 건씩 쌓인, 특정 기업/기관명이
+# 없는 포괄적 이슈명이다. 이런 이름은 "최근 자주 쓰였다"는 이유로 계속 재사용 후보 1순위로
+# 추천되면 관련 없는 기사들이 계속 여기로 흡수되는 자기 강화 루프가 생긴다 - 그래서 재사용
+# 후보에서 아예 빼서 루프를 끊는다(프롬프트에도 만들지/재사용하지 말라고 별도로 지시해뒀다).
+GENERIC_ISSUE_TITLES_BLOCKLIST = {"기업동향", "지배구조 개편", "지배구조개편"}
+
+
 def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
     """최근 N일간 이미 저장된 대표이슈명을 반환한다 (등장 빈도 높은 순으로 최대 limit개).
     여러 날에 걸쳐 보도되는 사건이 매일 실행되는 클러스터링에서 서로 다른 이슈명으로
@@ -411,6 +418,7 @@ def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
         dt = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
         recent = df.loc[dt >= cutoff, "대표이슈"].dropna()
         recent = recent[~recent.isin(ERROR_ISSUE_TITLES)]  # 분석 실패 플레이스홀더는 재사용 대상에서 제외
+        recent = recent[~recent.isin(GENERIC_ISSUE_TITLES_BLOCKLIST)]  # 포괄적 바구니도 재사용 후보에서 제외
         return recent.value_counts().head(limit).index.tolist()
     except Exception as e:
         print(f"[최근 이슈명 로드 예외] {e}")
@@ -439,6 +447,12 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
 주의: "담합", "과징금", "제재" 같은 사건 유형(카테고리)이 같다는 이유만으로 병합하면 안 됩니다.
 반드시 등장하는 기업/기관명이 일치해야 병합 대상입니다. 예: "정유사 담합"과 "삼겹살 카르텔"은 둘 다
 담합 사건이지만 서로 다른 업종·기업의 별개 사건이므로 병합하지 마세요.
+
+주의: '기업동향', '지배구조 개편', '상생협력', 'ESG 경영'처럼 특정 기업/기관명이 없는 포괄적
+이름은 절대 만들거나 재사용하지 마세요 - 서로 무관한 여러 기업의 기사가 한 이슈로 잘못
+뭉쳐지는 주된 원인입니다. 이슈명에는 반드시 구체적인 기업/기관/인물명이 들어가야 합니다
+(예: "GS리테일 과징금 확정", "쿠팡 공정위 조사"). '기존 이슈명' 후보 중에 이런 포괄적 이름이
+있어도 재사용하지 말고, 그 기사에 맞는 구체적인 새 이슈명을 만드세요.
 
 작업 순서:
 1. 먼저 '오늘 새로 발견된 이슈명' 안에서 서로 같은 사건을 다루는 항목들을 하나로 묶으세요.
