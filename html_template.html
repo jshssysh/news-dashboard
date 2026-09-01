@@ -914,25 +914,52 @@ function buildIssueGroups(rows) {
 
 function dailyRows() { return NEWS_DATA.filter(r => r.date === state.currentDate); }
 
+// "오늘 수집 기사" 상단 큰 숫자 전용 - 수집이 실제로 언제 돌았는지(cron 지연으로
+// 들쭉날쭉함)와 무관하게, 발행시각(pub_ts) 기준 "전일 08시 ~ 오늘 08시" 고정
+// 24시간 창으로 센다. 이 사이트 시각은 전부 KST로 적힌 문자열이라 시간대 변환 없이
+// 달력 계산만 해서 그 창의 시작/끝을 문자열로 만들고 문자열 비교로 거른다.
+function morningWindowBounds(dateStr) {
+  const [y, m, d] = (dateStr || '').split('/').map(Number);
+  const endDate = new Date(y, (m || 1) - 1, d || 1);
+  const startDate = new Date(y, (m || 1) - 1, (d || 1) - 1);
+  const pad = n => String(n).padStart(2, '0');
+  const ymd = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  return {
+    startStr: `${ymd(startDate)}T08:00:00`,
+    endStr: `${ymd(endDate)}T08:00:00`,
+    startLabel: `${startDate.getMonth() + 1}/${startDate.getDate()}`,
+    endLabel: `${endDate.getMonth() + 1}/${endDate.getDate()}`,
+  };
+}
+function morningWindowRows(dateStr) {
+  const { startStr, endStr } = morningWindowBounds(dateStr);
+  return NEWS_DATA.filter(r => r.pub_ts && r.pub_ts >= startStr && r.pub_ts < endStr);
+}
+
 function renderTopTiles() {
   const dr = dailyRows();
   document.getElementById('dateText').textContent = state.currentDate || '-';
 
   const groups = buildIssueGroups(dr);
-  const dupCount = dr.length - groups.length;
   const sentCounts = {};
   dr.forEach(r => { sentCounts[r.sentiment] = (sentCounts[r.sentiment]||0) + 1; });
-  const failCount = sentCounts['판단 실패']||0;
 
-  // 중복은 실제 목록에서 안 보이는(대표기사로 묶인) 기사라, 메인 숫자는 중복을 뺀
-  // 이슈 그룹 수로 보여주고 원본 총건수/중복건수는 작게 부기한다.
+  // 위 큰 숫자("수집 기사")만은 수집 스크립트가 실제로 언제 돌았는지와 무관하게,
+  // 발행시각 기준 고정된 "전일 08시~오늘 08시" 창으로 센다(카테고리 칩/목록 등
+  // 나머지 화면은 그대로 수집일자 기준 dr/groups를 쓴다 - 그건 안 건드림).
+  const windowRows = morningWindowRows(state.currentDate);
+  const windowGroups = buildIssueGroups(windowRows);
+  const windowDupCount = windowRows.length - windowGroups.length;
+  const windowFailCount = windowRows.filter(r => r.sentiment === '판단 실패').length;
+  const { startLabel, endLabel } = morningWindowBounds(state.currentDate);
+
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사</div>
+    `<div class="label">수집 기사 <span class="era-tag">${startLabel} 08시 - ${endLabel} 08시</span></div>
      <div class="value-line">
-       <span class="value">${groups.length}건</span>
+       <span class="value">${windowGroups.length}건</span>
        <div class="collect-substats-block">
-         <div class="sub-inline">전체 ${dr.length}건</div>
-         <div class="sub-inline">중복 ${dupCount}건 <span class="sm-fail">실패 ${failCount}건</span></div>
+         <div class="sub-inline">전체 ${windowRows.length}건</div>
+         <div class="sub-inline">중복 ${windowDupCount}건 <span class="sm-fail">실패 ${windowFailCount}건</span></div>
        </div>
      </div>`;
 
@@ -948,9 +975,10 @@ function renderTopTiles() {
        </div>
      </div>`;
 
-  // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약
+  // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약 - 펼친 타일과 같은 숫자를 써야 하므로
+  // 여기도 수집일자 기준 groups가 아니라 발행시각 기준 windowGroups를 쓴다.
   document.getElementById('statSummaryText').textContent =
-    `수집 ${groups.length}건 · 입법 ${BILL_STATS.total}건 (발의 ${BILL_STATS.draft})`;
+    `수집 ${windowGroups.length}건 · 입법 ${BILL_STATS.total}건 (발의 ${BILL_STATS.draft})`;
 
   return { dr, groups, sentCounts };
 }
