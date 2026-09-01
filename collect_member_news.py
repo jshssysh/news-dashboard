@@ -257,10 +257,20 @@ def main():
 
     new_rows = []
     kept_by_category = {}
+    name_mismatch_count = 0
     for c in candidates:
         r = result_map.get(c["idx"])
         if not r or r["category"] not in RELEVANT_CATEGORIES or not r["summary"]:
             continue  # 분류 대상 밖(무관)이거나, 실패해서 분류를 못 받음 -> 다음 실행에서 재시도
+        # 검증 안전장치: 네이버 검색이 "OO 의원"과 느슨하게만 맞아 정작 기사는 완전히
+        # 다른 사람 얘기인 경우가 있는데, Gemini가 배치 안에서 같은 의원의 다른 후보와
+        # 헷갈려 엉뚱한 category/summary를 붙이는 사고가 실측됨(예: 박성준 후보 여러
+        # 건에 서로 다른 제목인데 전부 "수석대변인 임명"이라는 동일 요약이 붙었었음).
+        # 제목/본문 스니펫 어디에도 그 의원 이름이 안 보이면 Gemini 판단과 무관하게
+        # 버린다(다음 실행에서 재시도됨).
+        if c["name"] not in c["title"] and c["name"] not in c["description"]:
+            name_mismatch_count += 1
+            continue
         kept_by_category[r["category"]] = kept_by_category.get(r["category"], 0) + 1
         new_rows.append({
             "의원명": c["name"],
@@ -272,7 +282,8 @@ def main():
             "관련보도수": c["relatedCount"],
         })
     breakdown = ", ".join(f"{k} {v}건" for k, v in kept_by_category.items()) if kept_by_category else "해당 없음"
-    print(f"[의원 뉴스] 분류 통과 {len(new_rows)}건 저장 ({breakdown})")
+    print(f"[의원 뉴스] 분류 통과 {len(new_rows)}건 저장 ({breakdown}) - "
+          f"이름 불일치로 버림 {name_mismatch_count}건")
 
     if new_rows:
         combined = pd.concat([existing_df, pd.DataFrame(new_rows, columns=OUT_COLUMNS)], ignore_index=True)
