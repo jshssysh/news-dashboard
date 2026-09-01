@@ -482,9 +482,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
   /* 달력 두 개는 셀렉트 사이에 끼워 넣으면 너무 좁아지니 자기 줄을 통째로 쓴다 */
   .custom-range-inputs { flex: 1 1 100%; }
-  /* "오늘만" 옆 시간 표시도 셀렉트들 사이에 끼면 셀렉트가 눌려 글자가 잘린다 -
+  /* "오늘만" 옆 시간 선택도 셀렉트들 사이에 끼면 다른 셀렉트가 눌려 글자가 잘린다 -
      자기 줄로 내려서 오른쪽 정렬한다(순서도 셀렉트들 뒤로 보낸다). */
-  #periodWindowTag { order: 5; flex: 1 1 100%; text-align: right; }
+  #hoursBackSelect { order: 5; flex: 1 1 100%; }
   .news-filter-row input[type=text] { width: 100%; }
   #newsFilterSticky.news-collapsed .filter-selects,
   #newsFilterSticky.news-collapsed #searchInput,
@@ -615,7 +615,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
             <option value="29">최근 30일</option>
             <option value="custom">날짜 지정</option>
           </select>
-          <span id="periodWindowTag" class="era-tag" style="display:none;"></span>
+          <select id="hoursBackSelect" style="display:none;"></select>
           <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
             <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
           </span>
@@ -824,6 +824,7 @@ const state = {
   currentDate: null,   // news.json 을 받은 뒤 가장 최근 날짜로 채운다
   selectedCategory: '전체',
   period: 0,
+  hoursBack: 24,   // period===0("오늘만")이고 가장 최근 날짜를 볼 때만 쓰는 "지금부터 N시간 전" 창
   // period === 'custom'일 때만 쓰는 직접 지정한 날짜 범위(YYYY-MM-DD, 둘 다 있어야 유효)
   customFrom: null,
   customTo: null,
@@ -941,37 +942,51 @@ function morningWindowRows(dateStr) {
 }
 
 // "오늘만" 목록 전용 - 지금 보고 있는 날짜가 실제 가장 최근 날짜("오늘")일 때는
-// 수집일자가 아니라 발행시각(pub_ts) 기준 "지금부터 24시간 전까지"로 보여준다.
-// 위 morningWindow*와 달리 끝이 고정된 08시가 아니라 "지금 접속한 시각"이라
-// new Date()로 매번 새로 계산한다(이 화면은 워크플로가 아니라 브라우저에서 도니
-// 문제 없음).
+// 수집일자가 아니라 발행시각(pub_ts) 기준 "지금부터 N시간 전까지"(N은 옆 드롭박스로
+// 1~48시간 중 선택, state.hoursBack)로 보여준다. 위 morningWindow*와 달리 끝이
+// 고정된 08시가 아니라 "지금 접속한 시각"이라 new Date()로 매번 새로 계산한다
+// (이 화면은 워크플로가 아니라 브라우저에서 도니 문제 없음).
 function isViewingLatestDate() {
   return allDates.length > 0 && state.currentDate === allDates[allDates.length - 1];
 }
-function todayRollingWindowBounds() {
-  const now = new Date();
-  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+const HOURS_BACK_MAX = 48;
+// "오늘/전일/그제" 같은 상대 날짜 표현 - 시작 시각이 지금보다 며칠 전인지로 고른다.
+function relativeDayLabel(startDate, now) {
+  const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const d1 = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const diff = Math.round((d0 - d1) / 86400000);
+  if (diff <= 0) return '오늘';
+  if (diff === 1) return '전일';
+  if (diff === 2) return '그제';
+  return `${diff}일전`;
+}
+function hoursBackBounds(hours, now) {
+  now = now || new Date();
+  const start = new Date(now.getTime() - hours * 60 * 60 * 1000);
   const pad = n => String(n).padStart(2, '0');
   const ymd = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
   const hm = dt => `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
   return {
     startStr: `${ymd(start)}T${hm(start)}:00`,
     endStr: `${ymd(now)}T${hm(now)}:00`,
-    startLabel: `${start.getMonth() + 1}/${start.getDate()} ${hm(start)}`,
+    // 드롭박스 표시용 - 분 단위까지는 필요 없어서 시(時)만 보여준다(실제 필터링은 분까지 정확함).
+    label: `-${hours}시(${relativeDayLabel(start, now)} ${start.getHours()}시)`,
   };
 }
 function todayRollingWindowRows() {
-  const { startStr, endStr } = todayRollingWindowBounds();
+  const { startStr, endStr } = hoursBackBounds(state.hoursBack);
   return NEWS_DATA.filter(r => r.pub_ts && r.pub_ts >= startStr && r.pub_ts <= endStr);
 }
-function updatePeriodWindowTag() {
-  const tag = document.getElementById('periodWindowTag');
+function updateHoursBackControl() {
+  const sel = document.getElementById('hoursBackSelect');
   if (state.period === 0 && isViewingLatestDate()) {
-    const { startLabel } = todayRollingWindowBounds();
-    tag.textContent = `${startLabel}~ (최근 24시간)`;
-    tag.style.display = '';
+    const now = new Date();
+    sel.innerHTML = Array.from({length: HOURS_BACK_MAX}, (_, i) => i + 1)
+      .map(h => `<option value="${h}">${hoursBackBounds(h, now).label}</option>`).join('');
+    sel.value = String(state.hoursBack);
+    sel.style.display = '';
   } else {
-    tag.style.display = 'none';
+    sel.style.display = 'none';
   }
 }
 
@@ -1485,7 +1500,7 @@ function renderNewsView(dr, allGroups) {
     </div>`;
   }).join('');
 
-  updatePeriodWindowTag();
+  updateHoursBackControl();
   const scoped = scopedRows();
   const warnedCategories = warningsForDates(Array.from(new Set(scoped.map(r => r.date))));
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
@@ -2082,6 +2097,12 @@ document.getElementById('periodSelect').addEventListener('change', e => {
   const raw = e.target.value;
   state.period = raw === 'custom' ? 'custom' : parseInt(raw, 10);
   document.getElementById('customRangeInputs').style.display = raw === 'custom' ? '' : 'none';
+  state.selectedCategory = '전체';
+  state.page = 1;
+  renderAll();
+});
+document.getElementById('hoursBackSelect').addEventListener('change', e => {
+  state.hoursBack = parseInt(e.target.value, 10);
   state.selectedCategory = '전체';
   state.page = 1;
   renderAll();
