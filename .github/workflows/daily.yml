@@ -26,6 +26,11 @@ on:
     - cron: '47 22 * * *'  # KST 07:47 - 법안만 (발송 직전 마지막)
   workflow_dispatch:
     inputs:
+      skip_news:
+        description: '[뉴스] 체크 시 뉴스 수집+AI 분석을 통째로 건너뛰기(네이버 수집 자체를 안 함). skip_ai(수집은 하되 Gemini만 건너뛰기)와 다름. cron-job.org 같은 외부 트리거가 07:12/07:47 "법안만 재확인" 실행을 보낼 때 이 값을 true로 준다.'
+        required: false
+        type: boolean
+        default: false
       skip_ai:
         description: '[뉴스] 체크 시 뉴스 AI 분석(Gemini) 건너뛰기 (개발/UI 테스트용 - 빠르고 무료, 분류 없이 원본만 수집). 법안+의원 수집(skip_bills)과는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
         required: false
@@ -62,8 +67,13 @@ jobs:
 
       - name: 뉴스 수집 + AI 분석 (네이버 API + Gemini)
         # 07:12 / 07:47은 법안 전용 재수집이므로 뉴스(및 Gemini 분석)는 건너뛴다.
-        # 여기 cron 문자열이 위 schedule과 어긋나면 법안 전용 실행에서 뉴스까지 돌아버린다.
-        if: github.event.schedule != '12 22 * * *' && github.event.schedule != '47 22 * * *'
+        # 내부 예약(schedule 문자열 매칭)과 외부 트리거(workflow_dispatch의 skip_news
+        # 입력) 둘 다 지원한다 - cron-job.org가 부르는 workflow_dispatch는 schedule이
+        # 항상 빈 값이라 문자열 매칭만으론 못 거르기 때문.
+        if: >-
+          github.event.inputs.skip_news != 'true'
+          && github.event.schedule != '12 22 * * *'
+          && github.event.schedule != '47 22 * * *'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
