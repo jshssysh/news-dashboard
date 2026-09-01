@@ -498,6 +498,38 @@ def master_cluster_with_gemini(new_titles, existing_titles=None):
         print(f"[Gemini 클러스터링 예외] {e}")
     return {title: title for title in new_titles}
 
+# master_cluster_with_gemini 프롬프트에 "기업/기관명이 일치해야 병합"이라고 명시해도
+# Gemini가 "담합"/"과징금" 같은 사건 유형 단어만 보고 완전히 무관한 기존 이슈를
+# 재사용해버리는 사고가 실측됐다(예: 삼양사·CJ제일제당 관련 신규 기사가 전혀 무관한
+# 기존 이슈 "정유사 담합"에 계속 재사용되어, 그 이슈가 한솔그룹·한국철강·우리금융처럼
+# 담합과도 무관한 기사까지 끌어들이는 거대 오염 바구니가 됨). 지침만으로는 못 막으니
+# 코드에서 한 번 더 검증한다.
+CASE_TYPE_GENERIC_WORDS = {
+    "담합", "과징금", "제재", "조사", "소송", "규제", "논란", "의혹", "재판", "혐의",
+    "위반", "처분", "면제", "인수", "매각", "확정", "패소", "승소", "고발", "기소",
+}
+
+
+def _validate_master_mapping(mapping, existing_titles):
+    """merged가 existing_titles(기존 이슈) 중 하나를 재사용한 경우, 사건 유형
+    단어를 뺀 나머지 단어가 original과 하나도 안 겹치면 재사용을 거부하고
+    original(이번에 새로 나온 이름)을 그대로 쓴다."""
+    existing_set = set(existing_titles)
+    validated = {}
+    for original, merged in mapping.items():
+        if merged == original or merged not in existing_set:
+            validated[original] = merged
+            continue
+        orig_core = set(_issue_tokens(original)) - CASE_TYPE_GENERIC_WORDS
+        merged_core = set(_issue_tokens(merged)) - CASE_TYPE_GENERIC_WORDS
+        if orig_core & merged_core:
+            validated[original] = merged
+        else:
+            print(f"[이슈 재사용 거부] '{original}' -> '{merged}' 재사용 취소 "
+                  f"(사건 유형 단어 말고는 안 겹침 - 다른 회사/사건으로 의심)")
+            validated[original] = original
+    return validated
+
 # 이슈명은 "기업명 + 사건" 형태(예: "쿠팡 공정위 조사")로 만들어지므로, 첫 단어를
 # 그 이슈의 "뿌리"(기업/기관)로 보고 같은 뿌리끼리만 병합 후보로 삼는다.
 # 뿌리가 같아도 사건이 다르면 안 되므로, 뿌리 외 토큰이 실제로 겹칠 때만 병합한다.
@@ -807,6 +839,7 @@ def main():
         if valid_group_titles:
             recent_existing_titles = [t for t in load_recent_issue_titles() if t not in valid_group_titles]
             master_mapping = master_cluster_with_gemini(valid_group_titles, recent_existing_titles)
+            master_mapping = _validate_master_mapping(master_mapping, recent_existing_titles)
             for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
                 if score >= 5 and orig_gt in master_mapping:
                     analyzed_results[norm_t] = (score, master_mapping[orig_gt], summary, sentiment, category)
