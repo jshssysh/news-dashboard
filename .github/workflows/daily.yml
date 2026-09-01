@@ -1,29 +1,11 @@
 name: update-data
 
 on:
-  schedule:
-    # 운영 기준: 사용자가 07:00~08:00에 전날 뉴스/법안을 정리해 08:00경 발송한다.
-    # 따라서 모든 수집은 08:00 이전에 끝나야 의미가 있다(08시 넘어 도는 실행은 소용없음).
-    #
-    # 국회 계류의안 API는 전날 발의분을 다음날 아침에야 반영하는데, 그 시각이 날마다
-    # 흔들린다(실측: 8/26은 07:32엔 없다가 08:23에 나타남 / 8/27은 07:34에 이미 있었음).
-    # 06:07 한 번만으로는 놓치는 날이 생기므로, 발송 직전까지 법안만 두 번 더 받는다.
-    # 법안 수집은 1~2분이고 이미 요약된 건은 캐시를 재사용하므로 추가 비용이 거의 없다.
-    #
-    # 정각(및 정각 직후)은 GitHub Actions 요청이 몰려 예약 실행이 지연/누락되므로
-    # (공식 문서에 명시된 동작) 모든 시각을 정각에서 비켜 잡았다.
-    #
-    # [2026-08-27] 예약 실행이 8/25를 마지막으로 하나도 안 돌고 있다.
-    # 워크플로 상태는 active, main의 이 파일도 정상인데 06:07/07:12/07:47/
-    # 09:07/11:07/13:07 여섯 번이 전부 누락됐다. 그 전에도 8/21~8/23 3일 연속
-    # 누락에 18~55분 지연으로 완벽하진 않았다.
-    # cron 항목을 10개까지 늘린 시점(8/26)과 멈춘 시점이 겹치므로, 항목 수가
-    # 원인인지 보려고 아침 3개만 남긴다. 낮 뉴스 갱신(09:07~21:07)은 뺐다.
-    # 하루 관찰해서 그래도 안 돌면 GitHub 예약은 못 믿는 것으로 보고
-    # 외부 트리거로 바꿔야 한다.
-    - cron: '7 21 * * *'   # KST 06:07 - 뉴스 + 법안 (본 수집)
-    - cron: '12 22 * * *'  # KST 07:12 - 법안만 (일찍 반영된 날 잡기)
-    - cron: '47 22 * * *'  # KST 07:47 - 법안만 (발송 직전 마지막)
+  # [2026-09-01] GitHub 자체 schedule cron이 며칠째 계속 지연/누락돼서(8/21~8/27
+  # 관찰 기록 참고 - 삭제된 예전 주석에 남아있음) 못 믿기로 하고, cron-job.org가
+  # workflow_dispatch를 정해진 시각(06:01/07:12/07:47/12:01/18:01 KST)에 직접
+  # 호출하는 방식으로 완전히 옮겼다. 그래서 schedule 트리거는 더 없다 - 아래
+  # 스텝들의 건너뛰기 조건도 workflow_dispatch 입력만 본다.
   workflow_dispatch:
     inputs:
       skip_news:
@@ -66,14 +48,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: 뉴스 수집 + AI 분석 (네이버 API + Gemini)
-        # 07:12 / 07:47은 법안 전용 재수집이므로 뉴스(및 Gemini 분석)는 건너뛴다.
-        # 내부 예약(schedule 문자열 매칭)과 외부 트리거(workflow_dispatch의 skip_news
-        # 입력) 둘 다 지원한다 - cron-job.org가 부르는 workflow_dispatch는 schedule이
-        # 항상 빈 값이라 문자열 매칭만으론 못 거르기 때문.
-        if: >-
-          github.event.inputs.skip_news != 'true'
-          && github.event.schedule != '12 22 * * *'
-          && github.event.schedule != '47 22 * * *'
+        # 07:12 / 07:47(법안 전용 재수집)은 cron-job.org가 skip_news=true로 호출한다.
+        if: github.event.inputs.skip_news != 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -83,14 +59,7 @@ jobs:
           python main.py
 
       - name: 법안 + 의원 정보 수집 (국회 열린국회정보 Open API)
-        # 법안은 아침 세 번(06:07/07:12/07:47)만 수집한다.
-        # 수동 실행(workflow_dispatch)은 schedule이 빈 값이라 아래 조건에서 통과한다.
-        if: >-
-          github.event.inputs.skip_bills != 'true'
-          && (github.event_name != 'schedule'
-              || github.event.schedule == '7 21 * * *'
-              || github.event.schedule == '12 22 * * *'
-              || github.event.schedule == '47 22 * * *')
+        if: github.event.inputs.skip_bills != 'true'
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -100,12 +69,7 @@ jobs:
       - name: 의원별 뉴스 수집 (네이버 API + Gemini)
         # member_list.csv는 저장소에 커밋된 파일이라 위 스텝을 건너뛰어도(skip_bills)
         # 예전 것이 그대로 있으므로, 이 스텝은 skip_member_news로 따로 켜고 끈다.
-        if: >-
-          github.event.inputs.skip_member_news != 'true'
-          && (github.event_name != 'schedule'
-              || github.event.schedule == '7 21 * * *'
-              || github.event.schedule == '12 22 * * *'
-              || github.event.schedule == '47 22 * * *')
+        if: github.event.inputs.skip_member_news != 'true'
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
