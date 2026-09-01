@@ -403,7 +403,10 @@ def load_analyzed_links(file_name="news_list.csv"):
 # 없는 포괄적 이슈명이다. 이런 이름은 "최근 자주 쓰였다"는 이유로 계속 재사용 후보 1순위로
 # 추천되면 관련 없는 기사들이 계속 여기로 흡수되는 자기 강화 루프가 생긴다 - 그래서 재사용
 # 후보에서 아예 빼서 루프를 끊는다(프롬프트에도 만들지/재사용하지 말라고 별도로 지시해뒀다).
-GENERIC_ISSUE_TITLES_BLOCKLIST = {"기업동향", "지배구조 개편", "지배구조개편"}
+GENERIC_ISSUE_TITLES_BLOCKLIST = {
+    "기업동향", "지배구조 개편", "지배구조개편",
+    "기업 실적", "상생금융", "금융지주 지배구조",
+}
 
 
 def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
@@ -588,10 +591,15 @@ def apply_issue_merge(df):
 # 클러스터링 품질 안전장치.
 # Gemini가 컨디션이 나쁜 날 관련 없는 기사들을 "기업동향"/"지배구조 개편" 같은 거대 일반
 # 바구니에 쓸어담는 사고가 반복됐다(정상 이슈는 하루 2~3건인데 이런 바구니는 수십~수백 건).
-# 예전엔 하루 전체를 통째로 버렸는데, 그러면 그날 정상적으로 분류된 대부분(수백 건)까지
-# 같이 날아간다. 대신 "이상하게 큰 바구니만" 골라 그 이슈에 속한 기사만 이번 실행에서
-# 저장하지 않고(다음 실행 때 재시도됨), 나머지는 정상 저장한다. 화면 쪽엔 cluster_warnings.csv를
-# 통해 그 카테고리에 "!" 표시를 남겨 사용자가 알 수 있게 한다.
+#
+# [2026-09-01] 처음엔 이 기준(하루 15건 초과)에 걸리면 그 이슈의 기사를 이번 실행에서
+# 저장하지 않았는데, "고려아연 분쟁"/"한화 KAI 인수"처럼 실제로 언론이 크게 다룬
+# 진짜 대형 이슈도 하루 60~100건씩 나올 수 있어서 이 기준에 계속 걸려 며칠째
+# 데이터가 빠지는 문제가 생겼다. 건수만으로는 "가짜 포괄 바구니"와 "진짜 초대형
+# 이슈"를 구분할 수 없으므로, 이제는 건수로 저장을 막지 않는다 - 대신 계속 감지해서
+# cluster_warnings.csv에 남기고 화면에 "!" 표시로만 알린다(데이터는 그대로 저장).
+# 실제 포괄 바구니로 확인되면 위 GENERIC_ISSUE_TITLES_BLOCKLIST에 이름을 추가해
+# 재사용을 막는 방식으로 대응한다.
 CLUSTER_WARNINGS_PATH = "cluster_warnings.csv"
 CLUSTER_WARNINGS_RETENTION_DAYS = 35  # 화면의 "최근 30일" 조회 범위보다 넉넉하게 보관
 PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리면 의심(정상 관측치는 2~3건)
@@ -648,11 +656,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     cluster_warnings = find_cluster_warnings(new_df)
     if cluster_warnings:
         for w in cluster_warnings:
-            print(f"[경고] 이슈 '{w['issue']}'({w['category']})에 {w['count']}건이 몰려 클러스터링 실패로 "
-                  f"의심됩니다 - 이 이슈에 속한 기사는 이번엔 저장하지 않고(다음 실행에서 재시도) "
-                  f"화면엔 '!' 표시를 남깁니다.")
-        flagged_issues = {w["issue"] for w in cluster_warnings}
-        new_df = new_df[~new_df["대표이슈"].isin(flagged_issues)]
+            print(f"[경고] 이슈 '{w['issue']}'({w['category']})에 {w['count']}건이 몰려 클러스터링 이상이 "
+                  f"의심됩니다 - 기사는 정상 저장하고, 화면엔 '!' 표시만 남깁니다. 실제 포괄 바구니로 "
+                  f"확인되면 GENERIC_ISSUE_TITLES_BLOCKLIST에 이름을 추가하세요.")
         save_cluster_warnings(cluster_warnings, datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
 
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:

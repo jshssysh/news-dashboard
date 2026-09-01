@@ -105,9 +105,10 @@ def load_personnel():
 
 
 def load_cluster_warnings():
-    """main.py가 남긴 cluster_warnings.csv를 읽는다 - 클러스터링이 비정상으로 커져서
-    그 이슈의 기사를 저장하지 않고 건너뛴 날짜/카테고리 기록. 화면은 이걸로 카테고리
-    칩 옆에 "!" 표시를 남긴다. news.json과 같은 최근 창(RECENT_DAYS_WINDOW)만 남긴다."""
+    """main.py가 남긴 cluster_warnings.csv를 읽는다 - 이슈 하나에 기사가 비정상적으로
+    몰려 클러스터링 이상이 의심된 날짜/카테고리 기록(기사 자체는 정상 저장됨, 참고용
+    표시일 뿐). 화면은 이걸로 카테고리 칩 옆에 "!" 표시를 남긴다. news.json과 같은
+    최근 창(RECENT_DAYS_WINDOW)만 남긴다."""
     path = "cluster_warnings.csv"
     if not os.path.exists(path):
         return []

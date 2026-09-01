@@ -1430,7 +1430,7 @@ function warningsForDates(dates) {
 function warningTooltip(entries) {
   return entries.map(w => {
     const md = (w.date || '').slice(5).replace('-', '/');
-    return `${md}: '${w.issue}'에 ${w.count}건이 몰려 클러스터링 이상 의심 - 그날 신규 기사는 반영 안 됨`;
+    return `${md}: '${w.issue}'에 ${w.count}건이 몰려 클러스터링 이상 의심(단순 참고용, 기사는 정상 반영됨)`;
   }).join('\n');
 }
 
