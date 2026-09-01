@@ -309,7 +309,11 @@ def analyze_batch_with_gemini(batch_items):
 분석 지침:
 1. idx: 번호 유지
 2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가.
-3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형)
+3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형).
+   반드시 그 기사의 실제 당사자인 구체적 기업/기관/인물명이 들어가야 함 - "설탕 담합"처럼
+   제품/업종명만 넣지 말 것(예: 삼양사가 당사자면 "설탕 담합"이 아니라 "삼양사 담합"류로 지을 것).
+   같은 사건을 다루는 다른 기사와 표현이 갈리면 나중에 병합이 안 되므로, 이름 형식은 항상
+   "당사자명 + 사건" 순서로 통일할 것.
 4. summary: (relevance_score 5점 이상일 때만) 1문장 핵심 요약
 5. sentiment: (relevance_score 5점 이상일 때만) '기자의 서술 태도'가 아닌 '해당 사건이 기업에 미치는 사업적/재무적 영향(호재/악재)'을 기준으로 판별할 것.
    - 긍정: 신사업, M&A, 조직 신설, 실적 개선, 투자 등 호재
@@ -522,6 +526,11 @@ def _should_merge_issue(tokens_a, tokens_b):
     """같은 뿌리를 가진 두 이슈명이 사실상 같은 사건인지 기계적으로 판정한다.
     (1) 한쪽 토큰이 다른 쪽에 통째로 포함되면 사건이 이어진 것으로 본다
         예: "쿠팡 공정위 조사" ⊂ "쿠팡 공정위 조사 거부" -> 병합
+    (1-1) 포함관계는 아니어도 서로 다른 토큰이 딱 하나씩뿐이고(그 외는 전부 겹침)
+        나머지 겹치는 토큰이 2개 이상이면, 같은 사건을 다른 표현으로 부른 것으로 본다
+        예: "삼양사 리니언시 면제" vs "삼양사 과징금 면제" (겹침: 삼양사·면제 / 다름: 리니언시·과징금뿐) -> 병합
+        ("리니언시 면제"↔"과징금 면제"처럼 사건을 부르는 단어 하나만 바뀐 경우를 잡기 위함 -
+        문자열 유사도(SequenceMatcher)만으로는 이 정도 차이가 근소하게 임계값 밑으로 빠지는 경우가 실측됨)
     (2) 포함관계가 아니어도 문자열이 매우 비슷하고 뿌리 외 토큰이 겹치면 병합한다.
     뿌리(첫 토큰)만 같은 경우는 병합하지 않는다 - 같은 기업의 별개 사건일 수 있음
     (예: "쿠팡 공정위 조사" vs "쿠팡 배송비 인상").
@@ -531,6 +540,12 @@ def _should_merge_issue(tokens_a, tokens_b):
     if not shared_beyond_root:
         return False
     is_generic = tokens_a[0] in GENERIC_ISSUE_ROOTS
+    if not is_generic:
+        diff_a, diff_b = set_a - set_b, set_b - set_a
+        # 뿌리(공통) 포함 전체 겹치는 토큰 수 기준 - 뿌리 하나만 같고 나머지가 다 다르면
+        # (예: "쿠팡 A" vs "쿠팡 B") 오탐이므로 뿌리 포함 2개 이상 겹칠 때만 인정한다.
+        if len(diff_a) <= 1 and len(diff_b) <= 1 and len(set_a & set_b) >= 2:
+            return True
     min_tokens = GENERIC_ROOT_MIN_TOKENS if is_generic else 2
     threshold = GENERIC_ROOT_SIM_THRESHOLD if is_generic else ISSUE_ROOT_SIM_THRESHOLD
     smaller = set_a if len(set_a) <= len(set_b) else set_b
