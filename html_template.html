@@ -11,6 +11,8 @@
   --app-shadow: 0 1px 2px rgba(15,15,20,0.04), 0 1px 12px rgba(15,15,20,0.045);
   --app-shadow-hover: 0 4px 16px rgba(15,15,20,0.09);
   --ease: cubic-bezier(.2,.7,.3,1);
+  /* 위원장 뱃지 전용 - 정당색/경고색(주황 "!")과 안 겹치게 남색 계열로 */
+  --chair-accent: #3454a8; --chair-bg: rgba(52,84,168,0.10);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -18,6 +20,7 @@
     --app-border: rgba(255,255,255,0.10); --app-border-strong: rgba(255,255,255,0.18);
     --app-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 1px 14px rgba(0,0,0,0.28);
     --app-shadow-hover: 0 6px 20px rgba(0,0,0,0.35);
+    --chair-accent: #8fb0ee; --chair-bg: rgba(143,176,238,0.14);
   }
 }
 * { box-sizing: border-box; }
@@ -342,6 +345,9 @@ a.member-name:hover { color: var(--app-primary); text-decoration: underline; }
 .member-cmit-row-standalone { display: flex; margin-bottom: 7px; }
 .member-cmit-chip { border: 1px solid var(--app-border); background: var(--app-secondary-bg); border-radius: 6px; padding: 3px 8px; font-size: 0.74em; font-weight: 700; }
 .member-cmit-chip:hover { border-color: var(--app-primary); color: var(--app-primary); }
+/* 그 위원회 위원장인 경우(예: "정무위장") - 일반 소속과 구분되게 남색 계열로 */
+.member-cmit-chip-chair { border-color: var(--chair-accent); background: var(--chair-bg); color: var(--chair-accent); }
+.member-cmit-chip-chair:hover { border-color: var(--chair-accent); color: var(--chair-accent); }
 /* 위원회가 없을 때 그 자리에 오는 배지 3종 - 이유별로 색을 다르게 준다 */
 .member-badge-speaker { border-color: #d4a72c; background: rgba(212,167,44,0.14); color: #d4a72c; }
 .member-badge-rolechange { border-color: #7c4dff; background: rgba(124,77,255,0.14); color: #9575ff; }
@@ -1084,6 +1090,23 @@ function memberSpeakerRole(m) {
   return '';
 }
 
+// 약력에는 "現 OO지역위원장"/"現 OO당협위원장"/정당 자체 특별위원회 위원장처럼
+// 국회 상임위와 무관한 "위원장" 직함도 많이 섞여 있어서, 이름만 보고 위원장으로
+// 인정하면 엉뚱한 걸 위원장으로 표시하는 사고가 난다. 그래서 약력에서 찾은
+// "OO위원회 위원장" 후보가 실제로 그 의원의 소속위원회 목록에도 있을 때만
+// 인정한다(둘 다 맞아야 진짜 국회 상임위 위원장으로 본다).
+function memberChairCommittees(m) {
+  if (!m.history) return new Set();
+  const mine = new Set(memberCommittees(m));
+  const chairs = new Set();
+  const re = /現[)\]]?\s*(?:국회\s*)?([가-힣·]+위원회)\s*위원장/g;
+  let match;
+  while ((match = re.exec(m.history))) {
+    if (mine.has(match[1])) chairs.add(match[1]);
+  }
+  return chairs;
+}
+
 // 위원회가 없을 때 카드에 보여줄 배지 문구와, 필터에서 묶일 카테고리를 함께 정한다.
 function memberSpecialCategory(m) {
   const speaker = memberSpeakerRole(m);
@@ -1243,8 +1266,15 @@ function memberCardHtml(m) {
         .sort((a, b) => Object.keys(PASS_BUCKET_CLASS).indexOf(a[0]) - Object.keys(PASS_BUCKET_CLASS).indexOf(b[0]))
         .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${cnt}</button>`).join('')
     : '';
+  const chairCommittees = memberChairCommittees(m);
   const committees = memberCommittees(m)
-    .map(c => `<button class="member-cmit-chip" data-committee="${c}" title="${c} 소속 의원만 보기">${committeeCardLabel(c)}</button>`)
+    .map(c => {
+      const isChair = chairCommittees.has(c);
+      const cls = isChair ? 'member-cmit-chip member-cmit-chip-chair' : 'member-cmit-chip';
+      const label = committeeCardLabel(c) + (isChair ? '장' : '');
+      const tip = isChair ? `${c} 위원장 - 클릭하면 소속 의원만 보기` : `${c} 소속 의원만 보기`;
+      return `<button class="${cls}" data-committee="${c}" title="${tip}">${label}</button>`;
+    })
     .join('');
   // 위원회가 없을 때만 계산한다 - 있으면 아예 안 쓰인다.
   const special = committees ? null : memberSpecialCategory(m);
