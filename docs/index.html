@@ -162,6 +162,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+/* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
+   줄바꿈 - 모바일에서도 안 깨짐). 두 섹션의 아래 여백은 바깥 줄에서 대신 준다. */
+.member-party-bill-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.member-party-bill-row .filter-section { flex: 1 1 260px; min-width: 260px; margin-bottom: 14px; }
 .filter-section-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .filter-section-toggle {
   display: flex; align-items: center; gap: 6px;
@@ -419,11 +423,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .proposer-pill { background: var(--app-primary); color: #fff; border: none; border-radius: 20px; padding: 2px 10px; font-size: 0.92em; font-weight: 700; margin-right: 4px; }
 .proposer-pill:hover { filter: brightness(1.1); }
 /* 칩 줄은 가로 스크롤 대신 줄바꿈으로 (소관위원회 줄과 같은 규칙) */
-#memberPartyChipRow, #memberCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
+#memberPartyChipRow, #memberCommitteeChipRow, #memberBillChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
 /* 위원회 없음/직 변경/의원직 상실 그룹을 특별위원회 그룹과 살짝 띄워
    "실제 위원회는 아니다"가 시각적으로도 보이게 한다 */
 #memberCommitteeChipRow button.chip-gap-before { margin-left: 14px; }
-#memberPartyChipRow button, #memberCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
+#memberPartyChipRow button, #memberCommitteeChipRow button, #memberBillChipRow button { padding: 4px 9px; font-size: 0.78em; }
 /* 정당 칩만 --party-color(JS가 심어준 값)로 물들인다. 안 고른 칩은 옅게
    물든 배경 + 그 색 글자, 고른 칩은 그 정당 색으로 꽉 채운다(빨간 기본
    active 색을 정당 칩에마저 그대로 두면 다른 당인데 다 빨갛게 보였다). */
@@ -713,12 +717,21 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <h5>국회의원 <span class="era-tag">제22대</span></h5>
         <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">
       </div>
-      <div class="filter-section" id="partyFilterSection">
-        <div class="filter-section-header">
-          <button class="filter-section-toggle" data-target="partyFilterSection">정당 <span class="toggle-caret">▼</span></button>
-          <span class="current-tag" id="partyCurrentTag"></span>
+      <div class="member-party-bill-row">
+        <div class="filter-section" id="partyFilterSection">
+          <div class="filter-section-header">
+            <button class="filter-section-toggle" data-target="partyFilterSection">정당 <span class="toggle-caret">▼</span></button>
+            <span class="current-tag" id="partyCurrentTag"></span>
+          </div>
+          <div class="cat-chip-row filter-section-body" id="memberPartyChipRow"></div>
         </div>
-        <div class="cat-chip-row filter-section-body" id="memberPartyChipRow"></div>
+        <div class="filter-section" id="billBucketFilterSection">
+          <div class="filter-section-header">
+            <button class="filter-section-toggle" data-target="billBucketFilterSection">법안 <span class="toggle-caret">▼</span></button>
+            <span class="current-tag" id="billBucketCurrentTag"></span>
+          </div>
+          <div class="cat-chip-row filter-section-body" id="memberBillChipRow"></div>
+        </div>
       </div>
       <div class="filter-section" id="memberCommitteeFilterSection">
         <div class="filter-section-header">
@@ -733,7 +746,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="pg-top">
           <select id="memberSortSel">
             <option value="default">기본</option>
-            <option value="bills">발의순</option>
+            <option value="bills">대표발의순</option>
+            <option value="bucket:가결">가결순</option>
+            <option value="bucket:대안반영">대안반영순</option>
+            <option value="bucket:부결">부결순</option>
+            <option value="bucket:폐기">폐기순</option>
             <option value="name">이름순</option>
             <option value="term">선수순</option>
           </select>
@@ -751,7 +768,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-02 15:26 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-02 15:48 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -851,6 +868,7 @@ const state = {
   billProposer: '',   // 의원 탭에서 "대표발의 N건"을 눌러 들어왔을 때만 채워진다
   billOutcomeBucket: '', // 의원 탭에서 "가결"/"대안반영" 등을 눌러 들어왔을 때만 채워진다
   memberParty: '전체',
+  memberBillBucket: '전체',
   memberCommittee: '전체',
   memberSearch: '',
   memberSort: 'default',
@@ -1121,6 +1139,14 @@ function memberCommitteesForFilter(m) {
   return list.length ? list : [memberSpecialCategory(m).bucket];
 }
 
+// 법안 분류 필터/정렬 공통 - "대표발의"는 심사중(계류) 건수, 나머지 넷은
+// 이미 결과가 난 법안(m.passResults)의 버킷별 건수다.
+const BILL_BUCKETS = ['대표발의', '가결', '대안반영', '부결', '폐기'];
+function memberBillBucketCount(m, bucket) {
+  if (bucket === '대표발의') return m.billCount || 0;
+  return (m.passResults && m.passResults[bucket]) || 0;
+}
+
 // 지자체장 등으로 옮겼거나(직 변경) 확정판결로 의원직을 잃은(의원직 상실)
 // 사람은 이제 실제로 의정활동을 하는 현역이 아니다. 그런데도 "전체"에
 // 그대로 다 세면(320명) 실제 재적 인원(300명)보다 부풀려 보인다 - 그래서
@@ -1131,6 +1157,7 @@ function isDepartedCategory(v) { return v === ROLE_CHANGE_CATEGORY || v === SEAT
 function filteredMembers() {
   let list = isDepartedCategory(state.memberCommittee) ? MEMBER_DATA.slice() : MEMBER_DATA.filter(isActiveMember);
   if (state.memberParty !== '전체') list = list.filter(m => (m.party || '무소속') === state.memberParty);
+  if (state.memberBillBucket !== '전체') list = list.filter(m => memberBillBucketCount(m, state.memberBillBucket) > 0);
   if (state.memberCommittee !== '전체') list = list.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
   if (state.memberSearch) {
     // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
@@ -1154,6 +1181,11 @@ function filteredMembers() {
       return chairs.size > 0 ? 0 : 1;
     };
     list.sort((a, b) => (chairRank(a) - chairRank(b)) || ((b.billCount || 0) - (a.billCount || 0)) || a.name.localeCompare(b.name, 'ko'));
+  }
+  else if (state.memberSort.startsWith('bucket:')) {
+    // 가결순/대안반영순/부결순/폐기순 - 그 버킷 건수가 많은 사람부터.
+    const bucket = state.memberSort.slice('bucket:'.length);
+    list.sort((a, b) => (memberBillBucketCount(b, bucket) - memberBillBucketCount(a, bucket)) || a.name.localeCompare(b.name, 'ko'));
   }
   else list.sort((a, b) => ((b.billCount || 0) - (a.billCount || 0)) || a.name.localeCompare(b.name, 'ko'));
   return list;
@@ -1180,21 +1212,33 @@ function renderMemberChipRows() {
   // 다만 위원회가 "전체"일 땐 활성 의원만 센다(그래야 정당 칩 합도 "전체"
   // 인원수와 맞는다) - 직 변경/의원직 상실 카테고리를 직접 골랐을 땐 원래
   // 그 사람들을 보려는 거니 전체 데이터에서 그대로 거른다.
-  const byParty = state.memberCommittee === '전체'
+  // 법안분류(대표발의/가결/대안반영/부결/폐기)도 정당·위원회와 같은 방식의
+  // 세 번째 필터 축이라, 서로의 칩 건수를 셀 때 "자기 자신만 빼고" 나머지
+  // 두 필터는 그대로 적용해야 한다(안 그러면 다른 필터를 걸어도 칩 숫자가 안 바뀜).
+  const billBucketMatch = m => state.memberBillBucket === '전체' || memberBillBucketCount(m, state.memberBillBucket) > 0;
+
+  const byParty = (state.memberCommittee === '전체'
     ? MEMBER_DATA.filter(isActiveMember)
-    : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee));
+    : MEMBER_DATA.filter(m => memberCommitteesForFilter(m).includes(state.memberCommittee))
+  ).filter(billBucketMatch);
   // 위원회 칩 자체의 건수(committeeCounts)는 "직 변경 17"처럼 이탈 인원도
   // 정확히 세야 하므로 활성 여부와 무관하게 전체에서 정당만 걸러 센다.
-  const byCommittee = state.memberParty === '전체'
-    ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty);
+  const byCommittee = (state.memberParty === '전체'
+    ? MEMBER_DATA : MEMBER_DATA.filter(m => (m.party || '무소속') === state.memberParty)
+  ).filter(billBucketMatch);
   // "위원회 전체" 버튼에 찍을 숫자만 따로 - 그 버튼을 누르면 활성 의원만
   // 보이므로, 버튼 숫자도 활성 의원 수와 같아야 한다.
   const committeeAllTotal = byCommittee.filter(isActiveMember).length;
+  const byBillBucket = MEMBER_DATA.filter(isActiveMember)
+    .filter(m => state.memberParty === '전체' || (m.party || '무소속') === state.memberParty)
+    .filter(m => state.memberCommittee === '전체' || memberCommitteesForFilter(m).includes(state.memberCommittee));
 
   const partyCounts = {};
   byParty.forEach(m => { const p = m.party || '무소속'; partyCounts[p] = (partyCounts[p] || 0) + 1; });
   const committeeCounts = {};
   byCommittee.forEach(m => memberCommitteesForFilter(m).forEach(c => { committeeCounts[c] = (committeeCounts[c] || 0) + 1; }));
+  const billBucketCounts = {};
+  BILL_BUCKETS.forEach(b => { billBucketCounts[b] = byBillBucket.filter(m => memberBillBucketCount(m, b) > 0).length; });
 
   // 소속위원회 칩 순서: 의장단(0) -> 일반 상임위(1) -> 특별위원회(2) ->
   // [한 칸 띄우고] 위원회 없음/직 변경/의원직 상실(3). 정당 칩은 전부 tier 1로
@@ -1235,16 +1279,28 @@ function renderMemberChipRows() {
   chipRow(document.getElementById('memberPartyChipRow'), partyCounts, byParty.length, state.memberParty, 'party', partyColor, true);
   chipRow(document.getElementById('memberCommitteeChipRow'), committeeCounts, committeeAllTotal, state.memberCommittee, 'committee');
 
+  // 법안분류 칩은 위원회 칩과 달리 건수순이 아니라 항상 대표발의->가결->대안반영->
+  // 부결->폐기 고정 순서로 보여준다(어디에 뭐가 있는지 매번 안 찾게).
+  const billChipRow = document.getElementById('memberBillChipRow');
+  billChipRow.innerHTML = [`<button data-billbucket="전체" class="${state.memberBillBucket === '전체' ? 'active' : ''}">전체 ${byBillBucket.length}</button>`]
+    .concat(BILL_BUCKETS.map(b => `<button data-billbucket="${b}" class="${state.memberBillBucket === b ? 'active' : ''}">${b} ${billBucketCounts[b] || 0}</button>`))
+    .join('');
+
   document.getElementById('partyCurrentTag').textContent =
     state.memberParty === '전체' ? '' : `${state.memberParty} ${partyCounts[state.memberParty] || 0}`;
   document.getElementById('memberCommitteeCurrentTag').textContent =
     state.memberCommittee === '전체' ? '' : `${committeeAbbr(state.memberCommittee) || state.memberCommittee} ${committeeCounts[state.memberCommittee] || 0}`;
+  document.getElementById('billBucketCurrentTag').textContent =
+    state.memberBillBucket === '전체' ? '' : `${state.memberBillBucket} ${billBucketCounts[state.memberBillBucket] || 0}`;
 
   document.getElementById('memberPartyChipRow').querySelectorAll('button').forEach(b => {
     b.addEventListener('click', () => { state.memberParty = b.dataset.party; state.memberPage = 1; renderMembers(); });
   });
   document.getElementById('memberCommitteeChipRow').querySelectorAll('button').forEach(b => {
     b.addEventListener('click', () => { state.memberCommittee = b.dataset.committee; state.memberPage = 1; renderMembers(); });
+  });
+  billChipRow.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { state.memberBillBucket = b.dataset.billbucket; state.memberPage = 1; renderMembers(); });
   });
 }
 
