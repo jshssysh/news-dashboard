@@ -651,6 +651,13 @@ CLUSTER_WARNINGS_PATH = "cluster_warnings.csv"
 CLUSTER_WARNINGS_RETENTION_DAYS = 35  # 화면의 "최근 30일" 조회 범위보다 넉넉하게 보관
 PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리면 의심(정상 관측치는 2~3건)
 
+# news_list.csv 보관 기간. 화면(generate_html.py)은 이거와 별개로 35일치만 잘라서
+# 쓰므로, 이 값을 늘려도 사이트 속도/용량엔 영향이 없다 - 나중에 옛 기사를 찾아볼
+# 수 있게 원본만 더 오래 갖고 있는 것. 다만 GitHub는 파일 하나에 100MB 제한이
+# 있어서(2026-09 기준 30일=12.3MB이니 6개월=183일이면 대략 74MB - 여유 있음.
+# 수집 범위가 늘어나 하루 분량이 커지면 다시 계산해봐야 한다) 무한정 늘리면 안 된다.
+NEWS_LIST_RETENTION_DAYS = 183
+
 
 def find_cluster_warnings(new_df):
     """이번 실행에서 비정상적으로 커진 이슈(대표이슈)를 찾아
@@ -728,7 +735,7 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     combined_df = combined_df.drop_duplicates(subset=["기사링크"], keep="last")
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce", utc=True)
-        cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=30)
+        cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=NEWS_LIST_RETENTION_DAYS)
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception: pass
