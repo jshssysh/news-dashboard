@@ -98,6 +98,7 @@ MEMBER_SEAT_LOST = {
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
 MEMBER_INFO_API = "ALLNAMEMBER"  # 국회의원 인적사항 (정당/선수/지역구)
+COMMITTEE_MEMBER_API = "nktulghcadyhmiqxi"  # 위원회 위원 명단 (JOB_RES_NM에 '위원장'/'간사'/'위원' 구분이 있음)
 BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
 
 # 전체 법안이 수만 건이라, 이 기간 이내 발의된 것만 AI 한줄요약을 만든다
@@ -309,15 +310,52 @@ def fetch_member_info():
     return info, current_rows
 
 
+def fetch_committee_chairs():
+    """위원회 위원 명단 API에서 JOB_RES_NM(구성)이 '위원장'인 행만 걸러
+    {의원코드(MONA_CD): {위원회명, ...}} 사전을 만든다.
+
+    예전엔 약력(BRF_HST) 텍스트에서 "現 OO위원회 위원장" 패턴을 정규식으로
+    찾았는데, 약력 표기가 사람마다 달라서("現)", "(현)", "위원장(현)", 現/현
+    자체가 없는 경우까지) 실제 위원장 다수를 놓쳤다. 이 API는 JOB_RES_NM
+    필드로 위원장/간사/위원을 명확히 구분해 주므로 훨씬 신뢰할 수 있다."""
+    chairs = {}
+    p_index = 1
+    while p_index <= 20:  # 안전장치: 상임위+특별위 다 합쳐도 위원장은 20명 남짓
+        params = {"KEY": ASSEMBLY_API_KEY, "Type": "json", "pIndex": p_index, "pSize": 100, "JOB_RES_NM": "위원장"}
+        try:
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{COMMITTEE_MEMBER_API}", params, timeout=15)
+            if res.status_code != 200:
+                print(f"[위원회 위원장 조회 실패] {p_index}페이지: status={res.status_code} body={res.text[:300]}")
+                break
+            rows = _extract_rows(res.json(), COMMITTEE_MEMBER_API)
+            if not rows:
+                break
+            for row in rows:
+                code = row.get("MONA_CD")
+                dept = row.get("DEPT_NM")
+                if not code or not dept:
+                    continue
+                chairs.setdefault(code, set()).add(dept)
+            if len(rows) < 100:
+                break
+            p_index += 1
+            time.sleep(0.1)
+        except Exception:
+            print(f"[위원회 위원장 조회 예외] {p_index}페이지:\n{traceback.format_exc()}")
+            break
+    print(f"[위원회 위원장 조회] {len(chairs)}명 확인")
+    return chairs
+
+
 MEMBER_COLUMNS = [
     "의원코드", "이름", "한자명", "정당", "이전정당", "선수", "당선대수",
-    "지역구", "선거구구분", "소속위원회", "성별", "생년월일", "전화", "이메일",
+    "지역구", "선거구구분", "소속위원회", "위원장위원회", "성별", "생년월일", "전화", "이메일",
     "홈페이지", "사무실", "보좌관", "비서관", "비서", "약력", "사진",
     "영문명", "현직변경", "의원직상실",
 ]
 
 
-def save_members(rows):
+def save_members(rows, chairs=None):
     """22대 현역 의원을 member_list.csv 로 저장한다 (의원 검색 화면용).
 
     정당/선거구/위원회 칸은 거쳐온 이력이 '/'로 이어져 있어서 마지막 조각이 현재값이다.
@@ -337,11 +375,13 @@ def save_members(rows):
     def last(value):
         return (value or "").split("/")[-1].strip()
 
+    chairs = chairs or {}
     members = []
     for row in rows:
         parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
+        code = row.get("NAAS_CD", "")
         members.append({
-            "의원코드": row.get("NAAS_CD", ""),
+            "의원코드": code,
             "이름": row.get("NAAS_NM", ""),
             "한자명": row.get("NAAS_CH_NM", "") or "",
             # 법안 카드의 제안자 문구도 약칭("민주당")을 쓰므로 여기서도 맞춘다.
@@ -353,6 +393,7 @@ def save_members(rows):
             "지역구": last(row.get("ELECD_NM")) or "비례대표",
             "선거구구분": last(row.get("ELECD_DIV_NM")) or "",
             "소속위원회": last(row.get("CMIT_NM")) or "",
+            "위원장위원회": ", ".join(sorted(chairs.get(code, ()))),
             "성별": row.get("NTR_DIV", "") or "",
             "생년월일": row.get("BIRDY_DT", "") or "",
             "전화": row.get("NAAS_TEL_NO", "") or "",
@@ -554,7 +595,8 @@ def main():
 
     member_info, current_members = fetch_member_info()
     print(f"[국회의원 인적사항 조회 완료] 역대 {len(member_info)}명 / {CURRENT_ERA} 현역 {len(current_members)}명")
-    save_members(current_members)
+    chairs = fetch_committee_chairs()
+    save_members(current_members, chairs)
 
     seen = {}
     for row in rows:

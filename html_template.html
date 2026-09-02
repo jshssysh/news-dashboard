@@ -1090,21 +1090,13 @@ function memberSpeakerRole(m) {
   return '';
 }
 
-// 약력에는 "現 OO지역위원장"/"現 OO당협위원장"/정당 자체 특별위원회 위원장처럼
-// 국회 상임위와 무관한 "위원장" 직함도 많이 섞여 있어서, 이름만 보고 위원장으로
-// 인정하면 엉뚱한 걸 위원장으로 표시하는 사고가 난다. 그래서 약력에서 찾은
-// "OO위원회 위원장" 후보가 실제로 그 의원의 소속위원회 목록에도 있을 때만
-// 인정한다(둘 다 맞아야 진짜 국회 상임위 위원장으로 본다).
+// 약력 텍스트에서 "現 OO위원회 위원장" 패턴을 정규식으로 찾던 이전 방식은
+// 표기가 사람마다 달라서("現)", "(현)", "위원장(현)", 現/현 자체가 없는 경우
+// 까지) 실제 위원장 다수를 놓쳤다. collect_bills.py가 국회 Open API의 "위원회
+// 위원 명단"(JOB_RES_NM=위원장) 데이터로 미리 확인해 넣어주는 chairCommittees를
+// 그대로 쓴다 - 텍스트 추측이 아니라 국회가 공개한 구조화된 데이터라 정확하다.
 function memberChairCommittees(m) {
-  if (!m.history) return new Set();
-  const mine = new Set(memberCommittees(m));
-  const chairs = new Set();
-  const re = /現[)\]]?\s*(?:국회\s*)?([가-힣·]+위원회)\s*위원장/g;
-  let match;
-  while ((match = re.exec(m.history))) {
-    if (mine.has(match[1])) chairs.add(match[1]);
-  }
-  return chairs;
+  return new Set((m.chairCommittees || "").split(",").map(s => s.trim()).filter(Boolean));
 }
 
 // 위원회가 없을 때 카드에 보여줄 배지 문구와, 필터에서 묶일 카테고리를 함께 정한다.

@@ -276,6 +276,7 @@ def load_members(bills):
             "district": nz(row.get("지역구"), ""),
             "districtType": nz(row.get("선거구구분"), ""),
             "committees": nz(row.get("소속위원회"), ""),
+            "chairCommittees": nz(row.get("위원장위원회"), ""),
             "gender": nz(row.get("성별"), ""),
             "birth": nz(row.get("생년월일"), ""),
             "tel": nz(row.get("전화"), ""),
