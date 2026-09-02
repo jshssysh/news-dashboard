@@ -89,6 +89,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-title-line .article-title { white-space: normal; overflow: visible; text-overflow: unset; flex: initial; margin-right: 4px; }
 .bill-title-line .meta-dim { opacity: 0.56; font-size: 0.92em; }
 .bill-title-line .proposer-detail { font-weight: 700; opacity: 0.88; font-size: 0.92em; }
+.bill-title-line .proposer-link { cursor: pointer; }
+.bill-title-line .proposer-link:hover { opacity: 1; color: var(--app-primary); text-decoration: underline; }
 .bill-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-bottom: 6px; font-size: 0.76em; }
 .bill-step { padding: 3px 8px; border-radius: 6px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); white-space: nowrap; font-weight: 600; }
 .bill-step.step-active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); font-weight: 700; }
@@ -768,7 +770,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-02 15:48 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-02 15:57 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -1818,8 +1820,10 @@ function committeePriorityRank(name) {
 }
 
 // 제안자 문구("OOO의원(정당, 선수, 지역구) 등 N인")에서 괄호 안 인적사항만
-// 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다.
-function proposerHtml(raw) {
+// 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다. repProposer(대표발의자
+// 이름, CSV의 "대표발의자" 칸 그대로)가 있으면 그 부분을 눌러서 의원 탭에서
+// 바로 그 의원을 검색한 결과로 넘어갈 수 있게 클릭 가능하게 만든다.
+function proposerHtml(raw, repProposer) {
   if (!raw) return '';
   const openIdx = raw.indexOf('(');
   if (openIdx === -1) return `<span class="meta-dim">${raw}</span>`;
@@ -1834,7 +1838,10 @@ function proposerHtml(raw) {
   const before = raw.slice(0, openIdx);
   const detail = raw.slice(openIdx, closeIdx + 1);
   const after = raw.slice(closeIdx + 1);
-  return `<span class="proposer-detail">${before}${detail}</span><span class="meta-dim">${after}</span>`;
+  const detailHtml = repProposer
+    ? `<span class="proposer-detail proposer-link" data-member="${repProposer.replace(/"/g,'&quot;')}" title="${repProposer} 의원 탭에서 보기">${before}${detail}</span>`
+    : `<span class="proposer-detail">${before}${detail}</span>`;
+  return `${detailHtml}<span class="meta-dim">${after}</span>`;
 }
 
 // 개별 법안 카드에 "입안 및 발의(날짜) > OO위 심사(날짜) > 법사위 심사(날짜) > 본회의 의결"
@@ -2099,7 +2106,7 @@ function renderBillList() {
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
-          ${proposerHtml(b.proposer||b.repProposer||'')}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
+          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer)}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
         </div>
         <div class="bill-stepper">${billStepperHtml(b)}</div>
         ${summaryBox}
@@ -2112,6 +2119,24 @@ function renderBillList() {
       a.addEventListener('click', (e) => {
         e.preventDefault();
         window.open(a.dataset.url, 'billSummaryPopup', 'width=820,height=900,scrollbars=yes,resizable=yes,noopener');
+      });
+    });
+    // 제안자 이름(대표발의자)을 누르면 의원 탭으로 넘어가 그 의원을 검색 결과로
+    // 바로 보여준다 - "대표발의 N건"의 반대 방향 이동.
+    listEl.querySelectorAll('.proposer-link').forEach(el => {
+      el.addEventListener('click', () => {
+        const name = el.dataset.member;
+        state.activeTab = '국회의원';
+        saveActiveTab(state.activeTab);
+        state.memberSearch = name;
+        state.memberParty = '전체';
+        state.memberCommittee = '전체';
+        state.memberBillBucket = '전체';
+        state.memberPage = 1;
+        const input = document.getElementById('memberSearchInput');
+        if (input) input.value = name;
+        renderAll();
+        window.scrollTo(0, 0);
       });
     });
   }
