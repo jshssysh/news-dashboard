@@ -732,6 +732,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="result-caption" id="memberResultCaption"></div>
         <div class="pg-top">
           <select id="memberSortSel">
+            <option value="default">기본</option>
             <option value="bills">발의순</option>
             <option value="name">이름순</option>
             <option value="term">선수순</option>
@@ -750,7 +751,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-02 15:08 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-02 15:26 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -852,7 +853,7 @@ const state = {
   memberParty: '전체',
   memberCommittee: '전체',
   memberSearch: '',
-  memberSort: 'bills',
+  memberSort: 'default',
   memberPageSize: getSavedPageSize('member'),
   memberPage: 1,
 };
@@ -1143,6 +1144,17 @@ function filteredMembers() {
   }
   if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
+  else if (state.memberSort === 'default') {
+    // "기본" 탭 - 지금 고른 소속위원회의 위원장을 맨 앞으로(전체를 볼 땐 아무
+    // 위원회든 위원장이면 앞으로). 검색·정당·위원회 필터는 위에서 이미 걸러진
+    // 뒤라 이 정렬만 얹히므로, 다른 조건을 걸면 그 조건이 그대로 우선한다.
+    const chairRank = m => {
+      const chairs = memberChairCommittees(m);
+      if (state.memberCommittee !== '전체') return chairs.has(state.memberCommittee) ? 0 : 1;
+      return chairs.size > 0 ? 0 : 1;
+    };
+    list.sort((a, b) => (chairRank(a) - chairRank(b)) || ((b.billCount || 0) - (a.billCount || 0)) || a.name.localeCompare(b.name, 'ko'));
+  }
   else list.sort((a, b) => ((b.billCount || 0) - (a.billCount || 0)) || a.name.localeCompare(b.name, 'ko'));
   return list;
 }
