@@ -87,8 +87,20 @@ ISSUE_TITLE_PARSE_ERROR = "파싱 오류"
 ERROR_ISSUE_TITLES = {ISSUE_TITLE_API_ERROR, ISSUE_TITLE_PARSE_ERROR}
 
 def extract_press_from_link(link):
-    for domain, name in PRESS_DOMAINS.items():
-        if domain in link: return name
+    # 예전엔 "domain in link"(URL 문자열 안에 그 조각이 있으면 매칭)로 짰는데,
+    # 이러면 한 도메인이 다른 도메인의 부분 문자열이기만 해도 잘못 걸린다.
+    # 실측된 사고: "smedaily.co.kr"(SME데일리 등 무관한 매체)이 "edaily.co.kr"
+    # (이데일리)을 부분 문자열로 포함해 이데일리로 잘못 표시됨. "biz.chosun.com"
+    # (조선비즈)도 "chosun.com"(조선일보)을 포함해서 309건이 전부 조선일보로
+    # 잘못 표시돼 있었음 - 호스트명을 정확히 뽑아 완전히 같을 때만 매칭한다.
+    try:
+        host = urlparse(link).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+    except Exception:
+        host = ""
+    if host and host in PRESS_DOMAINS:
+        return PRESS_DOMAINS[host]
     if "n.news.naver.com" in link or "news.naver.com" in link:
         parts = link.split("/")
         for i, part in enumerate(parts):
