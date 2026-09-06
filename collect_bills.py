@@ -273,17 +273,28 @@ def fetch_member_info():
                 name = row.get("NAAS_NM")
                 if not name:
                     continue
-                parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
-                info[name] = {
-                    "party": parties[-1] if parties else "",
-                    "prev_party": parties[-2] if len(parties) >= 2 else "",
-                    # 지역구가 비어있으면(API가 안 채워준 경우도 포함) 지역구 없는
-                    # 의원은 곧 비례대표라는 뜻이라 "비례대표"라고 명시한다.
-                    "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
-                    "term": row.get("RLCT_DIV_NM") or "",
-                }
                 era = row.get("GTELT_ERACO") or ""
-                if CURRENT_ERA in era:
+                is_current = CURRENT_ERA in era
+                # 동명이인 안전장치: 역대(전체 회기) 데이터를 이름만으로 겹쳐 쓰다 보니
+                # 22대 현직 의원과 이름이 같은 과거 의원이 있으면(실측: 조정훈 -
+                # 현직은 국민의힘·서울 마포구갑인데 민주당(前무소속)·전북 남원군갑인
+                # 동명이인 옛 의원 데이터로 덮어써짐), 나중 페이지에서 처리되는 과거
+                # 데이터가 현직 데이터를 지워버리는 사고가 났다. 한 번 현직 데이터가
+                # 들어간 이름은 과거 데이터로 다시 덮어쓰지 않는다(현직 데이터가 항상 우선).
+                if name in info and not is_current and info[name].get("_current"):
+                    pass
+                else:
+                    parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
+                    info[name] = {
+                        "party": parties[-1] if parties else "",
+                        "prev_party": parties[-2] if len(parties) >= 2 else "",
+                        # 지역구가 비어있으면(API가 안 채워준 경우도 포함) 지역구 없는
+                        # 의원은 곧 비례대표라는 뜻이라 "비례대표"라고 명시한다.
+                        "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
+                        "term": row.get("RLCT_DIV_NM") or "",
+                        "_current": is_current,
+                    }
+                if is_current:
                     current_rows.append(row)
                 elif len(era_samples) < 5:
                     era_samples.append(era)
