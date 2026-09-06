@@ -147,6 +147,9 @@ def load_bills():
             "proposer": nz(row.get("제안자"), ""),
             # 위원장 발의처럼 대표발의자가 없는 건이 있다(현재 274건)
             "repProposer": nz(row.get("대표발의자"), ""),
+            # 22대 안에서도 동명이인이면(예: 박지원 2명) 정당/지역구를 못 정해서
+            # proposer 문구에 안 넣었다 - 화면에서 "!" 표시로 알려주는 용도.
+            "repProposerAmbiguous": bool(row.get("대표발의자동명이인", False)),
             "proposeDate": None if pd.isna(row.get("제안일")) else str(row.get("제안일")),
             "committee": None if pd.isna(row.get("소관위원회")) else str(row.get("소관위원회")),
             "status": nz(row.get("처리상태"), ""),

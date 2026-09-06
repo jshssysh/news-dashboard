@@ -27,6 +27,7 @@ import os
 import re
 import time
 import traceback
+from collections import Counter
 import requests
 import yaml
 import pandas as pd
@@ -251,6 +252,7 @@ def fetch_member_info():
     info = {}
     current_rows = []
     era_samples = []  # 22대를 하나도 못 찾았을 때, GTELT_ERACO가 기대와 다른 형태인지 보려고 남긴다
+    ambiguous_current_names = set()  # 22대 안에서도 동명이인인 이름(예: 박지원) - 아래서 info에서 제거함
     p_index = 1
     while p_index <= 50:  # 안전장치: 전체 역대 의원 약 3300명 수준이면 충분
         params = {"Type": "json", "pIndex": p_index, "pSize": 100}
@@ -275,13 +277,22 @@ def fetch_member_info():
                     continue
                 era = row.get("GTELT_ERACO") or ""
                 is_current = CURRENT_ERA in era
-                # 동명이인 안전장치: 역대(전체 회기) 데이터를 이름만으로 겹쳐 쓰다 보니
+                # 동명이인 안전장치 ①: 역대(전체 회기) 데이터를 이름만으로 겹쳐 쓰다 보니
                 # 22대 현직 의원과 이름이 같은 과거 의원이 있으면(실측: 조정훈 -
                 # 현직은 국민의힘·서울 마포구갑인데 민주당(前무소속)·전북 남원군갑인
                 # 동명이인 옛 의원 데이터로 덮어써짐), 나중 페이지에서 처리되는 과거
                 # 데이터가 현직 데이터를 지워버리는 사고가 났다. 한 번 현직 데이터가
                 # 들어간 이름은 과거 데이터로 다시 덮어쓰지 않는다(현직 데이터가 항상 우선).
-                if name in info and not is_current and info[name].get("_current"):
+                #
+                # 동명이인 안전장치 ②: 22대 안에서도 동명이인이 실제로 있다(실측:
+                # "박지원" 의원이 전북/전남 지역구로 2명). 법안 API는 대표발의자를
+                # 이름만 주고 의원코드를 안 줘서 어느 쪽인지 코드로 구분할 방법이
+                # 없다 - 이런 이름은 아예 info에서 빼서, 틀릴 수 있는 정당/지역구를
+                # 억지로 보여주는 대신 이름만 그대로 두게 한다(format_proposer의
+                # "info 없으면 원문 유지" 폴백을 그대로 활용).
+                if is_current and name in info and info[name].get("_current"):
+                    ambiguous_current_names.add(name)
+                elif name in info and not is_current and info[name].get("_current"):
                     pass
                 else:
                     parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
@@ -311,6 +322,10 @@ def fetch_member_info():
     print(f"[국회의원 인적사항 조회] {p_index}페이지까지 훑음, 역대 {len(info)}명 / {CURRENT_ERA} 현역 {len(current_rows)}명")
     if info and not current_rows:
         print(f"[국회의원 인적사항 조회 - 22대 0명] GTELT_ERACO 값 예시: {era_samples}")
+    if ambiguous_current_names:
+        for n in ambiguous_current_names:
+            info.pop(n, None)
+        print(f"[국회의원 인적사항 조회] 22대 안에서도 동명이인 있어 정당/지역구 표시 생략: {', '.join(sorted(ambiguous_current_names))}")
 
     changed = [row.get("NAAS_NM") for row in current_rows if row.get("NAAS_NM") in MEMBER_ROLE_CHANGES]
     if changed:
@@ -609,6 +624,12 @@ def main():
 
     member_info, current_members = fetch_member_info()
     print(f"[국회의원 인적사항 조회 완료] 역대 {len(member_info)}명 / {CURRENT_ERA} 현역 {len(current_members)}명")
+    # 22대 안에서도 동명이인인 이름(예: 박지원 2명) - 법안 화면에서 "!" 표시로
+    # "정당/지역구를 확신할 수 없다"는 걸 알려주기 위해 따로 챙겨둔다.
+    name_counts = Counter(r.get("NAAS_NM") for r in current_members)
+    ambiguous_names = {n for n, c in name_counts.items() if n and c > 1}
+    if ambiguous_names:
+        print(f"[국회의원 인적사항 조회] 22대 안에서도 동명이인: {', '.join(sorted(ambiguous_names))}")
     chairs = fetch_committee_chairs()
     save_members(current_members, chairs)
 
@@ -648,6 +669,7 @@ def main():
             "카테고리": categorize_bill(row.get("BILL_NAME", ""), keywords_map, row.get("CURR_COMMITTEE", "")),
             "제안자": format_proposer(row.get("PROPOSER", ""), row.get("RST_PROPOSER", ""), member_info),
             "대표발의자": row.get("RST_PROPOSER", ""),
+            "대표발의자동명이인": row.get("RST_PROPOSER", "") in ambiguous_names,
             "제안일": row.get("PROPOSE_DT", ""),
             "소관위원회": row.get("CURR_COMMITTEE", ""),
             "처리상태": status,

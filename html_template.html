@@ -259,6 +259,8 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 /* 클러스터링이 비정상으로 커져서 그 이슈의 오늘 기사를 저장하지 않고 건너뛴 카테고리 표시.
    마우스를 올리면(title) 어떤 이슈에 몇 건이 몰렸는지 짧게 보인다. */
 .cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
+/* 법안 제안자 옆 - 22대 안에서도 동명이인이라 정당/지역구를 못 정한 경우(cat-warn과 같은 스타일) */
+.proposer-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
 .sentiment-track { display: flex; width: 100%; height: 8px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
 .sentiment-seg {
     display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
@@ -1823,10 +1825,21 @@ function committeePriorityRank(name) {
 // 주변 메타 텍스트보다 잘 보이게 별도 span으로 감싼다. repProposer(대표발의자
 // 이름, CSV의 "대표발의자" 칸 그대로)가 있으면 그 부분을 눌러서 의원 탭에서
 // 바로 그 의원을 검색한 결과로 넘어갈 수 있게 클릭 가능하게 만든다.
-function proposerHtml(raw, repProposer) {
+// ambiguous가 true면(22대 안에서도 동명이인 - 예: 박지원 2명) 정당/지역구를
+// 억지로 추측해서 보여주지 않고(collect_bills.py가 이미 비워둠), 이름 옆에
+// "!" 표시만 남겨 확인이 필요하다는 걸 알려준다. 이때도 눌러서 의원 탭으로
+// 가면 동명이인 둘 다 검색 결과에 나와서 사용자가 직접 구분할 수 있다.
+function proposerHtml(raw, repProposer, ambiguous) {
   if (!raw) return '';
+  const warnHtml = ambiguous
+    ? `<span class="proposer-warn" title="'${repProposer}' 동명이인이 있을 수 있으니 확인 바랍니다">!</span>` : '';
+  const nameLinkHtml = (text) => repProposer
+    ? `<span class="proposer-detail proposer-link" data-member="${repProposer.replace(/"/g,'&quot;')}" title="${repProposer} 의원 탭에서 보기">${text}</span>`
+    : `<span class="proposer-detail">${text}</span>`;
   const openIdx = raw.indexOf('(');
-  if (openIdx === -1) return `<span class="meta-dim">${raw}</span>`;
+  if (openIdx === -1) {
+    return repProposer ? `${nameLinkHtml(raw)}${warnHtml}` : `<span class="meta-dim">${raw}</span>${warnHtml}`;
+  }
   // 정당 부분에 "(前 이전정당)"처럼 괄호가 한 번 더 들어가 있을 수 있어서, 정규식
   // 대신 괄호 깊이를 세어 실제로 닫히는 지점(바깥쪽 괄호)을 찾는다.
   let depth = 0, closeIdx = -1;
@@ -1834,14 +1847,11 @@ function proposerHtml(raw, repProposer) {
     if (raw[i] === '(') depth++;
     else if (raw[i] === ')') { depth--; if (depth === 0) { closeIdx = i; break; } }
   }
-  if (closeIdx === -1) return `<span class="meta-dim">${raw}</span>`;
+  if (closeIdx === -1) return `<span class="meta-dim">${raw}</span>${warnHtml}`;
   const before = raw.slice(0, openIdx);
   const detail = raw.slice(openIdx, closeIdx + 1);
   const after = raw.slice(closeIdx + 1);
-  const detailHtml = repProposer
-    ? `<span class="proposer-detail proposer-link" data-member="${repProposer.replace(/"/g,'&quot;')}" title="${repProposer} 의원 탭에서 보기">${before}${detail}</span>`
-    : `<span class="proposer-detail">${before}${detail}</span>`;
-  return `${detailHtml}<span class="meta-dim">${after}</span>`;
+  return `${nameLinkHtml(before + detail)}${warnHtml}<span class="meta-dim">${after}</span>`;
 }
 
 // 개별 법안 카드에 "입안 및 발의(날짜) > OO위 심사(날짜) > 법사위 심사(날짜) > 본회의 의결"
@@ -2106,7 +2116,7 @@ function renderBillList() {
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
-          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer)}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
+          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer, b.repProposerAmbiguous)}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
         </div>
         <div class="bill-stepper">${billStepperHtml(b)}</div>
         ${summaryBox}
