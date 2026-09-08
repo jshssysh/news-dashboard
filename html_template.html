@@ -152,7 +152,12 @@ a.badge-skipped:hover { text-decoration: underline; }
   .news-filter-row h5 .current-tag { display: inline; }
 }
 .era-tag { font-size: 0.68em; font-weight: 600; opacity: 0.55; margin-left: 4px; }
-.bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; }
+/* 스크롤하다가 이 블록이 화면 위쪽에 붙는(sticky) 순간, 그 안에 있는 페이지네이션
+   버튼을 누르면 크로미움이 스크롤 리플로우와 클릭에 의한 내용 교체를 같은
+   프레임에 겹쳐 처리하면서 버튼이 위아래로 잠깐 흔들리는 것처럼 보이는 현상이
+   있다. will-change로 별도 합성 레이어를 만들어두면 스크롤 중 재배치가
+   본문 리플로우와 분리되어 훨씬 덜 튄다. */
+.bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; will-change: transform; }
 .news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .news-filter-row select.sel-sentiment { width: 110px; }
 .news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
