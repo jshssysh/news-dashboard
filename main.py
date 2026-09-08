@@ -673,6 +673,72 @@ PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리�
 # 수집 범위가 늘어나 하루 분량이 커지면 다시 계산해봐야 한다) 무한정 늘리면 안 된다.
 NEWS_LIST_RETENTION_DAYS = 183
 
+# news_list.csv에서 183일 지나 빠지는 기사를 그냥 버리지 않고, 옛 기사 검색 기능이
+# 쓸 수 있게 월별 JSON으로 영구 보관한다. 파일을 월 단위로 쪼개서 GitHub의 파일당
+# 100MB 제한과 무관하게(한 달치는 15MB 안팎) 계속 쌓을 수 있다. 화면은 평소엔 이
+# 파일들을 전혀 안 읽고, 사용자가 "옛 기사 검색"에서 그 달을 조회할 때만 해당
+# 파일 하나를 불러온다.
+NEWS_ARCHIVE_DIR = os.path.join("docs", "archive")
+
+
+def archive_expiring_news(expiring_df):
+    """cutoff보다 오래돼 news_list.csv에서 빠지는 행들을 월별
+    docs/archive/YYYY-MM.json에 합쳐 저장한다(기사링크 기준 중복 제거).
+    여러 번 실행해도 안전하도록(멱등) 기존 파일과 항상 합쳐쓴다."""
+    if expiring_df.empty:
+        return
+    os.makedirs(NEWS_ARCHIVE_DIR, exist_ok=True)
+    df = expiring_df.copy()
+    pub_dt = pd.to_datetime(df.get("발행일시"), format="%Y-%m-%d %H:%M", errors="coerce")
+    collect_dt = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
+    month_dt = pub_dt.fillna(collect_dt)
+    df["_month"] = month_dt.dt.strftime("%Y-%m")
+    df["_dt"] = collect_dt
+    df["_pub_dt"] = pub_dt
+
+    for month, group in df.groupby("_month"):
+        if not month or month == "NaT":
+            continue
+        path = os.path.join(NEWS_ARCHIVE_DIR, f"{month}.json")
+        existing = []
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = []
+        existing_links = {item.get("link") for item in existing}
+        added = 0
+        for _, row in group.iterrows():
+            link = row.get("기사링크", "") or ""
+            if link in existing_links:
+                continue
+            existing_links.add(link)
+            existing.append({
+                "date": row["_dt"].strftime("%Y/%m/%d") if pd.notna(row["_dt"]) else "",
+                "ts": row["_dt"].strftime("%Y-%m-%dT%H:%M:%S") if pd.notna(row["_dt"]) else None,
+                "pub_ts": row["_pub_dt"].strftime("%Y-%m-%dT%H:%M:%S") if pd.notna(row["_pub_dt"]) else None,
+                "category": row.get("분야", "") or "",
+                "issue": row.get("대표이슈", "") or "",
+                "title": row.get("제목", "") or "",
+                "press": row.get("언론사", "") or "",
+                "summary": row.get("AI요약", "") or "",
+                "sentiment": row.get("논조", "") or "",
+                "importance": int(row["중요도"]) if pd.notna(row.get("중요도")) else 5,
+                "link": link,
+            })
+            added += 1
+        if added == 0:
+            continue
+        existing.sort(key=lambda x: x.get("ts") or "")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, separators=(",", ":"))
+        print(f"[뉴스 아카이브] {month}.json에 {added}건 추가 (누적 {len(existing)}건)")
+
+    months = sorted(f[:-5] for f in os.listdir(NEWS_ARCHIVE_DIR) if f.endswith(".json") and f != "index.json")
+    with open(os.path.join(NEWS_ARCHIVE_DIR, "index.json"), "w", encoding="utf-8") as f:
+        json.dump(months, f)
+
 
 def find_cluster_warnings(new_df):
     """이번 실행에서 비정상적으로 커진 이슈(대표이슈)를 찾아
@@ -751,6 +817,12 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce", utc=True)
         cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=NEWS_LIST_RETENTION_DAYS)
+        expiring = combined_df[combined_df["dt"] < cutoff_date]
+        if not expiring.empty:
+            try:
+                archive_expiring_news(expiring.drop(columns=["dt"]))
+            except Exception as e:
+                print(f"[뉴스 아카이브 예외 - 이번엔 건너뜀] {e}")
         combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception: pass

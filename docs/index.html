@@ -182,6 +182,16 @@ a.badge-skipped:hover { text-decoration: underline; }
 .filter-section .filter-section-body { margin-bottom: 0; }
 .committee-all-btn { padding: 5px 10px; font-size: 0.7em; }
 .current-tag { font-size: 0.82em; font-weight: 700; color: var(--app-primary); }
+
+.archive-search-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.archive-search-row input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.9em; color-scheme: light dark; }
+.archive-search-row input[type=text] { flex: 1 1 220px; min-width: 160px; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; }
+.archive-search-btn { border: 1px solid var(--app-border); background: var(--app-primary); color: #fff; border-radius: 7px; padding: 7px 16px; font-size: 0.85em; font-weight: 700; cursor: pointer; }
+.archive-search-btn:hover { opacity: 0.88; }
+.archive-search-btn:disabled { opacity: 0.5; cursor: default; }
+.archive-search-status { font-size: 0.82em; opacity: 0.75; margin-top: 8px; min-height: 1.2em; }
+.archive-result-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 11px 14px; margin-top: 9px; }
+.archive-result-meta { font-size: 0.78em; opacity: 0.7; }
 #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
 #catChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
 #catChipRow button { padding: 5px 10px; font-size: 0.8em; }
@@ -661,6 +671,24 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
     </div>
 
+    <!-- 최근 35일 밖의 옛 기사는 평소엔 전혀 안 불러온다 - 여기서 날짜를 지정해
+         검색할 때만 그 달치 아카이브(docs/archive/YYYY-MM.json) 파일을 받아온다. -->
+    <div class="filter-section collapsed" id="archiveSearchSection">
+      <div class="filter-section-header">
+        <button class="filter-section-toggle" data-target="archiveSearchSection">옛 기사 검색 (35일 이전) <span class="toggle-caret">▼</span></button>
+        <span class="current-tag" id="archiveRangeTag"></span>
+      </div>
+      <div class="filter-section-body" id="archiveSearchBody">
+        <div class="archive-search-row">
+          <input type="date" id="archiveFromInput"> ~ <input type="date" id="archiveToInput">
+          <input type="text" id="archiveKeywordInput" placeholder="제목, 요약, 언론사에서 검색 (선택)">
+          <button id="archiveSearchBtn" class="archive-search-btn">검색</button>
+        </div>
+        <div id="archiveSearchStatus" class="archive-search-status"></div>
+        <div id="archiveSearchResults"></div>
+      </div>
+    </div>
+
     <div class="layout">
       <div class="main-col">
         <div id="mainListArea"></div>
@@ -772,7 +800,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-08 16:44 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-09 07:15 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -2403,6 +2431,86 @@ loadJson('news.json').then(rows => {
 }).catch(err => {
   console.error(err);
   showLoadError('뉴스 데이터를 불러오지 못했습니다 (' + err.message + '). 새로고침 해주세요.');
+});
+
+// ── 옛 기사 검색(아카이브) ───────────────────────────────────────────────
+// 최근 35일치(news.json)와 달리, 이건 평소엔 전혀 안 불러온다. 사용자가 이
+// 섹션을 펼치거나 검색을 누르는 그 순간에만 필요한 달의 docs/archive/*.json을
+// 받아온다 - 한 번 받은 달은 archiveCache에 남겨 다시 검색해도 재요청하지 않는다.
+const archiveCache = {};
+let archiveMonthsPromise = null;
+function ensureArchiveMonths() {
+  if (!archiveMonthsPromise) {
+    archiveMonthsPromise = loadJson('archive/index.json').catch(() => []);
+  }
+  return archiveMonthsPromise;
+}
+document.getElementById('archiveSearchSection').querySelector('.filter-section-toggle')
+  .addEventListener('click', () => { ensureArchiveMonths(); }, { once: true });
+
+function monthsBetween(fromStr, toStr) {
+  const months = [];
+  let y = parseInt(fromStr.slice(0,4),10), m = parseInt(fromStr.slice(5,7),10);
+  const endY = parseInt(toStr.slice(0,4),10), endM = parseInt(toStr.slice(5,7),10);
+  while (y < endY || (y === endY && m <= endM)) {
+    months.push(y + '-' + String(m).padStart(2,'0'));
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return months;
+}
+
+function archiveResultCardHtml(r) {
+  const dt = fmtDt(r.pub_ts || r.ts);
+  const domain = extractDomain(r.link);
+  const titleAttr = (r.title||'').replace(/"/g, '&quot;');
+  return `<div class="archive-result-card">
+    <a class="article-title" href="${r.link}" target="_blank" title="${titleAttr}">${r.title}</a>
+    <div class="archive-result-meta">${r.date} ${dt ? '· '+dt : ''} · [${r.press}] ${domain} <span class="chip-category">${r.category||''}</span></div>
+    ${r.summary ? `<div class="summary-box-blue" style="margin-top:6px;">${r.summary}</div>` : ''}
+  </div>`;
+}
+
+document.getElementById('archiveSearchBtn').addEventListener('click', () => {
+  const fromV = document.getElementById('archiveFromInput').value;
+  const toV = document.getElementById('archiveToInput').value;
+  const kw = document.getElementById('archiveKeywordInput').value.trim().toLowerCase();
+  const statusEl = document.getElementById('archiveSearchStatus');
+  const resultsEl = document.getElementById('archiveSearchResults');
+  const btn = document.getElementById('archiveSearchBtn');
+  if (!fromV || !toV) { statusEl.textContent = '시작일과 종료일을 모두 선택하세요.'; resultsEl.innerHTML = ''; return; }
+  if (fromV > toV) { statusEl.textContent = '시작일이 종료일보다 늦습니다.'; resultsEl.innerHTML = ''; return; }
+
+  const months = monthsBetween(fromV, toV);
+  btn.disabled = true;
+  statusEl.textContent = '조회 중...';
+  resultsEl.innerHTML = '';
+
+  ensureArchiveMonths().then(available => {
+    const availSet = new Set(available);
+    const toFetch = months.filter(m => availSet.has(m) && !archiveCache[m]);
+    return Promise.all(toFetch.map(m =>
+      loadJson('archive/' + m + '.json').then(rows => { archiveCache[m] = rows; })
+        .catch(() => { archiveCache[m] = []; })
+    )).then(() => {
+      const searched = months.filter(m => availSet.has(m));
+      let combined = [];
+      searched.forEach(m => { combined = combined.concat(archiveCache[m] || []); });
+      const fromISO = fromV, toISO = toV;
+      combined = combined.filter(r => {
+        const d = (r.date || '').replace(/\//g, '-');
+        if (!d || d < fromISO || d > toISO) return false;
+        if (kw && !((r.title||'').toLowerCase().includes(kw) || (r.summary||'').toLowerCase().includes(kw) || (r.press||'').toLowerCase().includes(kw))) return false;
+        return true;
+      });
+      combined.sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
+      const CAP = 200;
+      const shown = combined.slice(0, CAP);
+      statusEl.textContent = searched.length === 0
+        ? '해당 기간에는 보관된 자료가 없습니다 (35일 이전부터 아카이브가 쌓입니다).'
+        : `총 ${combined.length}건${combined.length > CAP ? ' 중 최근 '+CAP+'건 표시' : ''}`;
+      resultsEl.innerHTML = shown.map(archiveResultCardHtml).join('');
+    });
+  }).finally(() => { btn.disabled = false; });
 });
 </script>
 </body>
