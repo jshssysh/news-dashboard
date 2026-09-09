@@ -805,7 +805,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-09 07:43 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-10 06:57 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -1200,11 +1200,10 @@ function filteredMembers() {
     // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
     // 예: "강영석"(보좌관 이름)을 검색하면 그 보좌관이 속한 의원이 나오고,
     // "746호"를 검색하면 그 방을 쓰는 의원이 나온다.
-    const q = state.memberSearch.toLowerCase();
-    list = list.filter(m => [
+    list = list.filter(m => matchesSearchTokens([
       m.name, m.hanja, m.party, m.prevParty, m.district, m.committees, m.term,
       m.office, m.tel, m.email, m.aide, m.chiefSecretary, m.secretary, m.roleChange, m.seatLost,
-    ].some(v => (v || '').toLowerCase().includes(q)));
+    ], state.memberSearch));
   }
   if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
@@ -1567,12 +1566,19 @@ function openMemberNewsPopup(m) {
 
 // 카테고리(기간 범위 안에서 각 칩이 다르게 세야 하는 값)만 빼고, 나머지
 // 필터(논조·검색어)는 목록과 카테고리 칩 건수 양쪽에 똑같이 적용해야 한다.
+// 검색어에 공백이 있어도("하도급 대금") 원문이 붙어있으면("하도급대금") 찾도록
+// 공백을 지우고 비교한다. 단어를 여러 개 쓰면(예: "허성무 40일") 단어별로 나눠
+// 서로 다른 필드(이름/요약 등)에 흩어져 있어도 전부 있어야 찾아지는 AND 검색이다.
+function matchesSearchTokens(fields, query) {
+  const tokens = (query || '').toLowerCase().split(/\s+/).filter(Boolean).map(t => t.replace(/\s+/g, ''));
+  if (!tokens.length) return true;
+  const combined = fields.map(f => (f || '').toLowerCase().replace(/\s+/g, '')).join(' ');
+  return tokens.every(tok => combined.includes(tok));
+}
+
 function newsMatchesGlobalFilters(r) {
   if (state.sentiment && r.sentiment !== state.sentiment) return false;
-  if (state.search) {
-    const q = state.search.toLowerCase();
-    if (!((r.title||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) || (r.issue||'').toLowerCase().includes(q))) return false;
-  }
+  if (state.search && !matchesSearchTokens([r.title, r.summary, r.issue], state.search)) return false;
   return true;
 }
 
@@ -1992,10 +1998,7 @@ function billMatchesGlobalFilters(b, starred) {
   if (state.billStarredOnly && !starred.has(b.id)) return false;
   if (state.billProposer && b.repProposer !== state.billProposer) return false;
   if (state.billOutcomeBucket && billOutcomeBucket(b.result) !== state.billOutcomeBucket) return false;
-  if (state.billSearch) {
-    const q = state.billSearch.toLowerCase();
-    if (!((b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q))) return false;
-  }
+  if (state.billSearch && !matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch)) return false;
   return true;
 }
 
@@ -2100,8 +2103,7 @@ function renderBillList() {
   if (state.billProposer) filtered = filtered.filter(b => b.repProposer === state.billProposer);
   if (state.billOutcomeBucket) filtered = filtered.filter(b => billOutcomeBucket(b.result) === state.billOutcomeBucket);
   if (state.billSearch) {
-    const q = state.billSearch.toLowerCase();
-    filtered = filtered.filter(b => (b.name||'').toLowerCase().includes(q) || (b.proposer||'').toLowerCase().includes(q) || (b.summary||'').toLowerCase().includes(q));
+    filtered = filtered.filter(b => matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch));
   }
   filtered.sort((a,b) => ((b.changed?1:0) - (a.changed?1:0)) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
@@ -2504,7 +2506,7 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
       combined = combined.filter(r => {
         const d = (r.date || '').replace(/\//g, '-');
         if (!d || d < fromISO || d > toISO) return false;
-        if (kw && !((r.title||'').toLowerCase().includes(kw) || (r.summary||'').toLowerCase().includes(kw) || (r.press||'').toLowerCase().includes(kw))) return false;
+        if (kw && !matchesSearchTokens([r.title, r.summary, r.press], kw)) return false;
         return true;
       });
       combined.sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
