@@ -446,13 +446,26 @@ def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
         print(f"[최근 이슈명 로드 예외] {e}")
         return []
 
-def master_cluster_with_gemini(new_titles, existing_titles=None):
+def master_cluster_with_gemini(new_titles, existing_titles=None, title_samples=None):
     existing_titles = existing_titles or []
+    title_samples = title_samples or {}
     if not GEMINI_API_KEY or not new_titles: return {title: title for title in new_titles}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    # 이슈명만 10자 안팎으로 압축돼 있으면 "인쇄용지 제조사 담합"과 "제지 6사 농민신문
+    # 입찰 담합"처럼 같은 사건인데 겹치는 단어가 하나도 없어 보일 수 있다(실측:
+    # 2026-09-09, 같은 배치 안에서 이 둘을 서로 다른 사건으로 오인해 안 합침). 실제
+    # 기사 제목 예시를 같이 보여주면 그 안에 공통 근거(예: "농민신문", "제지 6곳")가
+    # 남아있어 판단 재료가 늘어난다 - 호출 횟수는 그대로고(실행당 1회) 이 프롬프트
+    # 텍스트만 조금 길어지는 정도라 무료 사용량에는 영향이 미미하다.
+    new_titles_block = "\n".join(
+        f'- "{t}"' + (f" (실제 기사 제목 예: {' / '.join(title_samples[t][:2])})" if title_samples.get(t) else "")
+        for t in new_titles
+    )
     prompt = f"""당신은 뉴스 이슈 클러스터링 전문가입니다.
-[오늘 새로 발견된 이슈명]
-{json.dumps(new_titles, ensure_ascii=False)}
+[오늘 새로 발견된 이슈명] (괄호 안은 그 이슈로 묶인 실제 기사 제목 예시입니다 - 이슈명만
+보면 서로 달라 보여도, 예시 기사 제목에 공통된 회사/기관/사건 근거가 있으면 같은
+사건이니 반드시 하나로 병합하세요)
+{new_titles_block}
 [최근 14일간 이미 사용 중인 기존 이슈명] (참고용)
 {json.dumps(existing_titles, ensure_ascii=False)}
 
@@ -954,8 +967,17 @@ def main():
 
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
         if valid_group_titles:
+            # 이슈명별 실제 기사 제목 예시(최대 2개) - Gemini에게 이슈명 압축으로 사라진
+            # 판단 근거(회사명, 사건 대상 등)를 보여줘서 같은 배치 안 중복을 더 잘 알아보게 한다.
+            title_samples = {}
+            for norm_t, res in analyzed_results.items():
+                score, g_title = res[0], res[1]
+                if score >= 5 and g_title:
+                    orig_title = unique_for_api.get(norm_t, {}).get("title", "")
+                    if orig_title:
+                        title_samples.setdefault(g_title, []).append(orig_title)
             recent_existing_titles = [t for t in load_recent_issue_titles() if t not in valid_group_titles]
-            master_mapping = master_cluster_with_gemini(valid_group_titles, recent_existing_titles)
+            master_mapping = master_cluster_with_gemini(valid_group_titles, recent_existing_titles, title_samples)
             master_mapping = _validate_master_mapping(master_mapping, recent_existing_titles)
             for norm_t, (score, orig_gt, summary, sentiment, category) in analyzed_results.items():
                 if score >= 5 and orig_gt in master_mapping:
