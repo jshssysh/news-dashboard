@@ -188,8 +188,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .committee-all-btn { padding: 5px 10px; font-size: 0.7em; }
 .current-tag { font-size: 0.82em; font-weight: 700; color: var(--app-primary); }
 
+.archive-toggle-link { border: none; background: none; color: var(--app-primary); font-size: 0.82em; font-weight: 700; padding: 4px 2px; cursor: pointer; white-space: nowrap; }
+.archive-toggle-link:hover { opacity: 0.75; }
+.archive-search-body { margin: 10px 0 0; padding: 12px 14px; border: 1px dashed var(--app-border); border-radius: 8px; }
 .archive-search-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.archive-search-row input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.9em; color-scheme: light dark; }
 .archive-search-row input[type=text] { flex: 1 1 220px; min-width: 160px; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; }
 .archive-search-btn { border: 1px solid var(--app-border); background: var(--app-primary); color: #fff; border-radius: 7px; padding: 7px 16px; font-size: 0.85em; font-weight: 700; cursor: pointer; }
 .archive-search-btn:hover { opacity: 0.88; }
@@ -647,6 +649,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <select id="hoursBackSelect" style="display:none;"></select>
           <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
             <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
+            <button type="button" id="archiveSearchToggle" class="archive-toggle-link">35일 이전도 검색 →</button>
           </span>
           <select id="sortSelect">
             <option value="importance">중요도순</option>
@@ -676,22 +679,17 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
     </div>
 
-    <!-- 최근 35일 밖의 옛 기사는 평소엔 전혀 안 불러온다 - 여기서 날짜를 지정해
-         검색할 때만 그 달치 아카이브(docs/archive/YYYY-MM.json) 파일을 받아온다. -->
-    <div class="filter-section collapsed" id="archiveSearchSection">
-      <div class="filter-section-header">
-        <button class="filter-section-toggle" data-target="archiveSearchSection">옛 기사 검색 (35일 이전) <span class="toggle-caret">▼</span></button>
-        <span class="current-tag" id="archiveRangeTag"></span>
+    <!-- 최근 35일 밖의 옛 기사는 평소엔 전혀 안 불러온다 - "날짜 지정"에서 위
+         "35일 이전도 검색" 버튼을 눌렀을 때만, 그 날짜 범위에 걸리는 달치
+         아카이브(docs/archive/YYYY-MM.json)를 받아온다. 날짜 입력창은 위
+         customFromInput/customToInput을 그대로 같이 쓴다(따로 안 둠). -->
+    <div id="archiveSearchBody" class="archive-search-body" style="display:none;">
+      <div class="archive-search-row">
+        <input type="text" id="archiveKeywordInput" placeholder="제목, 요약, 언론사에서 검색 (선택)">
+        <button id="archiveSearchBtn" class="archive-search-btn">검색</button>
       </div>
-      <div class="filter-section-body" id="archiveSearchBody">
-        <div class="archive-search-row">
-          <input type="date" id="archiveFromInput"> ~ <input type="date" id="archiveToInput">
-          <input type="text" id="archiveKeywordInput" placeholder="제목, 요약, 언론사에서 검색 (선택)">
-          <button id="archiveSearchBtn" class="archive-search-btn">검색</button>
-        </div>
-        <div id="archiveSearchStatus" class="archive-search-status"></div>
-        <div id="archiveSearchResults"></div>
-      </div>
+      <div id="archiveSearchStatus" class="archive-search-status"></div>
+      <div id="archiveSearchResults"></div>
     </div>
 
     <div class="layout">
@@ -2417,14 +2415,13 @@ loadJson('news.json').then(rows => {
   NEWS_DATA = rows;
   allDates = Array.from(new Set(NEWS_DATA.map(r => r.date))).filter(Boolean).sort();
   state.currentDate = allDates.length ? allDates[allDates.length - 1] : null;
-  // "날짜 지정" 달력이 실제로 기사가 있는 범위 밖을 고르지 못하게 막는다.
-  // <input type="date">의 min/max는 "YYYY-MM-DD"만 인식하므로 allDates("YYYY/MM/DD")를 바꿔서 넣는다.
+  // "날짜 지정" 달력이 미래 날짜는 못 고르게 막되, 과거 쪽은 일부러 막지 않는다 -
+  // 최근 35일보다 오래된 날짜를 골라 바로 옆 "35일 이전도 검색"으로 넘어갈 수 있어야
+  // 하기 때문이다(이 두 입력을 그대로 같이 쓴다). <input type="date">의 min/max는
+  // "YYYY-MM-DD"만 인식하므로 allDates("YYYY/MM/DD")를 바꿔서 넣는다.
   if (allDates.length) {
-    const minD = allDates[0].replace(/\//g, '-');
     const maxD = allDates[allDates.length - 1].replace(/\//g, '-');
-    document.getElementById('customFromInput').min = minD;
     document.getElementById('customFromInput').max = maxD;
-    document.getElementById('customToInput').min = minD;
     document.getElementById('customToInput').max = maxD;
   }
   renderAll();
@@ -2458,8 +2455,13 @@ function ensureArchiveMonths() {
   }
   return archiveMonthsPromise;
 }
-document.getElementById('archiveSearchSection').querySelector('.filter-section-toggle')
-  .addEventListener('click', () => { ensureArchiveMonths(); }, { once: true });
+document.getElementById('archiveSearchToggle').addEventListener('click', () => {
+  ensureArchiveMonths();
+  const body = document.getElementById('archiveSearchBody');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  document.getElementById('archiveSearchToggle').textContent = open ? '35일 이전도 검색 →' : '35일 이전도 검색 ✕';
+});
 
 function monthsBetween(fromStr, toStr) {
   const months = [];
@@ -2484,8 +2486,8 @@ function archiveResultCardHtml(r) {
 }
 
 document.getElementById('archiveSearchBtn').addEventListener('click', () => {
-  const fromV = document.getElementById('archiveFromInput').value;
-  const toV = document.getElementById('archiveToInput').value;
+  const fromV = document.getElementById('customFromInput').value;
+  const toV = document.getElementById('customToInput').value;
   const kw = document.getElementById('archiveKeywordInput').value.trim().toLowerCase();
   const statusEl = document.getElementById('archiveSearchStatus');
   const resultsEl = document.getElementById('archiveSearchResults');
