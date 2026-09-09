@@ -602,12 +602,29 @@ def _should_merge_issue(tokens_a, tokens_b):
     return difflib.SequenceMatcher(None, " ".join(tokens_a), " ".join(tokens_b)).ratio() >= threshold
 
 
+
+# 뿌리(첫 단어)가 달라도, 사건을 구체적으로 지목하는 단어("농민신문", "6사" 등 -
+# 사건 유형어 제외)가 2개 이상 겹치면 같은 사건으로 본다. "제지사 농민신문 입찰
+# 담합"과 "제지 6사 농민신문 입찰 담합"처럼, 같은 대상을 "제지사"/"제지 6사"로
+# 다르게 불러 뿌리 자체가 갈리는 경우를 잡기 위함(실측: 2026-09-10, 인쇄용지
+# 제조사 담합 건이 뿌리 3개로 쪼개져 유사 이슈 카드가 따로 떴다). 뿌리가 같은
+# 경우(_should_merge_issue)보다 문턱을 낮추면 안 되므로, 유형어만 겹치는 건
+# 인정하지 않고 반드시 "겹치는 구체 단어 2개 이상"을 요구한다.
+CROSS_ROOT_MIN_SHARED_SPECIFIC = 2
+
+
+def _should_merge_issue_cross_root(tokens_a, tokens_b):
+    shared_specific = (set(tokens_a) & set(tokens_b)) - CASE_TYPE_GENERIC_WORDS
+    return len(shared_specific) >= CROSS_ROOT_MIN_SHARED_SPECIFIC
+
+
 def build_issue_merge_mapping(titles_oldest_first):
     """이슈명 목록(먼저 등장한 순)을 받아 {이슈명: 통합 이슈명} 매핑을 만든다.
     Gemini 호출 없이 파이썬만으로 처리하므로 무료 등급 호출 한도에 영향이 없다.
     통합 이름은 "가장 먼저 등장한 이름"으로 고정해서, 같은 사건 이름이 날마다
     바뀌지 않게 한다."""
     canonical = {}  # 뿌리 -> [(대표이름, 토큰)]
+    all_canonical = []  # 뿌리 무관 전체 목록 (교차 뿌리 검사용)
     mapping = {}
     for title in titles_oldest_first:
         tokens = _issue_tokens(title)
@@ -621,7 +638,13 @@ def build_issue_merge_mapping(titles_oldest_first):
                 merged_into = existing_title
                 break
         if merged_into is None:
+            for existing_title, existing_tokens in all_canonical:
+                if _should_merge_issue_cross_root(existing_tokens, tokens):
+                    merged_into = existing_title
+                    break
+        if merged_into is None:
             canonical.setdefault(root, []).append((title, tokens))
+            all_canonical.append((title, tokens))
             mapping[title] = title
         else:
             mapping[title] = merged_into
