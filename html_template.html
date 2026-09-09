@@ -1200,10 +1200,16 @@ function filteredMembers() {
     // 보좌관·비서관·비서 이름이나 사무실 호실로도 찾을 수 있어야 한다.
     // 예: "강영석"(보좌관 이름)을 검색하면 그 보좌관이 속한 의원이 나오고,
     // "746호"를 검색하면 그 방을 쓰는 의원이 나온다.
-    list = list.filter(m => matchesSearchTokens([
-      m.name, m.hanja, m.party, m.prevParty, m.district, m.committees, m.term,
-      m.office, m.tel, m.email, m.aide, m.chiefSecretary, m.secretary, m.roleChange, m.seatLost,
-    ], state.memberSearch));
+    // 관련 뉴스 제목·요약도 대상에 넣어서, "과세특례"처럼 정책 키워드로도
+    // 그 법안/이슈에 걸린 의원을 찾을 수 있게 한다(공동발의 기사 포함).
+    list = list.filter(m => {
+      const newsText = (m.news || []).map(n => n.title + ' ' + n.summary).join(' ');
+      return matchesSearchTokens([
+        m.name, m.hanja, m.party, m.prevParty, m.district, m.committees, m.term,
+        m.office, m.tel, m.email, m.aide, m.chiefSecretary, m.secretary, m.roleChange, m.seatLost,
+        newsText,
+      ], state.memberSearch);
+    });
   }
   if (state.memberSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   else if (state.memberSort === 'term') list.sort((a, b) => (termRank(b.term) - termRank(a.term)) || a.name.localeCompare(b.name, 'ko'));
