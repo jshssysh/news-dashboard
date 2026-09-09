@@ -649,7 +649,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <select id="hoursBackSelect" style="display:none;"></select>
           <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
             <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
-            <button type="button" id="archiveSearchToggle" class="archive-toggle-link">35일 이전도 검색 →</button>
+            <button type="button" id="archiveSearchToggle" class="archive-toggle-link">지정한 날짜 검색 →</button>
           </span>
           <select id="sortSelect">
             <option value="importance">중요도순</option>
@@ -2261,6 +2261,7 @@ document.getElementById('periodSelect').addEventListener('change', e => {
   const raw = e.target.value;
   state.period = raw === 'custom' ? 'custom' : parseInt(raw, 10);
   document.getElementById('customRangeInputs').style.display = raw === 'custom' ? '' : 'none';
+  if (raw === 'custom') updateArchiveToggleLabel();
   state.selectedCategory = '전체';
   state.page = 1;
   renderAll();
@@ -2271,14 +2272,34 @@ document.getElementById('hoursBackSelect').addEventListener('change', e => {
   state.page = 1;
   renderAll();
 });
+// "35일 이전도 검색" 버튼은 고정 문구 대신, 지금 고른 날짜를 그대로 보여준다
+// (예: "8월 25일 검색 →") - 눌러야 할 때가 언제인지 문구만 봐도 바로 와닿게.
+function fmtMonthDay(v) {
+  if (!v) return '';
+  const [, m, d] = v.split('-');
+  return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
+}
+function updateArchiveToggleLabel() {
+  const btn = document.getElementById('archiveSearchToggle');
+  const isOpen = document.getElementById('archiveSearchBody').style.display !== 'none';
+  const fromV = document.getElementById('customFromInput').value;
+  const toV = document.getElementById('customToInput').value;
+  let label;
+  if (fromV && toV && fromV !== toV) label = `${fmtMonthDay(fromV)}~${fmtMonthDay(toV)} 검색`;
+  else if (fromV || toV) label = `${fmtMonthDay(fromV || toV)} 검색`;
+  else label = '지정한 날짜 검색';
+  btn.textContent = label + (isOpen ? ' ✕' : ' →');
+}
 document.getElementById('customFromInput').addEventListener('change', e => {
   state.customFrom = e.target.value || null;
   state.page = 1;
+  updateArchiveToggleLabel();
   renderAll();
 });
 document.getElementById('customToInput').addEventListener('change', e => {
   state.customTo = e.target.value || null;
   state.page = 1;
+  updateArchiveToggleLabel();
   renderAll();
 });
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
@@ -2460,7 +2481,7 @@ document.getElementById('archiveSearchToggle').addEventListener('click', () => {
   const body = document.getElementById('archiveSearchBody');
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
-  document.getElementById('archiveSearchToggle').textContent = open ? '35일 이전도 검색 →' : '35일 이전도 검색 ✕';
+  updateArchiveToggleLabel();
 });
 
 function monthsBetween(fromStr, toStr) {
