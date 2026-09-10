@@ -3,6 +3,8 @@ import json
 import time
 import re
 import difflib
+import itertools
+from collections import defaultdict
 import requests
 import yaml
 import pandas as pd
@@ -664,6 +666,119 @@ def build_issue_merge_mapping(titles_oldest_first):
     return mapping
 
 
+# build_issue_merge_mapping은 이슈명(10자 안팎) 토큰만 보기 때문에, 같은 회사인데
+# 기자마다 완전히 다른 단어로 헤드라인을 뽑으면(뿌리 외 공유 토큰이 0개) 못 잡는다
+# - 실사례: "대한항공 조사방해 고발"/"대한항공 시정명령 변경 요청"/"대한항공 공급좌석
+# 의무 완화"가 전부 같은 사건(공정위가 대한항공 좌석완화 요청 기각+자료삭제로 고발)
+# 인데 이슈명끼리 겹치는 단어가 하나도 없어 3개로 쪼개짐(2026-09-10 실측, OPUS/FABLE
+# 검토로 원인 확정 - 상세: load_recent_issue_titles가 등장빈도 상위 80개만 후보로
+# 삼는데 14일간 고유 이슈가 6000개가 넘어 신생 이슈는 후보에 들 수가 없었음).
+# 그래서 이슈명이 아니라 "그 이슈에 실제로 걸린 기사 제목들"의 핵심 어휘가 겹치는지
+# 를 보는 2차 결정론적 병합을 추가한다 - Gemini의 80개 제한과 무관하게 히스토리
+# 전체에 적용된다. dry-run으로 실측 검증(9865개 이슈 중 130여 개 병합 후보, 육안
+# 검토 결과 오탐 1건 - "김덕현 연천군수"처럼 사람이름+직함만 겹치는 극소수 경우뿐이라
+# 감수하기로 함).
+ARTICLE_CORE_MIN_RATIO = 0.30   # 이슈 소속 기사 제목 중 이 비율 이상 등장해야 "핵심 어휘"
+ARTICLE_CORE_MIN_SHARED = 2     # 핵심 어휘가 이만큼 겹치면 병합
+ARTICLE_MERGE_DATE_WINDOW_DAYS = 1
+ARTICLE_MERGE_MIN_ARTICLES = 2   # 1건짜리는 "30% 이상 등장" 필터가 통계적으로 무의미
+# "넘어/핵심/올해" 같은 흔한 연결어 - 기사 1~2건짜리 이슈는 우연히 겹치기 쉬움.
+ARTICLE_MERGE_EXTRA_GENERIC_WORDS = {"넘어", "핵심", "올해", "위해", "통해", "관련", "이후", "이번"}
+# "[지배구조 리포트]", "[금융권 이모저모]" 같은 신문사 코너 태그가 제목 앞에 붙어있으면
+# 그 자체가 겹쳐서 무관한 기사끼리 합쳐진다(실측) - 토큰화 전에 제거.
+_LEADING_BRACKET_TAG = re.compile(r"^(?:\[[^\]]*\]\s*)+")
+# 같은 단어가 앞뒤에 붙은 따옴표/쉼표 때문에("공정위," vs "공정위") 다른 토큰으로
+# 갈라져 빈도가 문턱 밑으로 쪼개지는 것 방지.
+_STRIP_TOKEN_PUNCT = re.compile(r"^[\'\"“”‘’.,:;·…\[\]()]+|[\'\"“”‘’.,:;·…\[\]()]+$")
+_HAS_CONTENT_CHAR = re.compile(r"[가-힣A-Za-z0-9]")
+
+
+def build_article_vocab_merge_mapping(df):
+    """같은 뿌리(이슈명 첫 토큰) + 날짜 ±1일 안에서, 두 이슈에 각각 걸린 기사
+    제목들의 "핵심 어휘"(그 이슈 기사의 30% 이상에 등장하는 단어)가 2개 이상
+    겹치면 병합한다. 이미 같은 회사(뿌리)로 확인된 그룹 내부 비교라, 사건유형
+    일반어(공정위/고발/조사 등)까지 포함해서 비교해도 오탐 위험이 낮다 - 실제로
+    이걸 빼면 "대한항공 조사방해 고발"처럼 기사 문구가 다양한 이슈는 핵심어휘가
+    1개로 쪼그라들어 나머지와 못 이어졌다(뿌리가 다른 이슈끼리 비교하는
+    build_issue_merge_mapping의 CROSS_ROOT_MIN_SHARED_SPECIFIC과는 다른 이유로
+    다른 차단목록을 쓰는 것)."""
+    if "대표이슈" not in df.columns or "제목" not in df.columns or df.empty:
+        return {}
+    issues = {}
+    for issue, group in df.groupby("대표이슈"):
+        if not isinstance(issue, str) or not issue.strip():
+            continue
+        if issue in ERROR_ISSUE_TITLES or issue in GENERIC_ISSUE_TITLES_BLOCKLIST:
+            continue
+        tokens = _issue_tokens(issue)
+        if not tokens:
+            continue
+        root = tokens[0]
+        titles = group["제목"].dropna().tolist()
+        n = len(titles)
+        if n < ARTICLE_MERGE_MIN_ARTICLES:
+            continue
+        token_counts = defaultdict(int)
+        for t in titles:
+            cleaned_title = _LEADING_BRACKET_TAG.sub("", str(t)).strip()
+            cleaned_toks = {_STRIP_TOKEN_PUNCT.sub("", tok) for tok in _issue_tokens(cleaned_title)}
+            for tok in cleaned_toks:
+                if tok and _HAS_CONTENT_CHAR.search(tok):
+                    token_counts[tok] += 1
+        core = {
+            tok for tok, cnt in token_counts.items()
+            if cnt / n >= ARTICLE_CORE_MIN_RATIO and tok != root
+            and tok not in ARTICLE_MERGE_EXTRA_GENERIC_WORDS
+        }
+        dts = pd.to_datetime(group["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
+        first_seen = dts.min()
+        if pd.isna(first_seen):
+            continue
+        issues[issue] = {"root": root, "core": core, "first_seen": first_seen}
+
+    by_root = defaultdict(list)
+    for name, info in issues.items():
+        by_root[info["root"]].append(name)
+
+    # 전이적으로 묶는다(A-B, B-C가 각각 병합 조건을 만족하면 A-B-C 한 그룹) - Union-Find.
+    parent = {name: name for name in issues}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx != ry:
+            parent[ry] = rx
+
+    for root, names in by_root.items():
+        if len(names) < 2:
+            continue
+        for a, b in itertools.combinations(names, 2):
+            ia, ib = issues[a], issues[b]
+            delta = abs((ia["first_seen"] - ib["first_seen"]).total_seconds()) / 86400
+            if delta > ARTICLE_MERGE_DATE_WINDOW_DAYS:
+                continue
+            if len(ia["core"] & ib["core"]) >= ARTICLE_CORE_MIN_SHARED:
+                union(a, b)
+
+    groups = defaultdict(list)
+    for name in issues:
+        groups[find(name)].append(name)
+    # 그룹 안에서 가장 먼저 등장한 이름을 대표로 고정(다른 병합 로직과 같은 관례).
+    mapping = {}
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        canonical = min(members, key=lambda m: issues[m]["first_seen"])
+        for m in members:
+            mapping[m] = canonical
+    return mapping
+
+
 def apply_issue_merge(df):
     """저장 직전에 전체 데이터(과거 행 포함)의 대표이슈를 한 번 더 병합한다.
     과거 행까지 같이 고쳐야, 어제 "쿠팡 공정위 조사"로 저장된 기사와 오늘
@@ -681,6 +796,15 @@ def apply_issue_merge(df):
         if changed:
             print(f"[이슈 자동 병합] {len(changed)}건: " + ", ".join(f"{k} -> {v}" for k, v in list(changed.items())[:10]))
             df["대표이슈"] = df["대표이슈"].map(lambda t: mapping.get(t, t))
+
+        # 이슈명 토큰만으로 못 잡는 "같은 회사, 완전히 다른 어휘로 쓰인 같은 사건"을
+        # 소속 기사들의 핵심 어휘 겹침으로 한 번 더 병합한다(대한항공 5분할 실사례로 검증).
+        article_mapping = build_article_vocab_merge_mapping(df)
+        article_changed = {k: v for k, v in article_mapping.items() if k != v}
+        if article_changed:
+            print(f"[이슈 자동 병합 - 기사어휘] {len(article_changed)}건: "
+                  + ", ".join(f"{k} -> {v}" for k, v in list(article_changed.items())[:10]))
+            df["대표이슈"] = df["대표이슈"].map(lambda t: article_mapping.get(t, t))
     except Exception as e:
         print(f"[이슈 자동 병합 예외] {e}")
     return df
