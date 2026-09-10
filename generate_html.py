@@ -156,6 +156,7 @@ def load_decisions():
             "summary": nz(row.get("AI요약"), ""),
             "penalty": nz(row.get("과징금"), ""),
             "sentence": nz(row.get("형량"), ""),
+            "measures": nz(row.get("조치유형"), ""),
             "priorRef": nz(row.get("원심참조"), ""),
             "link": nz(row.get("상세링크"), ""),
         }

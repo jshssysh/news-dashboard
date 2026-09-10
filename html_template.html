@@ -47,7 +47,7 @@ button:active { transform: translateY(1px); }
 .db-left { flex: 0.8 1 0; display: flex; }
 .db-right { flex: 2.2 1 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
 .db-tabs-row { display: flex; gap: 4px; }
-.db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 6px; font-size: 0.7em; white-space: pre-line; line-height: 1.15; border: 1px solid var(--app-border); border-radius: 10px; min-height: 32px; }
+.db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 4px; font-size: 0.64em; white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15; border: 1px solid var(--app-border); border-radius: 10px; min-height: 32px; }
 .db-tabs-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.08); }
 .db-tabs-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.35); }
 .db-date-row { display: flex; gap: 4px; align-items: center; }
@@ -488,7 +488,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .tile-collect, .tile-law { flex: 1 1 0; min-width: 0; }
   .db-left { display: none; }              /* 로고는 좁은 화면에서 공간만 차지 */
   .db-tile { padding: 10px 12px; }
-  .db-tabs-row button { font-size: 0.78em; min-height: 34px; }
+  .db-tabs-row button { font-size: 0.68em; padding: 2px 3px; min-height: 34px; }
   .db-date-row button, .date-pill { font-size: 0.78em; padding: 3px 10px; }
   .stat-card { padding: 10px 12px; }
   .stat-card .value { font-size: 1.35em; white-space: nowrap; }
@@ -1158,7 +1158,7 @@ function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
   const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
-    `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
+    `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
   tabsRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; saveActiveTab(state.activeTab); renderAll(); });
@@ -2290,6 +2290,11 @@ function decisionDateLabel(d) {
 function decisionCardHtml(d) {
   const titleAttr = (d.title||'').replace(/"/g,'&quot;');
   const badges = [`<span class="chip-category">${d.kind}</span>`];
+  // 조치유형(시정명령/경고/고발 등)은 과징금 유무와 무관하게 실제로 내려진
+  // 조치라 항상 보여준다 - "과징금"만 따로 안 넣는 건 아래 과징금 배지가
+  // 금액까지 포함해서 이미 더 자세히 보여주기 때문(중복 표시 방지).
+  (d.measures || '').split(',').map(s => s.trim()).filter(Boolean).filter(m => m !== '과징금')
+    .forEach(m => badges.push(`<span class="chip-tag-warn">${m}</span>`));
   if (d.caseType) badges.push(`<span class="chip-tag-warn">${d.caseType}</span>`);
   if (d.sentence) badges.push(`<span class="chip-tag-warn">형사처벌 · ${d.sentence}</span>`);
   if (d.penalty) badges.push(`<span class="chip-alert">과징금 ${d.penalty}</span>`);

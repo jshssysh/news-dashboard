@@ -267,7 +267,7 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
     필드가 없어 AI가 틀려도(예: 파기/유지를 반대로 서술) 잡아낼 방법이 없기
     때문이다(extract_prior_instance_ref가 원문 그대로 인용하는 것과 역할을 나눔)."""
     if not GEMINI_API_KEY or not body_text:
-        return {"summary": "", "penalty": "", "sentence": ""}
+        return {"summary": "", "penalty": "", "sentence": "", "measures": ""}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     prompt = f"""아래는 공정거래위원회 의결서/재결서 또는 법원 판례의 원문 일부입니다.
 [사건명] {case_name}
@@ -275,7 +275,7 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
 [원문]
 {body_text[:6000]}
 
-다음 3가지를 JSON으로 답하세요.
+다음 4가지를 JSON으로 답하세요.
 1. summary: 이 사건의 핵심 쟁점과 결과를 1~2문장으로. 정중체("~합니다") 대신
    개조식("~함/~했음/~임")으로 끝낼 것.
    예(좋음): "계약서면 미교부 등으로 시정명령 및 과징금 부과됨"
@@ -284,11 +284,15 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
    읽기 쉬운 형태로. 명시돼 있지 않으면 빈 문자열.
 3. sentence: 징역·집행유예 등 형사처벌 형량이 원문에 명시돼 있으면 그대로(예:
    "징역 1년, 집행유예 2년"). 없으면 빈 문자열.
+4. measures: 실제로 내려진 조치를 다음 용어 중에서만 골라 쉼표로 구분해
+   나열(예: "시정명령, 과징금"). 원문에 명시된 것만 적을 것 - 목록에 없는
+   표현으로 바꿔 쓰거나 추측하지 말 것: 시정명령, 시정권고, 경고, 과징금,
+   고발, 기각, 각하, 인용. 해당 없으면 빈 문자열.
 
 주의: 원심/하급심과의 관계, 이 사건이 확정됐는지 여부는 절대 판단하거나 summary에
 넣지 마세요 - 원문에 실제로 적힌 조치·처벌 내용만 요약하세요.
 
-응답 형식: {{"summary": "...", "penalty": "...", "sentence": "..."}}
+응답 형식: {{"summary": "...", "penalty": "...", "sentence": "...", "measures": "..."}}
 """
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}],
@@ -306,11 +310,11 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
             import json
             data = json.loads(raw.strip())
             return {"summary": data.get("summary", ""), "penalty": data.get("penalty", ""),
-                    "sentence": data.get("sentence", "")}
+                    "sentence": data.get("sentence", ""), "measures": data.get("measures", "")}
         print(f"[결정문 AI 요약 오류] status={res.status_code} body={res.text[:200]}")
     except Exception:
         print(f"[결정문 AI 요약 예외]\n{traceback.format_exc()}")
-    return {"summary": "", "penalty": "", "sentence": ""}
+    return {"summary": "", "penalty": "", "sentence": "", "measures": ""}
 
 
 def main():
@@ -379,7 +383,7 @@ def main():
             "구분": row["문서유형"], "id": row["id"], "사건명": row["사건명"],
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": "공정거래위원회",
             "사건종류": "", "AI요약": analysis["summary"], "과징금": analysis["penalty"],
-            "형량": analysis["sentence"], "원심참조": prior_ref,
+            "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
             "상세링크": f"https://www.law.go.kr/DRF/lawService.do?OC={LAW_API_OC}&target=ftc&ID={row['id']}&type=HTML",
         })
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
@@ -398,7 +402,7 @@ def main():
             "구분": "판례", "id": row["id"], "사건명": row["사건명"],
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": row["법원명"],
             "사건종류": row["사건종류명"], "AI요약": analysis["summary"],
-            "과징금": "", "형량": analysis["sentence"], "원심참조": prior_ref,
+            "과징금": "", "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
             "상세링크": f"https://www.law.go.kr/DRF/lawService.do?OC={LAW_API_OC}&target=prec&ID={row['id']}&type=HTML",
         })
         time.sleep(4.5)
