@@ -247,6 +247,24 @@ def fetch_ftc_detail(decision_id):
         return None
 
 
+def build_ftc_body(detail):
+    """실제 조치(시정명령/과징금 등)는 "주문"(실측 중앙값 400자 안팎)에 적혀
+    있는데, 기존엔 "이유 or 주문"이라 "이유"가 조금이라도 있으면 "주문"을
+    통째로 빼버렸다. "이유"도 실측 중앙값이 1만자를 넘어 앞부분 6000자만
+    잘라 보내면 맨 끝에 있는 결론이 통째로 날아간다 - OPUS 검토로 실제
+    법제처 API 45건을 조회해 확인함(이유가 안 잘린 9건 중 7건은 조치유형
+    추출 성공, 잘린 36건 중엔 5건만 성공). 그래서 주문을 맨 앞에 두고,
+    이유는 앞(사실관계)+뒤(결론 부분)를 같이 잘라 붙인다."""
+    iyu, jumun = detail.get("이유", ""), detail.get("주문", "")
+    iyu_part = iyu if len(iyu) <= 3800 else iyu[:2200] + "\n…(중략)…\n" + iyu[-1600:]
+    parts = []
+    if jumun:
+        parts.append(f"[주문]\n{jumun[:2000]}")
+    if iyu_part:
+        parts.append(f"[이유]\n{iyu_part}")
+    return "\n".join(parts)
+
+
 def fetch_prec_detail(prec_id):
     try:
         res = get_law_api_with_retry(f"{LAW_API_BASE}/lawService.do",
@@ -280,10 +298,24 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
 {body_text[:6000]}
 
 다음 4가지를 JSON으로 답하세요.
-1. summary: 이 사건의 핵심 쟁점과 결과를 1~2문장으로. 정중체("~합니다") 대신
-   개조식("~함/~했음/~임")으로 끝낼 것.
+1. summary: 반드시 (가) 문제된 행위가 무엇인지 + (나) 실제로 내려진 조치·결론이
+   무엇인지 두 가지를 모두 담아 40~60자(공백 포함, 최대 65자)로 쓸 것. 화면
+   카드는 기본 2줄만 보여주는데(모바일 기준 한 줄에 20자 안팎), "원사업자가",
+   "피심인은", "~사업자가" 같은 당사자 일반명칭으로 문장을 시작하면 그 부분만
+   보이고 정작 무슨 행위를 위반했는지가 잘려서 안 보인다 - 당사자 주어는
+   생략하고 위반행위(또는 쟁점) 명사구로 문장을 바로 시작할 것.
+   정중체("~합니다") 대신 개조식("~함/~했음/~임")으로 끝낼 것.
+   - 배경·시장구조·기초사실만 서술하는 요약 금지. "기초사실 및 시장 현황을
+     다룸", "~에 대한 건임", "~여부에 관한 건임"처럼 결과 없이 끝내지 말 것.
+     조치·결론은 [주문] 부분에 적혀 있으니 그것을 근거로 쓸 것.
+   - [주문]과 [이유] 어디에도 조치·결론이 안 보일 때만 "(결론 미기재)"로
+     끝낼 것 - 없는 결과를 추측해서 지어내지 말 것.
    예(좋음): "계약서면 미교부 등으로 시정명령 및 과징금 부과됨"
+   예(좋음): "하도급대금 60일 내 미지급으로 재발방지명령 및 지급명령 부과됨"
    예(나쁨): "계약서면을 교부하지 않아 시정명령을 받았습니다"
+   예(나쁨): "7개 사업자의 부당한 공동행위 관련 기초사실 및 시장 현황을 다룸"
+   예(나쁨, 당사자 주어로 시작): "원사업자가 목적물 수령일에 대한 하도급대금을
+   60일 이내에 지급하지 않아 재발방지명령이 부과됨"
 2. penalty: 과징금·벌금 액수가 원문에 명시돼 있으면 "4억 6,200만원"처럼 사람이
    읽기 쉬운 형태로. 명시돼 있지 않으면 빈 문자열.
 3. sentence: 징역·집행유예 등 형사처벌 형량이 원문에 명시돼 있으면 그대로(예:
@@ -371,7 +403,16 @@ def main():
     if not odf.empty:
         for _, r in odf.iterrows():
             existing[(r["구분"], r["id"])] = True
-            if not str(r.get("AI요약", "")).strip():
+            # AI요약이 통째로 빈 것뿐 아니라, 의결서/재결서인데 조치유형까지
+            # 빈 것도 재시도 대상이다 - "주문"을 못 보고 배경 설명만 요약한
+            # 건들(예: "...기초사실 및 시장 현황을 다룸")이라 build_ftc_body
+            # 수정 전에 수집된 기존 데이터에 많이 남아있다(OPUS 검토로 발견).
+            # 판례는 결론이 앞부분(판결요지)에 있어 이 문제가 거의 없으므로
+            # 제외한다.
+            incomplete = not str(r.get("AI요약", "")).strip() or (
+                r["구분"] != "판례" and not str(r.get("조치유형", "")).strip()
+            )
+            if incomplete:
                 incomplete_rows.append(r)
 
     keywords = load_law_keywords()
@@ -395,7 +436,7 @@ def main():
         detail = fetch_ftc_detail(row["id"])
         if detail is None:
             continue
-        body = detail["이유"] or detail["주문"]
+        body = build_ftc_body(detail)
         prior_ref = extract_prior_instance_ref(detail["이유"] + " " + detail["피심정보내용"])
         analysis = analyze_decision_with_gemini(row["사건명"], row["사건번호"], body)
         if analysis["quota_exceeded"]:
@@ -447,7 +488,7 @@ def main():
                 detail = fetch_ftc_detail(rid)
                 if detail is None:
                     continue
-                body = detail["이유"] or detail["주문"]
+                body = build_ftc_body(detail)
             analysis = analyze_decision_with_gemini(r["사건명"], r["사건번호"], body)
             if analysis["quota_exceeded"]:
                 quota_exhausted = True
