@@ -205,14 +205,12 @@ a.badge-skipped:hover { text-decoration: underline; }
    정규식으로 그대로 뽑은 문구만 인용 형태로 보여준다 - 인용임을 시각적으로도
    구분하기 위해 나머지 카드 텍스트와 다른 톤(기울임, 옅은 색)을 쓴다. */
 .decision-prior-ref { margin-top: 6px; font-size: 0.78em; font-style: italic; opacity: 0.65; }
-/* 요약을 기본은 두 줄로만(스캔하기 쉽게), ▼ 누르면 전문을 펼쳐서 보여준다.
-   1줄(모바일 실효 ~19자)로는 위반행위가 나오기도 전에 잘리는 경우가 많아서
-   (예: "원사업자가 목적물 수령일에 대한 하도급대금을..." - 19자에서 끊으면
-   "무엇을 위반했는지"조차 안 보임) 2줄로 늘렸다(FABLE 검토로 확인). 조치·
-   결과(시정명령/과징금 등)는 배지가 이미 보여주므로 요약 문장의 역할은
-   "무슨 행위가 문제였는지"를 전달하는 것 - 그게 최소 보이는 선이 2줄. */
+/* 요약을 기본은 한 줄로만(스캔하기 쉽게), ▼ 누르면 전문을 펼쳐서 보여준다.
+   (한때 2줄로 늘렸던 적이 있으나 - 1줄로는 위반행위가 나오기도 전에 잘리는
+   경우가 있어서였음(FABLE 검토) - 사용자가 다시 1줄로 돌려달라고 명시적으로
+   요청함(2026-09-11). 조치·결과(시정명령/과징금 등)는 배지가 보여준다.) */
 .decision-summary-row { display: flex; align-items: flex-start; gap: 6px; }
-.decision-summary-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.decision-summary-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 /* -webkit-line-clamp을 지원 안 하거나 line-height 계산이 딱 안 맞는 환경에서는
    자른 경계에 3번째 줄 글자 일부가 반쯤 걸쳐 보이는 지저분한 문제가 생긴다
    (실측: 모바일 375px에서 확인). 아래쪽을 살짝 페이드시켜서 어떤 환경에서
@@ -886,7 +884,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-11 08:11 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-11 08:23 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -945,10 +943,16 @@ const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'me
 const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
 const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
 function getSavedPageSize(kind) {
+  // 심·판결 탭은 카드 하나가 제목+요약+배지로 꽤 길어서, 모바일에서 저장된 값이
+  // 없으면(처음 방문) 한 번에 여러 건을 보여주기보다 1건씩 보는 게 낫다는 요청
+  // (2026-09-11)에 따라 이 탭만 모바일 기본값을 1로 둔다. 이미 사용자가 직접
+  // 페이지 크기를 바꿔둔 적이 있으면(localStorage에 저장돼 있으면) 그 값을
+  // 그대로 존중한다 - 여기서 강제로 덮어쓰지 않는다.
+  const mobileDefault = (kind === 'decision' && IS_NARROW) ? 1 : 10;
   try {
     const v = parseInt(localStorage.getItem(PAGE_SIZE_KEYS[kind]), 10);
-    return ALLOWED_PAGE_SIZES.includes(v) ? v : 10;
-  } catch(e) { return 10; }
+    return ALLOWED_PAGE_SIZES.includes(v) ? v : mobileDefault;
+  } catch(e) { return mobileDefault; }
 }
 // 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
 function fillPageSizeOptions() {
@@ -2332,8 +2336,15 @@ function decisionCardHtml(d) {
   if (d.caseType) badges.push(`<span class="chip-tag-warn">${d.caseType}</span>`);
   if (d.sentence) badges.push(`<span class="chip-tag-warn">형사처벌 · ${d.sentence}</span>`);
   if (d.penalty) badges.push(`<span class="chip-alert">과징금 ${d.penalty}</span>`);
-  const priorHtml = d.priorRef
-    ? `<div class="decision-prior-ref">원문 기재: “${d.priorRef}”</div>` : '';
+  // "원문 기재: 원심판결" 같은 라벨은 빼고 원문 인용부(법원명/날짜/사건번호)만
+  // 보여준다 - collect_decisions.py는 이제 수집 시점에 "원심결/원심판결" 라벨을
+  // 캡처에서 빼고 돌려주지만, 이 필드 자체는 재수집 전까지 안 바뀌므로 기존에
+  // 이미 저장된 데이터에는 라벨이 그대로 남아있다. 화면에서도 한 번 더 떼어내서
+  // 재수집을 기다리지 않고 바로 깔끔하게 보이게 한다. 따옴표는 그대로 둬서
+  // "AI가 재서술한 게 아니라 원문 그대로 인용"이라는 신호는 유지한다.
+  const priorRefClean = (d.priorRef || '').replace(/^원심(?:결|판결)\s*[】\]]?\s*/, '');
+  const priorHtml = priorRefClean
+    ? `<div class="decision-prior-ref">“${priorRefClean}”</div>` : '';
   return `<div class="article-card">
     <div class="card-head decision-card-head">
       <span class="card-tags">${badges.join(' ')}</span>
