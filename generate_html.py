@@ -442,7 +442,7 @@ def build():
         f"  {BILLS_JSON_PATH:<20} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)\n"
         f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)\n"
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
-        f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심결·판결 {len(decisions)}건)"
+        f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)"
     )
 
 

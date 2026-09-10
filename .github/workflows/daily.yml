@@ -29,17 +29,17 @@ on:
         type: boolean
         default: false
       skip_decisions:
-        description: '[심결·판결] 체크 시 공정위 의결서/판례 수집(법제처 API+Gemini) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[심·판결] 체크 시 공정위 의결서/판례 수집(법제처 API+Gemini) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
       skip_decisions_wait:
-        description: '[심결·판결] 체크 시 "토요일 06시대까지 기다리기"를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[심·판결] 체크 시 "토요일 06시대까지 기다리기"를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
       decisions_lookback_days:
-        description: '[심결·판결] 몇 일치를 가져올지 (기본 30일). 초기 백필처럼 더 오래된 것까지 한 번에 가져오고 싶을 때만 숫자를 바꾸세요(예: 500 = 22대 국회 임기 시작 무렵부터). 비워두면 기본값 사용.'
+        description: '[심·판결] 몇 일치를 가져올지 (기본 30일). 초기 백필처럼 더 오래된 것까지 한 번에 가져오고 싶을 때만 숫자를 바꾸세요(예: 500 = 22대 국회 임기 시작 무렵부터). 비워두면 기본값 사용.'
         required: false
         type: string
         default: ''
@@ -92,7 +92,7 @@ jobs:
         run: |
           python collect_member_news.py
 
-      - name: 심결·판결 수집 (법제처 국가법령정보 Open API + Gemini)
+      - name: 심·판결 수집 (법제처 국가법령정보 Open API + Gemini)
         # 이 스텝 자체는 다른 스텝들처럼 매번(하루 5번) 실행되지만, 의결서/판례는
         # 주 1회만 확인해도 충분해서 collect_decisions.py 안에서 "토요일 06시대가
         # 아니면 바로 종료"하도록 자체적으로 걸러낸다 - 여기 조건문은 그대로 둔다.

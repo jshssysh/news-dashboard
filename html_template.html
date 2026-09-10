@@ -753,7 +753,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <hr class="thin">
     <div class="bill-filter-sticky">
       <div class="news-filter-row">
-        <h5>심결·판결</h5>
+        <h5>심·판결</h5>
         <input type="text" id="decisionSearchInput" placeholder="사건명, 사건번호, 요약에서 검색">
       </div>
       <div class="filter-section" id="decisionKindFilterSection">
@@ -1135,7 +1135,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심결·판결','심결판결']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
   ).join('');
@@ -2245,7 +2245,7 @@ function renderBillPagination(totalPages) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.billPage = parseInt(b.dataset.p,10); renderBillList(); }));
 }
 
-// ── 심결·판결 탭 ──────────────────────────────────────────────────────────
+// ── 심·판결 탭 ──────────────────────────────────────────────────────────
 // 원심(1심/2심 등) 관계는 자동으로 잇지 않는다 - collect_decisions.py가 원문에서
 // 그대로 뽑아둔 문구(priorRef)가 있으면 인용 형태로만 보여주고, 화면에서도
 // AI가 관계를 재서술하지 않는다(project 전체가 지켜온 원칙).
@@ -2375,11 +2375,11 @@ function renderAll() {
       renderDecisions();
     } else {
       document.getElementById('decisionListArea').innerHTML =
-        "<div class='info-box'>심결·판결 목록을 불러오는 중…</div>";
+        "<div class='info-box'>심·판결 목록을 불러오는 중…</div>";
       ensureDecisions().then(() => { if (state.activeTab === '심결판결') renderAll(); })
         .catch(() => {
           document.getElementById('decisionListArea').innerHTML =
-            "<div class='info-box'>심결·판결 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+            "<div class='info-box'>심·판결 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
         });
     }
   } else if (state.activeTab === '국회의원') {
