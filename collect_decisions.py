@@ -320,11 +320,24 @@ def main():
     # daily.yml 쪽 스텝 자체는 다른 스텝들과 똑같이 매번 실행되지만(조건문을
     # 워크플로에 따로 안 둬서 관리 포인트를 줄임), 여기서 바로 종료하므로 API
     # 호출은 실제로 주 1번만 나간다.
+    # 초기 백필 등으로 지금 당장 한 번 강제로 돌리고 싶을 때는 DECISIONS_FORCE=true로
+    # 위 요일 제한을 건너뛸 수 있다(daily.yml의 force_decisions 입력을 통해 넘어옴).
+    force = os.environ.get("DECISIONS_FORCE", "").strip().lower() == "true"
     now = datetime.now(KST)
-    if not (now.weekday() == 5 and now.hour == 6):
+    if not force and not (now.weekday() == 5 and now.hour == 6):
         print(f"[결정문 수집] 주 1회(토요일 06시대)만 실행하도록 정해둬서, "
               f"이번 실행({now.strftime('%a %H:%M')})은 건너뜁니다.")
         return
+
+    # 평소엔 LOOKBACK_DAYS(30일)만 보지만, 초기 백필처럼 더 오래된 것까지 한 번에
+    # 가져오고 싶을 때는 DECISIONS_LOOKBACK_DAYS로 넓힐 수 있다.
+    lookback = LOOKBACK_DAYS
+    override = os.environ.get("DECISIONS_LOOKBACK_DAYS", "").strip()
+    if override:
+        try:
+            lookback = int(override)
+        except ValueError:
+            print(f"[경고] DECISIONS_LOOKBACK_DAYS='{override}' 가 숫자가 아니라 기본값({LOOKBACK_DAYS}일)을 씁니다.")
 
     if LAW_API_OC == "test":
         print("[경고] LAW_GO_KR_OC가 설정되지 않아 데모키(test)로 호출합니다 - "
@@ -344,9 +357,9 @@ def main():
             existing[(r["구분"], r["id"])] = True
 
     keywords = load_law_keywords()
-    ftc_rows = fetch_ftc_list()
-    prec_rows = fetch_prec_list(keywords)
-    print(f"[법제처 수집] 의결서/재결서 {len(ftc_rows)}건, 판례 {len(prec_rows)}건 조회(최근 {LOOKBACK_DAYS}일)")
+    ftc_rows = fetch_ftc_list(days=lookback, max_pages=100)
+    prec_rows = fetch_prec_list(keywords, days=lookback, max_pages=50)
+    print(f"[법제처 수집] 의결서/재결서 {len(ftc_rows)}건, 판례 {len(prec_rows)}건 조회(최근 {lookback}일)")
 
     new_records = []
 

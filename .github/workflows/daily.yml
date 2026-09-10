@@ -33,6 +33,16 @@ on:
         required: false
         type: boolean
         default: false
+      force_decisions:
+        description: '[심결·판결] 체크 시 "토요일 06시대만 실행" 제한을 이번 1회만 건너뛰고 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+        required: false
+        type: boolean
+        default: false
+      decisions_lookback_days:
+        description: '[심결·판결] 몇 일치를 가져올지 (기본 30일). 초기 백필처럼 더 오래된 것까지 한 번에 가져오고 싶을 때만 숫자를 바꾸세요(예: 500 = 22대 국회 임기 시작 무렵부터). 비워두면 기본값 사용.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build:
@@ -90,6 +100,8 @@ jobs:
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DECISIONS_FORCE: ${{ github.event.inputs.force_decisions }}
+          DECISIONS_LOOKBACK_DAYS: ${{ github.event.inputs.decisions_lookback_days }}
         run: |
           python collect_decisions.py
 
