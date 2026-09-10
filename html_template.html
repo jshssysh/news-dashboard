@@ -205,6 +205,13 @@ a.badge-skipped:hover { text-decoration: underline; }
    정규식으로 그대로 뽑은 문구만 인용 형태로 보여준다 - 인용임을 시각적으로도
    구분하기 위해 나머지 카드 텍스트와 다른 톤(기울임, 옅은 색)을 쓴다. */
 .decision-prior-ref { margin-top: 6px; font-size: 0.78em; font-style: italic; opacity: 0.65; }
+/* 요약을 기본은 한 줄로만(스캔하기 쉽게), ▼ 누르면 3줄까지 펼쳐서 보여준다. */
+.decision-summary-row { display: flex; align-items: flex-start; gap: 6px; }
+.decision-summary-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.decision-summary-row.expanded .decision-summary-text { -webkit-line-clamp: 3; }
+.decision-summary-toggle { flex-shrink: 0; margin-top: 9px; background: none; border: none; color: inherit; opacity: 0.5; cursor: pointer; padding: 0 4px; font-size: 0.75em; line-height: 1; transition: transform .15s var(--ease), opacity .15s var(--ease); }
+.decision-summary-toggle:hover { opacity: 0.9; }
+.decision-summary-row.expanded .decision-summary-toggle { transform: rotate(180deg); }
 #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
 #catChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
 #catChipRow button { padding: 5px 10px; font-size: 0.8em; }
@@ -2306,7 +2313,12 @@ function decisionCardHtml(d) {
       <a class="article-title" href="${d.link}" target="_blank" title="${titleAttr}">${d.title || '(제목 없음)'}</a>
       <span class="card-meta-group"><span class="card-meta-inline">${decisionDateLabel(d)} ${d.date} · ${d.org}${d.caseNo ? ' · '+d.caseNo : ''}</span></span>
     </div>
-    ${d.summary ? `<a href="${d.link}" target="_blank" class="summary-box-blue">${d.summary}</a>` : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중</div>`}
+    ${d.summary
+      ? `<div class="decision-summary-row">
+          <a href="${d.link}" target="_blank" class="summary-box-blue decision-summary-text">${d.summary}</a>
+          <button type="button" class="decision-summary-toggle" title="요약 펼치기/접기">▼</button>
+        </div>`
+      : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중</div>`}
     ${priorHtml}
   </div>`;
 }
@@ -2358,6 +2370,9 @@ function renderDecisionList() {
   const listEl = document.getElementById('decisionListArea');
   listEl.innerHTML = pageItems.length ? pageItems.map(decisionCardHtml).join('')
     : "<div class='info-box'>조건에 맞는 결정문·판례가 없습니다.</div>";
+  listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
 
   renderDecisionPagination(totalPages);
 }
