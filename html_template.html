@@ -2342,7 +2342,9 @@ function decisionCardHtml(d) {
   // 이미 저장된 데이터에는 라벨이 그대로 남아있다. 화면에서도 한 번 더 떼어내서
   // 재수집을 기다리지 않고 바로 깔끔하게 보이게 한다. 따옴표는 그대로 둬서
   // "AI가 재서술한 게 아니라 원문 그대로 인용"이라는 신호는 유지한다.
-  const priorRefClean = (d.priorRef || '').replace(/^원심(?:결|판결)\s*[】\]]?\s*/, '');
+  const priorRefClean = (d.priorRef || '')
+    .replace(/^원심(?:결|판결)\s*[】\]]?\s*/, '')
+    .replace(/공정거래위원회/g, '공정위');
   const priorHtml = priorRefClean
     ? `<div class="decision-prior-ref">“${priorRefClean}”</div>` : '';
   return `<div class="article-card">
