@@ -54,6 +54,10 @@ LAW_API_BASE = "https://www.law.go.kr/DRF"
 # 실행에서 다 모았다고 가정).
 LOOKBACK_DAYS = 30
 
+# Gemini 할당량이 회복된 뒤에도, AI요약이 비어있는 기존 건들을 한 실행에서 너무
+# 많이 재시도하면 곧바로 또 할당량을 다 써버릴 수 있어 한 번에 이만큼만 채운다.
+RETRY_INCOMPLETE_LIMIT = 30
+
 
 def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     """Gemini 호출을 감싸서, 서버 과부하(503)나 타임아웃처럼 일시적 오류일 때만
@@ -267,7 +271,7 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
     필드가 없어 AI가 틀려도(예: 파기/유지를 반대로 서술) 잡아낼 방법이 없기
     때문이다(extract_prior_instance_ref가 원문 그대로 인용하는 것과 역할을 나눔)."""
     if not GEMINI_API_KEY or not body_text:
-        return {"summary": "", "penalty": "", "sentence": "", "measures": ""}
+        return {"summary": "", "penalty": "", "sentence": "", "measures": "", "quota_exceeded": False}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     prompt = f"""아래는 공정거래위원회 의결서/재결서 또는 법원 판례의 원문 일부입니다.
 [사건명] {case_name}
@@ -310,11 +314,16 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
             import json
             data = json.loads(raw.strip())
             return {"summary": data.get("summary", ""), "penalty": data.get("penalty", ""),
-                    "sentence": data.get("sentence", ""), "measures": data.get("measures", "")}
+                    "sentence": data.get("sentence", ""), "measures": data.get("measures", ""),
+                    "quota_exceeded": False}
         print(f"[결정문 AI 요약 오류] status={res.status_code} body={res.text[:200]}")
+        # 429는 재시도해도 이 실행 안에서는 다시 같은 결과라, main()이 이 신호를 보고
+        # 남은 건들의 Gemini 호출을 이번 실행에서 통째로 건너뛰게 한다(할당량 복구는
+        # 다음 실행 때 기대 - 그때 이 레코드들은 AI요약이 비어있으니 자동으로 재시도됨).
+        return {"summary": "", "penalty": "", "sentence": "", "measures": "", "quota_exceeded": res.status_code == 429}
     except Exception:
         print(f"[결정문 AI 요약 예외]\n{traceback.format_exc()}")
-    return {"summary": "", "penalty": "", "sentence": "", "measures": ""}
+    return {"summary": "", "penalty": "", "sentence": "", "measures": "", "quota_exceeded": False}
 
 
 def main():
@@ -351,6 +360,7 @@ def main():
               "시크릿으로 등록하세요(신청/문의 02-2109-6446).")
 
     existing = {}
+    incomplete_rows = []  # AI요약이 비어있는 기존 행 - Gemini 할당량 초과 등으로 못 채웠던 것들
     if os.path.exists(DECISION_LIST_PATH) and os.path.getsize(DECISION_LIST_PATH) > 0:
         try:
             odf = pd.read_csv(DECISION_LIST_PATH, dtype=str, keep_default_na=False)
@@ -361,6 +371,8 @@ def main():
     if not odf.empty:
         for _, r in odf.iterrows():
             existing[(r["구분"], r["id"])] = True
+            if not str(r.get("AI요약", "")).strip():
+                incomplete_rows.append(r)
 
     keywords = load_law_keywords()
     ftc_rows = fetch_ftc_list(days=lookback, max_pages=100)
@@ -368,8 +380,15 @@ def main():
     print(f"[법제처 수집] 의결서/재결서 {len(ftc_rows)}건, 판례 {len(prec_rows)}건 조회(최근 {lookback}일)")
 
     new_records = []
+    # Gemini 무료 할당량을 한 번 초과하면 이 실행 안에서는 재시도해도 계속 429만
+    # 나므로(하루 한도라 복구되지 않음), 남은 건들은 법제처 API 호출·대기시간
+    # 낭비 없이 통째로 건너뛴다 - AI요약이 비어있는 채로 저장되고, 다음 실행 때
+    # 아래 incomplete_rows 재시도 루프가 자동으로 다시 채운다.
+    quota_exhausted = False
 
     for row in ftc_rows:
+        if quota_exhausted:
+            break
         key = (row["문서유형"], row["id"])
         if key in existing:
             continue
@@ -379,6 +398,8 @@ def main():
         body = detail["이유"] or detail["주문"]
         prior_ref = extract_prior_instance_ref(detail["이유"] + " " + detail["피심정보내용"])
         analysis = analyze_decision_with_gemini(row["사건명"], row["사건번호"], body)
+        if analysis["quota_exceeded"]:
+            quota_exhausted = True
         new_records.append({
             "구분": row["문서유형"], "id": row["id"], "사건명": row["사건명"],
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": "공정거래위원회",
@@ -389,6 +410,8 @@ def main():
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
 
     for row in prec_rows:
+        if quota_exhausted:
+            break
         key = ("판례", row["id"])
         if key in existing:
             continue
@@ -398,6 +421,8 @@ def main():
         body = (detail["판결요지"] or detail["판시사항"]) + " " + detail["판례내용"]
         prior_ref = extract_prior_instance_ref(detail["판례내용"])
         analysis = analyze_decision_with_gemini(row["사건명"], row["사건번호"], body)
+        if analysis["quota_exceeded"]:
+            quota_exhausted = True
         new_records.append({
             "구분": "판례", "id": row["id"], "사건명": row["사건명"],
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": row["법원명"],
@@ -406,6 +431,41 @@ def main():
             "상세링크": f"https://www.law.go.kr/DRF/lawService.do?OC={LAW_API_OC}&target=prec&ID={row['id']}&type=HTML",
         })
         time.sleep(4.5)
+
+    retried = 0
+    if not quota_exhausted:
+        for r in incomplete_rows:
+            if quota_exhausted or retried >= RETRY_INCOMPLETE_LIMIT:
+                break
+            kind, rid = r["구분"], r["id"]
+            if kind == "판례":
+                detail = fetch_prec_detail(rid)
+                if detail is None:
+                    continue
+                body = (detail["판결요지"] or detail["판시사항"]) + " " + detail["판례내용"]
+            else:
+                detail = fetch_ftc_detail(rid)
+                if detail is None:
+                    continue
+                body = detail["이유"] or detail["주문"]
+            analysis = analyze_decision_with_gemini(r["사건명"], r["사건번호"], body)
+            if analysis["quota_exceeded"]:
+                quota_exhausted = True
+            if not analysis["summary"]:
+                continue  # 이번에도 실패하면 다음 실행에 다시 시도(그대로 비워둠)
+            retried += 1
+            new_records.append({
+                "구분": kind, "id": rid, "사건명": r["사건명"], "사건번호": r["사건번호"],
+                "날짜": r["날짜"], "기관법원": r["기관법원"], "사건종류": r["사건종류"],
+                "AI요약": analysis["summary"], "과징금": analysis["penalty"],
+                "형량": analysis["sentence"], "조치유형": analysis["measures"],
+                "원심참조": r["원심참조"], "상세링크": r["상세링크"],
+            })
+            time.sleep(4.5)
+
+    if quota_exhausted:
+        print("[경고] Gemini 무료 할당량을 초과해 이번 실행에서 남은 AI 요약을 건너뛰었습니다 - "
+              "다음 실행 때 자동으로 재시도됩니다.")
 
     if not new_records:
         print("[법제처 수집 완료] 새로 추가할 건 없음")
@@ -419,7 +479,8 @@ def main():
     combined = combined.drop_duplicates(subset=["구분", "id"], keep="last")
     combined = combined.sort_values("날짜", ascending=False)
     combined.to_csv(DECISION_LIST_PATH, index=False, encoding="utf-8-sig")
-    print(f"[법제처 수집 완료] 신규 {len(new_records)}건 추가 → 누적 {len(combined)}건")
+    added = len(new_records) - retried
+    print(f"[법제처 수집 완료] 신규 {added}건 추가, AI요약 보완 {retried}건 → 누적 {len(combined)}건")
 
 
 if __name__ == "__main__":
