@@ -33,8 +33,8 @@ on:
         required: false
         type: boolean
         default: false
-      force_decisions:
-        description: '[심결·판결] 체크 시 "토요일 06시대만 실행" 제한을 이번 1회만 건너뛰고 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+      skip_decisions_wait:
+        description: '[심결·판결] 체크 시 "토요일 06시대까지 기다리기"를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
@@ -100,7 +100,7 @@ jobs:
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          DECISIONS_FORCE: ${{ github.event.inputs.force_decisions }}
+          DECISIONS_SKIP_WAIT: ${{ github.event.inputs.skip_decisions_wait }}
           DECISIONS_LOOKBACK_DAYS: ${{ github.event.inputs.decisions_lookback_days }}
         run: |
           python collect_decisions.py

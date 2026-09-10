@@ -320,11 +320,13 @@ def main():
     # daily.yml 쪽 스텝 자체는 다른 스텝들과 똑같이 매번 실행되지만(조건문을
     # 워크플로에 따로 안 둬서 관리 포인트를 줄임), 여기서 바로 종료하므로 API
     # 호출은 실제로 주 1번만 나간다.
-    # 초기 백필 등으로 지금 당장 한 번 강제로 돌리고 싶을 때는 DECISIONS_FORCE=true로
-    # 위 요일 제한을 건너뛸 수 있다(daily.yml의 force_decisions 입력을 통해 넘어옴).
-    force = os.environ.get("DECISIONS_FORCE", "").strip().lower() == "true"
+    # 초기 백필 등으로 지금 당장 한 번 돌리고 싶을 때는 DECISIONS_SKIP_WAIT=true로
+    # 위 요일 제한(="토요일까지 기다리기")을 건너뛸 수 있다(daily.yml의
+    # skip_decisions_wait 입력을 통해 넘어옴 - 다른 skip_* 입력들과 이름 규칙을
+    # 맞춰서 "체크=뭔가를 건너뛴다"로 통일했다).
+    skip_wait = os.environ.get("DECISIONS_SKIP_WAIT", "").strip().lower() == "true"
     now = datetime.now(KST)
-    if not force and not (now.weekday() == 5 and now.hour == 6):
+    if not skip_wait and not (now.weekday() == 5 and now.hour == 6):
         print(f"[결정문 수집] 주 1회(토요일 06시대)만 실행하도록 정해둬서, "
               f"이번 실행({now.strftime('%a %H:%M')})은 건너뜁니다.")
         return
