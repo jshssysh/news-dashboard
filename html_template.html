@@ -164,6 +164,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
+.bill-date-filter-row { margin-top: -4px; margin-bottom: 12px; }
+.bill-date-filter-label { font-size: 0.85em; font-weight: 700; opacity: 0.7; width: 230px; flex: 0 0 auto; }
 .custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
 .custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
@@ -314,6 +316,14 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
   .card-head { flex-wrap: wrap; line-height: 1.7; }
   .article-title { white-space: normal; overflow: visible; text-overflow: unset; flex-basis: 100%; }
 }
+/* 심·판결 카드는 뉴스/법안과 달리 좁은 화면에서도 제목을 줄바꿈하지 않고
+   말줄임표로 한 줄에 담는다 - 배지(구분/과징금 등)+날짜+사건번호까지 같이
+   보여주다 보니 줄바꿈을 허용하면 카드 하나가 4~5줄로 늘어져 목록이 너무
+   길어진다는 피드백에 따라 결정 카드만 예외로 뒀다. */
+.decision-card-head { flex-wrap: nowrap !important; }
+.decision-card-head .article-title { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; flex-basis: auto !important; }
+.decision-card-head .card-meta-group { flex-shrink: 0 !important; white-space: nowrap !important; }
+.decision-card-head .card-meta-inline { font-size: 0.72em; }
 .article-title { font-weight: 700; text-decoration: none; line-height: 1.4; }
 .article-title:hover { text-decoration: underline; }
 .importance-tag { color: #b8860b; font-size: 0.84em; font-weight: 600; }
@@ -718,6 +728,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
         <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
       </div>
+      <div class="news-filter-row bill-date-filter-row">
+        <span class="bill-date-filter-label">제안일</span>
+        <span class="custom-range-inputs">
+          <input type="date" id="billFromInput"> ~ <input type="date" id="billToInput">
+          <button type="button" id="billDateResetBtn" class="archive-toggle-link">초기화</button>
+        </span>
+      </div>
       <div class="filter-section" id="committeeFilterSection">
         <div class="filter-section-header">
           <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
@@ -934,6 +951,8 @@ const state = {
   billPageSize: getSavedPageSize('bill'),
   billProposer: '',   // 의원 탭에서 "대표발의 N건"을 눌러 들어왔을 때만 채워진다
   billOutcomeBucket: '', // 의원 탭에서 "가결"/"대안반영" 등을 눌러 들어왔을 때만 채워진다
+  billDateFrom: '',   // 입법 탭 전용 날짜 필터(제안일 기준) - 뉴스 탭 날짜와는 독립적으로 동작
+  billDateTo: '',
   memberParty: '전체',
   memberBillBucket: '전체',
   memberCommittee: '전체',
@@ -2039,6 +2058,11 @@ function billMatchesGlobalFilters(b, starred) {
   if (state.billProposer && b.repProposer !== state.billProposer) return false;
   if (state.billOutcomeBucket && billOutcomeBucket(b.result) !== state.billOutcomeBucket) return false;
   if (state.billSearch && !matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch)) return false;
+  // 제안일 기준 날짜 필터(입법 탭 전용) - proposeDate가 bill_list.csv의 "제안일"
+  // 그대로라 <input type=date> 값("YYYY-MM-DD")과 형식이 이미 같아서 구분자
+  // 변환 없이 바로 문자열 비교한다(뉴스 탭 scopedRows와 다른 점).
+  if (state.billDateFrom && (!b.proposeDate || b.proposeDate < state.billDateFrom)) return false;
+  if (state.billDateTo && (!b.proposeDate || b.proposeDate > state.billDateTo)) return false;
   return true;
 }
 
@@ -2145,6 +2169,8 @@ function renderBillList() {
   if (state.billSearch) {
     filtered = filtered.filter(b => matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch));
   }
+  if (state.billDateFrom) filtered = filtered.filter(b => b.proposeDate && b.proposeDate >= state.billDateFrom);
+  if (state.billDateTo) filtered = filtered.filter(b => b.proposeDate && b.proposeDate <= state.billDateTo);
   filtered.sort((a,b) => ((b.changed?1:0) - (a.changed?1:0)) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
   const totalCount = filtered.length;
@@ -2262,7 +2288,7 @@ function decisionCardHtml(d) {
   const priorHtml = d.priorRef
     ? `<div class="decision-prior-ref">원문 기재: “${d.priorRef}”</div>` : '';
   return `<div class="article-card">
-    <div class="card-head">
+    <div class="card-head decision-card-head">
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${d.link}" target="_blank" title="${titleAttr}">${d.title || '(제목 없음)'}</a>
       <span class="card-meta-group"><span class="card-meta-inline">${decisionDateLabel(d)} ${d.date} · ${d.org}${d.caseNo ? ' · '+d.caseNo : ''}</span></span>
@@ -2480,6 +2506,24 @@ document.getElementById('memberPageSizeSel').addEventListener('change', e => {
   savePageSize('member', state.memberPageSize);
   state.memberPage = 1;
   renderMembers();
+});
+document.getElementById('billFromInput').addEventListener('change', e => {
+  state.billDateFrom = e.target.value || '';
+  state.billPage = 1;
+  renderBills(); // 위원회/처리단계 칩 건수도 날짜 범위 기준으로 다시 계산
+});
+document.getElementById('billToInput').addEventListener('change', e => {
+  state.billDateTo = e.target.value || '';
+  state.billPage = 1;
+  renderBills();
+});
+document.getElementById('billDateResetBtn').addEventListener('click', () => {
+  state.billDateFrom = '';
+  state.billDateTo = '';
+  document.getElementById('billFromInput').value = '';
+  document.getElementById('billToInput').value = '';
+  state.billPage = 1;
+  renderBills();
 });
 document.getElementById('billStarredToggle').addEventListener('click', () => {
   state.billStarredOnly = !state.billStarredOnly;
