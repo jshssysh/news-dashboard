@@ -199,6 +199,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .archive-search-status { font-size: 0.82em; opacity: 0.75; margin-top: 8px; min-height: 1.2em; }
 .archive-result-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 11px 14px; margin-top: 9px; }
 .archive-result-meta { font-size: 0.78em; opacity: 0.7; }
+/* 원심(하급심) 관계는 AI가 재서술하지 않고, collect_decisions.py가 원문에서
+   정규식으로 그대로 뽑은 문구만 인용 형태로 보여준다 - 인용임을 시각적으로도
+   구분하기 위해 나머지 카드 텍스트와 다른 톤(기울임, 옅은 색)을 쓴다. */
+.decision-prior-ref { margin-top: 6px; font-size: 0.78em; font-style: italic; opacity: 0.65; }
 #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
 #catChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
 #catChipRow button { padding: 5px 10px; font-size: 0.8em; }
@@ -745,6 +749,33 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div id="billListArea"></div>
   </div>
 
+  <div id="view-decision" class="view">
+    <hr class="thin">
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>심결·판결</h5>
+        <input type="text" id="decisionSearchInput" placeholder="사건명, 사건번호, 요약에서 검색">
+      </div>
+      <div class="filter-section" id="decisionKindFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="decisionKindFilterSection">구분 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="decisionKindCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="decisionKindChipRow"></div>
+      </div>
+      <hr class="thin">
+      <div class="bill-result-row">
+        <div class="result-caption" id="decisionResultCaption"></div>
+        <div class="pg-top"><select id="decisionPageSizeSel">
+          <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+        </select></div>
+        <div class="pg-nav" id="decisionPgNav"></div>
+      </div>
+      <hr class="thin">
+    </div>
+    <div id="decisionListArea"></div>
+  </div>
+
   <div id="view-org" class="view">
     <hr class="thin">
     <div class="bill-filter-sticky">
@@ -803,7 +834,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-10 08:56 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-10 10:11 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -812,6 +843,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 // 그래서 처음엔 비어 있고, 아래 맨 끝 부트스트랩에서 채운다.
 let NEWS_DATA = [];
 let BILL_DATA = [];
+let DECISION_DATA = [];
 let MEMBER_DATA = [];
 let WARNINGS_DATA = [];
 let allDates = [];
@@ -856,7 +888,7 @@ function saveActiveTab(tab) {
 
 // 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
 // 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
-const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize' };
+const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize', decision: 'decisionPageSize' };
 // 좁은 화면에서는 한 화면에 한두 건씩 보고 넘기는 편이 편해서 1~5를 넣고 50은 뺀다.
 const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
 const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
@@ -868,7 +900,7 @@ function getSavedPageSize(kind) {
 }
 // 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
 function fillPageSizeOptions() {
-  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명' };
+  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명', decisionPageSizeSel: '건' };
   Object.keys(unitById).forEach(id => {
     const sel = document.getElementById(id);
     if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}${unitById[id]}</option>`).join('');
@@ -909,6 +941,10 @@ const state = {
   memberSort: 'default',
   memberPageSize: getSavedPageSize('member'),
   memberPage: 1,
+  decisionKind: '전체',
+  decisionSearch: '',
+  decisionPage: 1,
+  decisionPageSize: getSavedPageSize('decision'),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1099,7 +1135,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심결·판결','심결판결']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:pre-line;">${label}</button>`
   ).join('');
@@ -2209,13 +2245,144 @@ function renderBillPagination(totalPages) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.billPage = parseInt(b.dataset.p,10); renderBillList(); }));
 }
 
+// ── 심결·판결 탭 ──────────────────────────────────────────────────────────
+// 원심(1심/2심 등) 관계는 자동으로 잇지 않는다 - collect_decisions.py가 원문에서
+// 그대로 뽑아둔 문구(priorRef)가 있으면 인용 형태로만 보여주고, 화면에서도
+// AI가 관계를 재서술하지 않는다(project 전체가 지켜온 원칙).
+function decisionDateLabel(d) {
+  return d.kind === '판례' ? '선고일' : '의결일';
+}
+
+function decisionCardHtml(d) {
+  const titleAttr = (d.title||'').replace(/"/g,'&quot;');
+  const badges = [`<span class="chip-category">${d.kind}</span>`];
+  if (d.caseType) badges.push(`<span class="chip-tag-warn">${d.caseType}</span>`);
+  if (d.sentence) badges.push(`<span class="chip-tag-warn">형사처벌 · ${d.sentence}</span>`);
+  if (d.penalty) badges.push(`<span class="chip-alert">과징금 ${d.penalty}</span>`);
+  const priorHtml = d.priorRef
+    ? `<div class="decision-prior-ref">원문 기재: “${d.priorRef}”</div>` : '';
+  return `<div class="article-card">
+    <div class="card-head">
+      <span class="card-tags">${badges.join(' ')}</span>
+      <a class="article-title" href="${d.link}" target="_blank" title="${titleAttr}">${d.title || '(제목 없음)'}</a>
+      <span class="card-meta-group"><span class="card-meta-inline">${decisionDateLabel(d)} ${d.date} · ${d.org}${d.caseNo ? ' · '+d.caseNo : ''}</span></span>
+    </div>
+    ${d.summary ? `<a href="${d.link}" target="_blank" class="summary-box-blue">${d.summary}</a>` : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중</div>`}
+    ${priorHtml}
+  </div>`;
+}
+
+function renderDecisionKindChipRow() {
+  const counts = {};
+  DECISION_DATA.forEach(d => { counts[d.kind || '기타'] = (counts[d.kind || '기타']||0) + 1; });
+  if (state.decisionKind !== '전체' && !(state.decisionKind in counts)) state.decisionKind = '전체';
+  const row = document.getElementById('decisionKindChipRow');
+  const tag = document.getElementById('decisionKindCurrentTag');
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  tag.textContent = state.decisionKind === '전체' ? '' : `${state.decisionKind} ${counts[state.decisionKind]||0}`;
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? DECISION_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.decisionKind===v?'active':''}">${v} ${cnt}</button>`;
+  }).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.decisionKind = btn.dataset.val;
+    state.decisionPage = 1;
+    renderDecisionList();
+  }));
+}
+
+function renderDecisions() {
+  renderDecisionKindChipRow();
+  renderDecisionList();
+}
+
+function renderDecisionList() {
+  let filtered = state.decisionKind === '전체' ? DECISION_DATA.slice() : DECISION_DATA.filter(d => d.kind === state.decisionKind);
+  if (state.decisionSearch) {
+    filtered = filtered.filter(d => matchesSearchTokens([d.title, d.caseNo, d.summary], state.decisionSearch));
+  }
+  // DECISION_DATA는 이미 날짜 내림차순으로 오지만(generate_html.py), 필터링 후에도
+  // 순서가 흐트러질 일은 없어 별도 정렬은 생략한다.
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.decisionPageSize));
+  if (state.decisionPage > totalPages) state.decisionPage = totalPages;
+  if (state.decisionPage < 1) state.decisionPage = 1;
+  const startN = (state.decisionPage - 1) * state.decisionPageSize;
+  const pageItems = filtered.slice(startN, startN + state.decisionPageSize);
+
+  document.getElementById('decisionResultCaption').textContent = totalCount === 0
+    ? "조건에 맞는 결정문·판례가 없습니다."
+    : `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.decisionPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  document.getElementById('decisionPageSizeSel').value = String(state.decisionPageSize);
+
+  const listEl = document.getElementById('decisionListArea');
+  listEl.innerHTML = pageItems.length ? pageItems.map(decisionCardHtml).join('')
+    : "<div class='info-box'>조건에 맞는 결정문·판례가 없습니다.</div>";
+
+  renderDecisionPagination(totalPages);
+}
+
+function renderDecisionPagination(totalPages) {
+  const pg = document.getElementById('decisionPgNav');
+  const WINDOW = 10;
+  const startP = Math.max(1, Math.min(state.decisionPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let navHtml = `<button id="decisionPgPrev" ${state.decisionPage<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.decisionPage?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="decisionPgNext" ${state.decisionPage>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = navHtml;
+  document.getElementById('decisionPgPrev').addEventListener('click', () => { if (state.decisionPage>1) { state.decisionPage--; renderDecisionList(); } });
+  document.getElementById('decisionPgNext').addEventListener('click', () => { if (state.decisionPage<totalPages) { state.decisionPage++; renderDecisionList(); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.decisionPage = parseInt(b.dataset.p,10); renderDecisionList(); }));
+}
+
+let decisionsLoaded = false;
+let decisionsPromise = null;
+function ensureDecisions() {
+  if (decisionsLoaded) return Promise.resolve();
+  if (!decisionsPromise) {
+    decisionsPromise = loadJson('decisions.json')
+      .then(rows => { DECISION_DATA = rows; decisionsLoaded = true; })
+      .catch(err => { decisionsPromise = null; throw err; });
+  }
+  return decisionsPromise;
+}
+
+document.getElementById('decisionSearchInput').addEventListener('input', e => {
+  state.decisionSearch = e.target.value;
+  state.decisionPage = 1;
+  renderDecisionList();
+});
+document.getElementById('decisionPageSizeSel').addEventListener('change', e => {
+  state.decisionPageSize = parseInt(e.target.value, 10);
+  savePageSize('decision', state.decisionPageSize);
+  state.decisionPage = 1;
+  renderDecisionList();
+});
+
 function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
 
-  ['view-news','view-law','view-org','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+  ['view-news','view-law','view-org','view-decision','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '국회의원') {
+  if (state.activeTab === '심결판결') {
+    document.getElementById('view-decision').classList.add('active');
+    if (decisionsLoaded) {
+      renderDecisions();
+    } else {
+      document.getElementById('decisionListArea').innerHTML =
+        "<div class='info-box'>심결·판결 목록을 불러오는 중…</div>";
+      ensureDecisions().then(() => { if (state.activeTab === '심결판결') renderAll(); })
+        .catch(() => {
+          document.getElementById('decisionListArea').innerHTML =
+            "<div class='info-box'>심결·판결 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
+  } else if (state.activeTab === '국회의원') {
     document.getElementById('view-org').classList.add('active');
     if (membersLoaded) {
       renderMembers();

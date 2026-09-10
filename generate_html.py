@@ -36,6 +36,7 @@ NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
 BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
 MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
 WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
+DECISIONS_JSON_PATH = os.path.join(OUT_DIR, "decisions.json")
 TEMPLATE_PATH = "html_template.html"
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -126,6 +127,39 @@ def load_cluster_warnings():
             "count": int(row["건수"]) if pd.notna(row.get("건수")) else 0,
         }
         for _, row in wdf.iterrows()
+    ]
+
+
+def load_decisions():
+    """collect_decisions.py가 쌓은 decision_list.csv(공정위 의결서/재결서 + 관련
+    법원 판례)를 읽는다. 뉴스처럼 매일 대량으로 쌓이는 게 아니라 무기한 누적해도
+    당분간 용량 문제가 없어서(참고: RECENT_DAYS_WINDOW 같은 최근 창을 안 둠),
+    쌓인 걸 전부 최신순으로 내려보낸다. 원심(하급심) 관계는 자동으로 잇지 않고
+    collect_decisions.py가 원문에서 그대로 뽑아둔 문구만("원심참조") 있으면 같이
+    보여준다 - 화면에서도 AI가 관계를 재서술하지 않는다."""
+    path = "decision_list.csv"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    try:
+        ddf = pd.read_csv(path, dtype=str, keep_default_na=False)
+    except Exception:
+        return []
+    ddf = ddf.sort_values("날짜", ascending=False)
+    return [
+        {
+            "kind": nz(row.get("구분"), ""),
+            "title": nz(row.get("사건명"), ""),
+            "caseNo": nz(row.get("사건번호"), ""),
+            "date": nz(row.get("날짜"), "").rstrip("."),
+            "org": nz(row.get("기관법원"), ""),
+            "caseType": nz(row.get("사건종류"), ""),
+            "summary": nz(row.get("AI요약"), ""),
+            "penalty": nz(row.get("과징금"), ""),
+            "sentence": nz(row.get("형량"), ""),
+            "priorRef": nz(row.get("원심참조"), ""),
+            "link": nz(row.get("상세링크"), ""),
+        }
+        for _, row in ddf.iterrows()
     ]
 
 
@@ -378,6 +412,7 @@ def build():
     bills = slim_bills(load_bills())
     members = load_members(bills)
     cluster_warnings = load_cluster_warnings()
+    decisions = load_decisions()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
@@ -398,6 +433,7 @@ def build():
     bills_bytes = dump_json(BILLS_JSON_PATH, bills)
     members_bytes = dump_json(MEMBERS_JSON_PATH, members)
     warnings_bytes = dump_json(WARNINGS_JSON_PATH, cluster_warnings)
+    decisions_bytes = dump_json(DECISIONS_JSON_PATH, decisions)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
@@ -405,7 +441,8 @@ def build():
         f"  {NEWS_JSON_PATH:<20} {news_bytes/1024:8.0f}KB (최근 {RECENT_DAYS_WINDOW}일 {len(news_rows)}건)\n"
         f"  {BILLS_JSON_PATH:<20} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)\n"
         f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)\n"
-        f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)"
+        f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
+        f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심결·판결 {len(decisions)}건)"
     )
 
 
