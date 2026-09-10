@@ -83,6 +83,9 @@ jobs:
           python collect_member_news.py
 
       - name: 심결·판결 수집 (법제처 국가법령정보 Open API + Gemini)
+        # 이 스텝 자체는 다른 스텝들처럼 매번(하루 5번) 실행되지만, 의결서/판례는
+        # 주 1회만 확인해도 충분해서 collect_decisions.py 안에서 "토요일 06시대가
+        # 아니면 바로 종료"하도록 자체적으로 걸러낸다 - 여기 조건문은 그대로 둔다.
         if: github.event.inputs.skip_decisions != 'true'
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
