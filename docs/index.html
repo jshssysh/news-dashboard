@@ -213,10 +213,16 @@ a.badge-skipped:hover { text-decoration: underline; }
    "무슨 행위가 문제였는지"를 전달하는 것 - 그게 최소 보이는 선이 2줄. */
 .decision-summary-row { display: flex; align-items: flex-start; gap: 6px; }
 .decision-summary-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* -webkit-line-clamp을 지원 안 하거나 line-height 계산이 딱 안 맞는 환경에서는
+   자른 경계에 3번째 줄 글자 일부가 반쯤 걸쳐 보이는 지저분한 문제가 생긴다
+   (실측: 모바일 375px에서 확인). 아래쪽을 살짝 페이드시켜서 어떤 환경에서
+   잘리든 "의도된 요약"처럼 보이게 하는 안전망 - line-clamp가 정상 동작하는
+   환경에서도 자연스러운 여운 효과라 해가 되지 않는다. */
+.decision-summary-text { -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
 /* 펼침 상태에 몇 줄로든 캡을 걸어두면 그보다 긴 요약은 펼쳐도 못 읽는
    부분이 생긴다(실제로 2줄을 넘는 요약이 상당수 있음) - 펼침 상태에서는
    클램프를 완전히 풀어서 항상 전문을 읽을 수 있게 한다. */
-.decision-summary-row.expanded .decision-summary-text { -webkit-line-clamp: unset; }
+.decision-summary-row.expanded .decision-summary-text { -webkit-line-clamp: unset; -webkit-mask-image: none; mask-image: none; }
 .decision-summary-toggle { flex-shrink: 0; margin-top: 9px; background: none; border: none; color: inherit; opacity: 0.5; cursor: pointer; padding: 0 4px; font-size: 0.75em; line-height: 1; transition: transform .15s var(--ease), opacity .15s var(--ease); }
 .decision-summary-toggle:hover { opacity: 0.9; }
 .decision-summary-row.expanded .decision-summary-toggle { transform: rotate(180deg); }
@@ -339,6 +345,19 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .decision-card-head .article-title { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; flex-basis: auto !important; }
 .decision-card-head .card-meta-group { flex-shrink: 0 !important; white-space: nowrap !important; }
 .decision-card-head .card-meta-inline { font-size: 0.72em; }
+/* 좁은 화면에서는 배지+제목+날짜/사건번호를 전부 한 줄에 우겨넣을 폭이 없어서,
+   메타정보(card-meta-group)가 줄어들지 않고(flex-shrink:0) 카드·화면 밖으로
+   그대로 넘쳐 잘려 나갔다(실측: 375px에서 "2026조..."처럼 화면 밖으로 흘러
+   안 보임). 배지+제목은 여전히 한 줄로 유지하되, 메타정보만 다음 줄 전체
+   폭으로 내려서 줄바꿈되게 한다. */
+@media (max-width: 700px) {
+  /* 부모가 nowrap(줄바꿈 금지)이면 자식에 flex-basis:100%를 줘도 "새 줄로
+     내려가는" 게 아니라 같은 줄 안에서 폭만 요구하며 배지·제목과 자리싸움을
+     한다(실측: 제목이 통째로 안 보이는 사고 발생) - 부모도 wrap으로 풀어줘야
+     실제로 다음 줄로 내려간다. */
+  .decision-card-head { flex-wrap: wrap !important; }
+  .decision-card-head .card-meta-group { flex: 1 1 100% !important; white-space: normal !important; margin-top: 2px; }
+}
 .article-title { font-weight: 700; text-decoration: none; line-height: 1.4; }
 .article-title:hover { text-decoration: underline; }
 .importance-tag { color: #b8860b; font-size: 0.84em; font-weight: 600; }
@@ -867,7 +886,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-11 07:53 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-11 08:11 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
