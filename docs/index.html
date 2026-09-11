@@ -653,6 +653,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #billMainFilterRow.bill-search-collapsed #billSearchInput { display: none; }
   .bill-date-filter-row.bill-search-collapsed { display: none; }
 
+  /* 의원 탭: "국회의원 제22대" -> "검색"으로 간소화하고(입법 탭과 같은 패턴),
+     접으면 "기본" 범위토글 버튼과 검색창을 같이 숨긴다(사용자 요청,
+     2026-09-11). 데스크톱은 캐럿이 기본적으로 숨어있어(.news-filter-row h5
+     .toggle-caret 공용 규칙) 정적 라벨로만 보이고 항상 펼쳐진 채 그대로. */
+  #memberMainFilterRow.member-search-collapsed #memberSearchScopeToggle,
+  #memberMainFilterRow.member-search-collapsed #memberSearchInput { display: none; }
+  #memberSearchToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+
   /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
      두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
      좁으니 라벨·입력칸·버튼을 조금씩 줄여서 한 줄에 맞춘다. */
@@ -876,8 +884,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   <div id="view-org" class="view">
     <hr class="thin">
     <div class="bill-filter-sticky">
-      <div class="news-filter-row">
-        <h5>국회의원 <span class="era-tag">제22대</span></h5>
+      <div class="news-filter-row" id="memberMainFilterRow">
+        <h5 id="memberSearchToggle">검색<span class="toggle-caret">▼</span></h5>
         <button id="memberSearchScopeToggle" class="star-filter-btn" title="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">기본</button>
         <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">
       </div>
@@ -932,7 +940,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-11 09:31 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-11 09:35 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -2779,6 +2787,23 @@ if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
     billCombinedRow.appendChild(billCommitteeToggleEl);
     billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
   }
+}
+
+// 의원 탭: "검색" 제목을 눌러 "기본" 범위토글 버튼 + 검색창을 같이 접었다
+// 펼친다(모바일 전용, 사용자 요청 2026-09-11 - 입법 탭과 같은 패턴).
+const MEMBER_SEARCH_COLLAPSE_KEY = 'memberSearchCollapsed';
+const memberMainFilterRow = document.getElementById('memberMainFilterRow');
+const memberSearchToggleEl = document.getElementById('memberSearchToggle');
+if (IS_NARROW && memberMainFilterRow && memberSearchToggleEl) {
+  const memberSearchCollapsedInit = localStorage.getItem(MEMBER_SEARCH_COLLAPSE_KEY) === null
+    ? true : readFlag(MEMBER_SEARCH_COLLAPSE_KEY);
+  memberMainFilterRow.classList.toggle('member-search-collapsed', memberSearchCollapsedInit);
+  memberSearchToggleEl.classList.toggle('is-collapsed', memberSearchCollapsedInit);
+  memberSearchToggleEl.addEventListener('click', () => {
+    const on = memberMainFilterRow.classList.toggle('member-search-collapsed');
+    memberSearchToggleEl.classList.toggle('is-collapsed', on);
+    writeFlag(MEMBER_SEARCH_COLLAPSE_KEY, on);
+  });
 }
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
