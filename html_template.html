@@ -640,6 +640,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #mobileBillToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #billSearchToggle.is-collapsed .toggle-caret,
   .filter-section-toggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* "소관위" 접었을 때(▶) 그 밑에 남아있는 "전체 14831" 칩도 같이 숨긴다.
+     토글 버튼 자체는 이미 위 공유 행으로 옮겨졌으니(#mobileBillToggleRow),
+     여기 남은 .filter-section-header에는 그 칩과 현재선택 태그뿐이라 통째로
+     숨겨도 다시 펼치는 버튼이 사라지는 문제가 없다 - #committeeFilterSection
+     하나로만 한정해서, 토글 버튼이 안 옮겨지는 다른 필터 섹션(심·판결 구분,
+     의원 정당/법안/소속위원회)이나 데스크톱에는 영향 없다. */
+  #committeeFilterSection.collapsed .filter-section-header { display: none; }
   /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. 제안일 필터도
      검색 관련 필터라 같이 묶어서 접는다(사용자 요청) - .bill-date-filter-row는
      #billMainFilterRow의 형제 요소라 같은 클래스를 자기 자신에도 받아서 숨는다. */
