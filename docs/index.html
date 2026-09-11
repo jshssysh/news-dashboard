@@ -614,6 +614,23 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .sidebar-panel.side-collapsed { padding: 10px 14px; }
   .sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
 
+  /* "카테고리별 주요뉴스"/"카테고리별 수집 현황" 두 접기 제목을 각자 한 줄씩
+     따로 차지하지 않고 좌우로 나란히 붙인다(사용자 요청) - 두 제목이 서로
+     다른 부모(.news-filter-row / .sidebar-panel) 밑에 있어 CSS만으로는 줄을
+     합칠 수 없어서, 모바일일 때만 JS가 두 제목 요소를 이 공유 래퍼로 실제로
+     옮겨 담는다(#mobileSectionToggleRow 생성 스크립트 참고, 데스크톱은 원본
+     구조 그대로 안 건드림). 옮겨진 뒤에는 원래 부모의 클래스(news-collapsed/
+     side-collapsed)에 의존하던 캐럿 회전·여백 규칙이 안 먹으므로, 제목
+     요소 자신에게 직접 붙이는 is-collapsed 클래스로 대신한다. */
+  #mobileSectionToggleRow { order: 2; display: flex; gap: 10px; margin-bottom: 10px; }
+  #mobileSectionToggleRow > * { flex: 1 1 0; min-width: 0; margin: 0 !important; padding: 0; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  #mobileSectionToggleRow .toggle-caret { display: inline; flex-shrink: 0; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  #mobileSectionToggleRow .current-tag { display: none; }
+  #newsFilterToggle.is-collapsed .toggle-caret,
+  #sidebarToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+
   /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
   .kw-row { margin-bottom: 14px; }
   .sentiment-track { height: 14px; }
@@ -884,7 +901,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-11 08:27 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-11 09:07 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -2653,19 +2670,47 @@ document.getElementById('statToggleBtn').addEventListener('click', () => {
   writeFlag(STAT_COLLAPSE_KEY, on);
 });
 
+// 모바일에서 두 제목을 한 줄로 합칠 때(아래 참고) 원래 부모(#newsFilterSticky/
+// #sidebarPanel)에서 떨어져 나가므로, 그 부모의 클래스에 기대던 캐럿 회전
+// 규칙이 안 먹는다 - 제목 요소 자신에게도 is-collapsed를 똑같이 붙여서
+// 어디로 옮겨지든 항상 맞게 표시되게 한다.
 const newsFilterSticky = document.getElementById('newsFilterSticky');
-newsFilterSticky.classList.toggle('news-collapsed', readFlag(NEWS_COLLAPSE_KEY));
-document.getElementById('newsFilterToggle').addEventListener('click', () => {
+const newsFilterToggleEl = document.getElementById('newsFilterToggle');
+const newsCollapsedInit = readFlag(NEWS_COLLAPSE_KEY);
+newsFilterSticky.classList.toggle('news-collapsed', newsCollapsedInit);
+newsFilterToggleEl.classList.toggle('is-collapsed', newsCollapsedInit);
+newsFilterToggleEl.addEventListener('click', () => {
   const on = newsFilterSticky.classList.toggle('news-collapsed');
+  newsFilterToggleEl.classList.toggle('is-collapsed', on);
   writeFlag(NEWS_COLLAPSE_KEY, on);
 });
 
 const sidebarPanel = document.getElementById('sidebarPanel');
-sidebarPanel.classList.toggle('side-collapsed', readFlag(SIDE_COLLAPSE_KEY));
-document.getElementById('sidebarToggle').addEventListener('click', () => {
+const sidebarToggleEl = document.getElementById('sidebarToggle');
+const sideCollapsedInit = readFlag(SIDE_COLLAPSE_KEY);
+sidebarPanel.classList.toggle('side-collapsed', sideCollapsedInit);
+sidebarToggleEl.classList.toggle('is-collapsed', sideCollapsedInit);
+sidebarToggleEl.addEventListener('click', () => {
   const on = sidebarPanel.classList.toggle('side-collapsed');
+  sidebarToggleEl.classList.toggle('is-collapsed', on);
   writeFlag(SIDE_COLLAPSE_KEY, on);
 });
+
+// "카테고리별 주요뉴스"/"카테고리별 수집 현황" 제목 두 줄을 모바일에서만 한 줄로
+// 좌우로 합친다(사용자 요청, 2026-09-11) - 서로 다른 부모 밑이라 CSS만으론
+// 안 되므로, 제목 요소 자체를 공유 래퍼로 옮긴다. IS_NARROW는 로드 시 한 번만
+// 계산되는 값이라 이 이동도 로드 시 한 번만 일어나고, 데스크톱(IS_NARROW
+// false)에서는 원본 구조를 전혀 건드리지 않는다.
+if (IS_NARROW) {
+  const filterRow = document.querySelector('.news-filter-row');
+  if (filterRow && filterRow.parentNode) {
+    const combinedRow = document.createElement('div');
+    combinedRow.id = 'mobileSectionToggleRow';
+    combinedRow.appendChild(newsFilterToggleEl);
+    combinedRow.appendChild(sidebarToggleEl);
+    filterRow.parentNode.insertBefore(combinedRow, filterRow);
+  }
+}
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
 // 붙게 한다(안 하면 사이드바가 필터 블록에 가려짐). 필터를 접거나 창 폭이 바뀌면
