@@ -646,7 +646,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
      숨겨도 다시 펼치는 버튼이 사라지는 문제가 없다 - #committeeFilterSection
      하나로만 한정해서, 토글 버튼이 안 옮겨지는 다른 필터 섹션(심·판결 구분,
      의원 정당/법안/소속위원회)이나 데스크톱에는 영향 없다. */
-  #committeeFilterSection.collapsed .filter-section-header { display: none; }
+  /* 헤더만 숨기면 .filter-section 자신의 테두리·여백(border/padding)이 남아
+     빈 상자로 보인다(실측) - 접혔을 때는 섹션 전체를 숨긴다. */
+  #committeeFilterSection.collapsed { display: none; }
   /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. 제안일 필터도
      검색 관련 필터라 같이 묶어서 접는다(사용자 요청) - .bill-date-filter-row는
      #billMainFilterRow의 형제 요소라 같은 클래스를 자기 자신에도 받아서 숨는다. */
@@ -660,6 +662,22 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #memberMainFilterRow.member-search-collapsed #memberSearchScopeToggle,
   #memberMainFilterRow.member-search-collapsed #memberSearchInput { display: none; }
   #memberSearchToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+
+  /* 의원 탭: "검색"/"정당"/"법안"/"소속위" 네 토글을 한 줄로(사용자 요청) -
+     뉴스/입법 탭과 같은 요령. */
+  #mobileMemberToggleRow { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  #mobileMemberToggleRow > * { flex: 0 0 auto; margin: 0 !important; padding: 0; cursor: pointer;
+    display: flex; align-items: center; gap: 3px; font-weight: 700; font-size: 0.92em; border: none; background: none; color: inherit; }
+  #mobileMemberToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  #mobileMemberToggleRow .current-tag { display: none; }
+  /* "정당"/"법안"/"소속위" 접었을 때 그 밑에 남은 현재선택 태그도 같이
+     숨긴다(토글 버튼은 이미 공유 행으로 옮겨졌으니 헤더를 통째로 숨겨도
+     다시 펼치는 버튼이 사라지지 않음 - 입법 탭 "소관위"와 같은 이유). */
+  /* 헤더만 숨기면 .filter-section 자신의 테두리·여백이 남아 빈 상자로
+     보인다(실측) - 접혔을 때는 섹션 전체를 숨긴다. */
+  #partyFilterSection.collapsed,
+  #billBucketFilterSection.collapsed,
+  #memberCommitteeFilterSection.collapsed { display: none; }
 
   /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
      두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
@@ -892,14 +910,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <div class="member-party-bill-row">
         <div class="filter-section" id="partyFilterSection">
           <div class="filter-section-header">
-            <button class="filter-section-toggle" data-target="partyFilterSection">정당 <span class="toggle-caret">▼</span></button>
+            <button class="filter-section-toggle" id="memberPartyToggle" data-target="partyFilterSection">정당 <span class="toggle-caret">▼</span></button>
             <span class="current-tag" id="partyCurrentTag"></span>
           </div>
           <div class="cat-chip-row filter-section-body" id="memberPartyChipRow"></div>
         </div>
         <div class="filter-section" id="billBucketFilterSection">
           <div class="filter-section-header">
-            <button class="filter-section-toggle" data-target="billBucketFilterSection">법안 <span class="toggle-caret">▼</span></button>
+            <button class="filter-section-toggle" id="memberBillBucketToggle" data-target="billBucketFilterSection">법안 <span class="toggle-caret">▼</span></button>
             <span class="current-tag" id="billBucketCurrentTag"></span>
           </div>
           <div class="cat-chip-row filter-section-body" id="memberBillChipRow"></div>
@@ -907,7 +925,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       </div>
       <div class="filter-section" id="memberCommitteeFilterSection">
         <div class="filter-section-header">
-          <button class="filter-section-toggle" data-target="memberCommitteeFilterSection">소속 위원회 <span class="toggle-caret">▼</span></button>
+          <button class="filter-section-toggle" id="memberCommitteeToggle" data-target="memberCommitteeFilterSection">소속위 <span class="toggle-caret">▼</span></button>
           <span class="current-tag" id="memberCommitteeCurrentTag"></span>
         </div>
         <div class="cat-chip-row filter-section-body" id="memberCommitteeChipRow"></div>
@@ -2677,11 +2695,18 @@ document.querySelectorAll('.filter-section-toggle').forEach(btn => {
     btn.classList.toggle('is-collapsed', on);
   });
 });
-// 의원 탭 필터는 정당 8개 + 위원회 17개라 좁은 화면에서 펼쳐두면 목록이 한참 밀린다.
-// 접어두고 시작하되, 무엇을 골랐는지는 제목 옆 표시로 계속 보인다.
+// 의원 탭 필터는 정당 8개 + 법안 6개 + 위원회 17개라 좁은 화면에서 펼쳐두면
+// 목록이 한참 밀린다. 접어두고 시작하되, 무엇을 골랐는지는 제목 옆 표시로
+// 계속 보인다. 토글 버튼도 아래에서 공유 행으로 옮겨지므로(모바일 전용),
+// 캐럿 회전이 부모 클래스가 아니라 버튼 자신의 is-collapsed로도 반영되게
+// 같이 붙여둔다.
 if (IS_NARROW) {
-  ['partyFilterSection', 'memberCommitteeFilterSection'].forEach(id => {
-    document.getElementById(id).classList.add('collapsed');
+  [['partyFilterSection', 'memberPartyToggle'],
+   ['billBucketFilterSection', 'memberBillBucketToggle'],
+   ['memberCommitteeFilterSection', 'memberCommitteeToggle']].forEach(([sectionId, btnId]) => {
+    document.getElementById(sectionId).classList.add('collapsed');
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.add('is-collapsed');
   });
 }
 document.getElementById('billPageSizeSel').addEventListener('change', e => {
@@ -2804,6 +2829,23 @@ if (IS_NARROW && memberMainFilterRow && memberSearchToggleEl) {
     memberSearchToggleEl.classList.toggle('is-collapsed', on);
     writeFlag(MEMBER_SEARCH_COLLAPSE_KEY, on);
   });
+
+  // "검색"/"정당"/"법안"/"소속위" 네 토글을 한 줄로 합친다(사용자 요청,
+  // 2026-09-11) - 입법 탭과 같은 기법. 정당/법안/소속위는 원래 있던
+  // 필터-섹션 토글 버튼을 그대로 재사용하되 공유 행으로 옮긴다(그 몸통인
+  // 칩 목록은 각자의 .filter-section 안에 그대로 남아 원래 순서대로 펼쳐짐).
+  const memberPartyToggleEl = document.getElementById('memberPartyToggle');
+  const memberBillBucketToggleEl = document.getElementById('memberBillBucketToggle');
+  const memberCommitteeToggleEl = document.getElementById('memberCommitteeToggle');
+  if (memberPartyToggleEl && memberBillBucketToggleEl && memberCommitteeToggleEl && memberMainFilterRow.parentNode) {
+    const memberCombinedRow = document.createElement('div');
+    memberCombinedRow.id = 'mobileMemberToggleRow';
+    memberCombinedRow.appendChild(memberSearchToggleEl);
+    memberCombinedRow.appendChild(memberPartyToggleEl);
+    memberCombinedRow.appendChild(memberBillBucketToggleEl);
+    memberCombinedRow.appendChild(memberCommitteeToggleEl);
+    memberMainFilterRow.parentNode.insertBefore(memberCombinedRow, memberMainFilterRow);
+  }
 }
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
