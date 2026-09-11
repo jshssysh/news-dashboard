@@ -636,12 +636,15 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #mobileBillToggleRow { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
   #mobileBillToggleRow > * { flex: 0 0 auto; margin: 0 !important; padding: 0; cursor: pointer;
     display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; border: none; background: none; color: inherit; }
-  #mobileBillToggleRow #billStarredToggle { font-size: 1.1em; }
+  #mobileBillToggleRow #billStarredToggle { font-size: 0.99em; }
   #mobileBillToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #billSearchToggle.is-collapsed .toggle-caret,
   .filter-section-toggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
-  /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. */
+  /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. 제안일 필터도
+     검색 관련 필터라 같이 묶어서 접는다(사용자 요청) - .bill-date-filter-row는
+     #billMainFilterRow의 형제 요소라 같은 클래스를 자기 자신에도 받아서 숨는다. */
   #billMainFilterRow.bill-search-collapsed #billSearchInput { display: none; }
+  .bill-date-filter-row.bill-search-collapsed { display: none; }
 
   /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
      두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
@@ -2745,14 +2748,17 @@ if (IS_NARROW) {
 const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
 const billMainFilterRow = document.getElementById('billMainFilterRow');
 const billSearchToggleEl = document.getElementById('billSearchToggle');
+const billDateFilterRow = document.querySelector('.bill-date-filter-row');
 if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
   const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
     ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
   billMainFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
   billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
+  if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
   billSearchToggleEl.addEventListener('click', () => {
     const on = billMainFilterRow.classList.toggle('bill-search-collapsed');
     billSearchToggleEl.classList.toggle('is-collapsed', on);
+    if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', on);
     writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
   });
 
