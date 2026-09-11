@@ -631,6 +631,27 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #newsFilterToggle.is-collapsed .toggle-caret,
   #sidebarToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
 
+  /* 입법 탭: "검색"/☆ 즐겨찾기/"소관위"를 한 줄로(사용자 요청) - 세 개는 길이가
+     다 달라서 뉴스 탭처럼 반반 등분하지 않고 각자 필요한 만큼만 차지하게 둔다. */
+  #mobileBillToggleRow { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+  #mobileBillToggleRow > * { flex: 0 0 auto; margin: 0 !important; padding: 0; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; border: none; background: none; color: inherit; }
+  #mobileBillToggleRow #billStarredToggle { font-size: 1.1em; }
+  #mobileBillToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  #billSearchToggle.is-collapsed .toggle-caret,
+  .filter-section-toggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. */
+  #billMainFilterRow.bill-search-collapsed #billSearchInput { display: none; }
+
+  /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
+     두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
+     좁으니 라벨·입력칸·버튼을 조금씩 줄여서 한 줄에 맞춘다. */
+  .bill-date-filter-row { flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 6px; }
+  .bill-date-filter-label { width: auto !important; font-size: 0.78em; }
+  .bill-date-filter-row .custom-range-inputs { flex: 1 1 auto; min-width: 0; gap: 4px; font-size: 0.82em; }
+  .bill-date-filter-row .custom-range-inputs input[type=date] { min-width: 0; flex: 1 1 0; padding: 5px 3px; font-size: 0.92em; }
+  .bill-date-filter-row #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
+
   /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
   .kw-row { margin-bottom: 14px; }
   .sentiment-track { height: 14px; }
@@ -772,9 +793,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   <div id="view-law" class="view">
     <hr class="thin">
     <div class="bill-filter-sticky">
-      <div class="news-filter-row">
-        <h5>국회 계류 법안 <span class="era-tag">제22대</span></h5>
-        <button id="billStarredToggle" class="star-filter-btn">☆ 즐겨찾기만</button>
+      <div class="news-filter-row" id="billMainFilterRow">
+        <h5 id="billSearchToggle">검색<span class="toggle-caret">▼</span></h5>
+        <button id="billStarredToggle" class="star-filter-btn">☆</button>
         <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
       </div>
       <div class="news-filter-row bill-date-filter-row">
@@ -786,7 +807,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       </div>
       <div class="filter-section" id="committeeFilterSection">
         <div class="filter-section-header">
-          <button class="filter-section-toggle" data-target="committeeFilterSection">소관위원회 <span class="toggle-caret">▼</span></button>
+          <button class="filter-section-toggle" id="billCommitteeToggle" data-target="committeeFilterSection">소관위 <span class="toggle-caret">▼</span></button>
           <button id="billCommitteeAllBtn" class="flow-plain committee-all-btn"></button>
           <span class="current-tag" id="committeeCurrentTag"></span>
         </div>
@@ -901,7 +922,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-11 09:13 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-11 09:24 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -2626,12 +2647,16 @@ document.getElementById('billStarredToggle').addEventListener('click', () => {
   state.billPage = 1;
   const btn = document.getElementById('billStarredToggle');
   btn.classList.toggle('active', state.billStarredOnly);
-  btn.textContent = state.billStarredOnly ? '★ 즐겨찾기만' : '☆ 즐겨찾기만';
+  btn.textContent = state.billStarredOnly ? '★' : '☆';
   renderBills(); // 위원회/처리단계 칩 건수도 즐겨찾기 기준으로 다시 계산
 });
+// 필터-섹션 토글 버튼(소관위/구분/정당/법안/소속 위원회 등 공용)이 모바일에서
+// 원래 부모 밖으로 옮겨질 수 있어서(입법 탭 "소관위" - 아래 모바일 통합 참고),
+// 캐럿 회전을 부모 클래스가 아니라 버튼 자신의 is-collapsed로도 반영해둔다.
 document.querySelectorAll('.filter-section-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.getElementById(btn.dataset.target).classList.toggle('collapsed');
+    const on = document.getElementById(btn.dataset.target).classList.toggle('collapsed');
+    btn.classList.toggle('is-collapsed', on);
   });
 });
 // 의원 탭 필터는 정당 8개 + 위원회 17개라 좁은 화면에서 펼쳐두면 목록이 한참 밀린다.
@@ -2709,6 +2734,37 @@ if (IS_NARROW) {
     combinedRow.appendChild(newsFilterToggleEl);
     combinedRow.appendChild(sidebarToggleEl);
     filterRow.parentNode.insertBefore(combinedRow, filterRow);
+  }
+}
+
+// 입법 탭: "검색"/☆ 즐겨찾기/"소관위" 세 토글을 모바일에서만 한 줄로 합치고,
+// 검색창도 모바일에서만 접었다 펼친다(사용자 요청, 2026-09-11 - 데스크톱은
+// 원래처럼 검색창이 항상 보이는 채로 둔다. "소관위"는 원래 있던 필터-섹션
+// 토글 버튼을 그대로 재사용하되 공유 행으로 옮긴다 - 그 몸통인 위원회 칩
+// 목록은 #committeeFilterSection 안에 그대로 남아 원래 순서대로 펼쳐진다).
+const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
+const billMainFilterRow = document.getElementById('billMainFilterRow');
+const billSearchToggleEl = document.getElementById('billSearchToggle');
+if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
+  const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
+    ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
+  billMainFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
+  billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
+  billSearchToggleEl.addEventListener('click', () => {
+    const on = billMainFilterRow.classList.toggle('bill-search-collapsed');
+    billSearchToggleEl.classList.toggle('is-collapsed', on);
+    writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
+  });
+
+  const billStarredToggleEl = document.getElementById('billStarredToggle');
+  const billCommitteeToggleEl = document.getElementById('billCommitteeToggle');
+  if (billStarredToggleEl && billCommitteeToggleEl && billMainFilterRow.parentNode) {
+    const billCombinedRow = document.createElement('div');
+    billCombinedRow.id = 'mobileBillToggleRow';
+    billCombinedRow.appendChild(billSearchToggleEl);
+    billCombinedRow.appendChild(billStarredToggleEl);
+    billCombinedRow.appendChild(billCommitteeToggleEl);
+    billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
   }
 }
 
