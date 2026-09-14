@@ -23,7 +23,10 @@
 const ALLOWED_ORIGIN = "https://jshssysh.github.io";
 const LAW_DATA_URL = "https://jshssysh.github.io/news-dashboard/law_penalties.json";
 const MAX_TEXT_LENGTH = 8000;
-const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+// @cf/meta/llama-3.1-8b-instruct는 2026-05-30 deprecated돼 실제로 호출 실패가
+// 났다(실측, developers.cloudflare.com/workers-ai/models/ 확인) - 그
+// 후속으로 안내되는 -fast 버전을 쓴다.
+const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 function corsHeaders() {
   return {
