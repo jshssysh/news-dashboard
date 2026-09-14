@@ -1033,6 +1033,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <div class="news-filter-row">
         <h5>장바구니</h5>
         <span class="result-caption" id="cartResultCaption"></span>
+        <button type="button" id="cartExportBtn" class="archive-toggle-link">내보내기</button>
         <button type="button" id="cartClearBtn" class="archive-toggle-link">비우기</button>
       </div>
       <hr class="thin">
@@ -1207,6 +1208,65 @@ document.getElementById('cartClearBtn').addEventListener('click', () => {
   saveCart([]);
   renderCartView();
   renderTabsAndDate();
+});
+
+// "2026/09/14" -> "'26.9.14" (사용자가 보여준 보고용 표 형식과 동일).
+function formatExportDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('/').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `'${String(y).slice(2)}.${m}.${d}`;
+}
+
+// 장바구니 "내보내기" - 화면의 항목별 표(한 행 = 한 항목)와 달리, 여기는
+// 분야별로 여러 건을 한 칸에 모아 엑셀에 그대로 붙여넣기 좋은 보고서 형태로
+// 새 팝업에 띄운다(사용자 요청, 2026-09-14). 팝업은 이 페이지의 CSS 변수에
+// 안 의존하도록 스타일을 인라인으로만 쓴다(별도 문서라 :root 변수가 없음).
+function buildCartExportHtml() {
+  const cart = getCart();
+  const byCategory = {};
+  cart.forEach(item => {
+    const cat = item.category || '기타';
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+  const orderedCats = CART_CATEGORY_ORDER.filter(c => byCategory[c]);
+  Object.keys(byCategory).forEach(c => {
+    if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
+  });
+
+  // font-family 값은 홑따옴표로 - 이 문자열이 이중따옴표 HTML 속성(style="...")
+  // 안에 그대로 들어가므로, 겹따옴표를 쓰면 속성이 중간에서 끊겨 버린다.
+  const cellStyle = "border:1px solid #000; padding:6px 10px; vertical-align:top; font-size:13px; font-family:'Malgun Gothic',sans-serif;";
+  const rowsHtml = orderedCats.map(cat => {
+    const itemsHtml = byCategory[cat]
+      .map(it => `<a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a>`)
+      .join('<br>');
+    return `<tr><td style="${cellStyle}font-weight:700;white-space:nowrap;">${cat}</td><td style="${cellStyle}">${itemsHtml}</td></tr>`;
+  }).join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>장바구니 내보내기</title></head>
+<body style="margin:16px;">
+<table style="border-collapse:collapse; width:100%;">
+  <tr>
+    <td style="${cellStyle}font-weight:700;white-space:nowrap;">${formatExportDate(state.currentDate)}</td>
+    <td style="${cellStyle}font-weight:700;">정책/법제정 관련 보도 등</td>
+  </tr>
+  ${rowsHtml}
+</table>
+</body></html>`;
+}
+
+document.getElementById('cartExportBtn').addEventListener('click', () => {
+  if (!getCart().length) { alert('담은 항목이 없습니다.'); return; }
+  // 주의: 'noopener'를 쓰면 반환값이 항상 null이 되어(spec) 빈 창에 내용을
+  // 써넣을 방법이 없어진다 - 그래서 여기만 noopener 없이 연다(팝업 내용은
+  // 우리가 직접 만든 정적 HTML이라 opener 접근 위험이 없음).
+  const popup = window.open('', 'cartExportPopup', 'width=760,height=640,scrollbars=yes,resizable=yes');
+  if (!popup) { alert('팝업이 차단됐습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해주세요.'); return; }
+  popup.document.open();
+  popup.document.write(buildCartExportHtml());
+  popup.document.close();
 });
 
 const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
