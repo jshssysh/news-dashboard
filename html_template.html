@@ -2752,7 +2752,7 @@ document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
 // ── 계약서 문구 검토 (Cloudflare Worker + Gemini, worker/ 참고) ──────────
 // GitHub Pages는 정적 사이트라 이 호출만은 별도로 배포한 Worker가 대신
 // 받는다. 배포 후 실제 워커 주소로 아래 값을 바꾼다.
-const CONTRACT_CHECKER_URL = '__CONTRACT_CHECKER_WORKER_URL__';
+const CONTRACT_CHECKER_URL = 'https://news-dashboard-contract-checker.jshssysh.workers.dev';
 
 function contractRiskCardHtml(m) {
   return `<div class="article-card">
