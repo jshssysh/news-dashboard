@@ -1184,7 +1184,7 @@ function renderCartPreview() {
   }
   listEl.innerHTML = cart.map(it => `
     <div class="cart-preview-item">
-      <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">${it.title}</a>
+      <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">[${it.category || '기타'}] ${it.title}</a>
       <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
     </div>`).join('');
   listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
