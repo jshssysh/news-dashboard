@@ -192,9 +192,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
 .cart-table td { border: 1px solid var(--app-border); padding: 10px 12px; vertical-align: top; }
 .cart-cat-cell { font-weight: 700; white-space: nowrap; width: 1%; background: var(--app-secondary-bg); }
-.cart-item { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
-.cart-item:last-child { margin-bottom: 0; }
-.cart-item a { flex: 1 1 auto; min-width: 0; }
+.cart-title-cell { display: flex; align-items: baseline; gap: 8px; }
+.cart-title-cell a { flex: 1 1 auto; min-width: 0; }
 .cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
   cursor: pointer; font-size: 0.8em; padding: 0 2px; }
 .cart-remove-btn:hover { opacity: 0.9; }
@@ -310,10 +309,16 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
-.sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px; }
-/* 접기 표시는 모바일 전용 - 데스크톱에선 그냥 제목이다(아래 미디어쿼리에서 되살림) */
-.sidebar-panel .panel-title .toggle-caret,
-.sidebar-panel .panel-title .current-tag { display: none; }
+/* "수집 현황" 패널 접기 - 예전엔 모바일 전용이었는데, 데스크톱에서도 접어두고
+   싶다는 요청(2026-09-14)으로 화면 폭과 무관하게 항상 켜둔다. */
+.sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px;
+  display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.sidebar-panel .panel-title .current-tag { display: inline; }
+.sidebar-panel.side-collapsed #sidebarBars { display: none; }
+.sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
+.sidebar-panel.side-collapsed { padding: 10px 14px; }
+.sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
 .kw-row { margin-bottom: 18px; }
 .kw-row:last-child { margin-bottom: 0; }
 .kw-row-total .kw-label { font-size: 0.9em; }
@@ -634,14 +639,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 순서를 바꾸고 나면 원래 자리 기준으로 넣었던 구분선은 의미가 없다 */
   #newsFilterSticky hr.thin { display: none; }
 
-  /* 패널 접기 (제목이 버튼 역할) */
-  .sidebar-panel .panel-title { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
-  .sidebar-panel .panel-title .current-tag { display: inline; }
-  .sidebar-panel.side-collapsed #sidebarBars { display: none; }
-  .sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
-  .sidebar-panel.side-collapsed { padding: 10px 14px; }
-  .sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 패널 접기 스타일 자체는 이제 화면 폭과 무관하게 기본 스타일(위쪽)에 있다 -
+     여기 남는 건 모바일에서만 다른 부분(아래, 제목 두 개를 한 줄로 합치는 것)뿐. */
 
   /* "카테고리별 주요뉴스"/"카테고리별 수집 현황" 두 접기 제목을 각자 한 줄씩
      따로 차지하지 않고 좌우로 나란히 붙인다(사용자 요청) - 두 제목이 서로
@@ -1129,26 +1128,26 @@ function renderCartView() {
     return;
   }
 
-  const byCategory = {};
-  cart.forEach(item => {
-    const cat = item.category || '기타';
-    (byCategory[cat] = byCategory[cat] || []).push(item);
-  });
-  const orderedCats = CART_CATEGORY_ORDER.filter(c => byCategory[c]);
-  Object.keys(byCategory).forEach(c => {
-    if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
-  });
+  // 한 항목 = 한 행("분야ㅣ제목" 형태로 캡처/복사하기 쉽게) - 분야는
+  // CART_CATEGORY_ORDER 순서대로, 같은 분야 안에서는 담은 순서 그대로 둔다.
+  const catRank = cat => {
+    const i = CART_CATEGORY_ORDER.indexOf(cat);
+    return i === -1 ? CART_CATEGORY_ORDER.length : i;
+  };
+  const sorted = cart.map((item, idx) => ({ item, idx }))
+    .sort((a, b) => (catRank(a.item.category) - catRank(b.item.category)) || (a.idx - b.idx))
+    .map(x => x.item);
 
-  const rows = orderedCats.map(cat => {
-    const itemsHtml = byCategory[cat].map(it => `
-      <div class="cart-item">
+  const rowsHtml = sorted.map(it => `
+    <tr>
+      <td class="cart-cat-cell">${it.category || '기타'}</td>
+      <td class="cart-title-cell">
         <a href="${it.link}" target="_blank">${it.title}</a>
         <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
-      </div>`).join('');
-    return `<tr><td class="cart-cat-cell">${cat}</td><td class="cart-items-cell">${itemsHtml}</td></tr>`;
-  }).join('');
+      </td>
+    </tr>`).join('');
 
-  areaEl.innerHTML = `<table class="cart-table"><tbody>${rows}</tbody></table>`;
+  areaEl.innerHTML = `<table class="cart-table"><tbody>${rowsHtml}</tbody></table>`;
   areaEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       removeCartItem(btn.dataset.id);
@@ -2157,15 +2156,20 @@ function renderMainList(scoped, allGroups) {
       if (reasons.indexOf(REASON_SANCTION) !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
       if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
-      const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
+      const related = g.rows.map(r => {
+        const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
+        const rChecked = state.newsCheckedItems.has(rCartId);
+        const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
+        return `<div class="related-row-item">
+          <input type="checkbox" class="cart-check news-cart-check" data-cart-id="${rCartId}"
+            data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}" ${rChecked?'checked':''}
+            title="장바구니에 담기">
+          - [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a>
+        </div>`;
+      }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
-      const cartId = 'news:' + issueKey;
-      const cartChecked = state.newsCheckedItems.has(cartId);
       return `<div class="article-card">
         <div class="card-head">
-          <input type="checkbox" class="cart-check news-cart-check" data-cart-id="${cartId}"
-            data-title="${titleAttr}" data-link="${g.repLink}" data-category="${g.category}" ${cartChecked?'checked':''}
-            title="장바구니에 담기">
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
           <span class="card-meta-group"><span class="importance-tag" title="중요도 ${g.importance}/10">${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain}</span></span>
