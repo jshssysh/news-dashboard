@@ -1192,6 +1192,22 @@ function renderCartPreview() {
   });
 }
 
+// 법안을 장바구니/내보내기에 담을 때 쓰는 표시 문구 - "법안명(제안일/대표
+// 발의자 의원/정당 첫 글자)" 형식(사용자가 지정한 엑셀 표 작성 기준,
+// 2026-09-14 - 예: "조세특례제한법 일부개정법률안(9.14/최은석 의원/국)").
+// b.proposer는 이미 "이름의원(정당, 선수, 지역구) 등 N인" 형태로 와 있어서
+// 첫 괄호 안 첫 항목(정당)만 뽑아 첫 글자만 쓴다.
+function billExportTitle(b) {
+  const parts = [];
+  const dateMatch = (b.proposeDate || '').match(/-(\d{2})-(\d{2})$/);
+  if (dateMatch) parts.push(`${parseInt(dateMatch[1], 10)}.${parseInt(dateMatch[2], 10)}`);
+  if (b.repProposer) parts.push(`${b.repProposer} 의원`);
+  const partyMatch = (b.proposer || '').match(/\(([^,)]+)/);
+  if (partyMatch) parts.push(partyMatch[1].charAt(0));
+  const name = b.name || '';
+  return parts.length ? `${name}(${parts.join('/')})` : name;
+}
+
 // "담기 미리보기" 제목을 누르면 목록을 접었다 펼친다 - 뉴스 탭/입법 탭 두
 // 자리 다 같은 상태로 맞춰서 어느 쪽에서 접든 똑같이 접힌다.
 const CART_PREVIEW_COLLAPSE_KEY = 'cartPreviewCollapsed';
@@ -1234,7 +1250,9 @@ function buildCartExportTableHtml() {
     if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
   });
 
-  const cellStyle = 'border:1px solid #000; padding:6px 10px; vertical-align:top; font-size:13px; color:#000; background:#fff;';
+  // 엑셀 기준(사용자 지정, 2026-09-14): 맑은 고딕 11pt, 검정 테두리 전체.
+  // pt 단위를 그대로 써야 엑셀에 붙여넣었을 때 글자 크기 11이 맞게 들어간다.
+  const cellStyle = "border:1px solid #000; padding:6px 10px; vertical-align:top; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:11pt; color:#000; background:#fff;";
   const rowsHtml = orderedCats.map(cat => {
     const itemsHtml = byCategory[cat]
       .map(it => `<a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a>`)
@@ -1244,8 +1262,11 @@ function buildCartExportTableHtml() {
 
   return `<table style="border-collapse:collapse; width:100%;">
   <tr>
-    <td style="${cellStyle}font-weight:700;white-space:nowrap;">${formatExportDate(state.currentDate)}</td>
-    <td style="${cellStyle}font-weight:700;">정책/법제정 관련 보도 등</td>
+    <td style="${cellStyle}font-weight:700;white-space:nowrap;background:#d9d9d9;">${formatExportDate(state.currentDate)}</td>
+    <td style="${cellStyle}"></td>
+  </tr>
+  <tr>
+    <td colspan="2" style="${cellStyle}font-weight:700;text-align:left;">정책/법개정 관련 보도 등</td>
   </tr>
   ${rowsHtml}
 </table>`;
@@ -2633,7 +2654,7 @@ function renderBillList() {
         : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" class="bill-popup-link" data-url="${summaryLink}">원문 보기</a>)</div>`;
       const cartId = 'bill:' + b.id;
       const cartInCart = cartHasId(cartId);
-      const cartTitle = titleAttr + (b.no ? ` (의안번호 ${b.no})` : '');
+      const cartTitle = billExportTitle(b).replace(/"/g,'&quot;');
       return `<div class="article-card bill-card">
         <div class="card-head bill-title-line">
           <button type="button" class="cart-inline-btn bill-cart-inline-btn ${cartInCart?'in-cart':''}" data-cart-id="${cartId}"
