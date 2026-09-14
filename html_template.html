@@ -183,12 +183,13 @@ a.badge-skipped:hover { text-decoration: underline; }
 #contractCheckResult { margin-top: 12px; }
 #contractCheckResult .article-card { margin-bottom: 8px; }
 
-/* 장바구니 - 뉴스/입법에서 체크한 항목을 모아 분야별 보고서 표로 보여준다
-   (2026-09-14, 화면에서 보고 캡처/복사해 쓰는 용도). */
-.cart-check { flex-shrink: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--app-primary); }
-.cart-add-btn { background: none; border: 1px solid var(--app-border); border-radius: 7px; color: var(--app-text);
-  padding: 5px 12px; font-size: 0.82em; font-weight: 700; cursor: pointer; white-space: nowrap; }
-.cart-add-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+/* 장바구니 - 뉴스/입법 항목마다 붙는 "담기" 버튼으로 하나씩 바로 담고 빼서,
+   모아둔 걸 분야별 보고서 표로 보여준다(2026-09-14, 화면에서 보고 캡처/복사해
+   쓰는 용도 - 체크박스+일괄 담기 대신 항목별 즉시 토글 버튼으로 바꿨다). */
+.cart-inline-btn { flex-shrink: 0; background: none; border: 1px solid var(--app-border); border-radius: 6px;
+  color: var(--app-text); padding: 2px 8px; font-size: 0.78em; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.cart-inline-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.cart-inline-btn.in-cart { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
 .cart-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
 .cart-table td { border: 1px solid var(--app-border); padding: 10px 12px; vertical-align: top; }
 .cart-cat-cell { font-weight: 700; white-space: nowrap; width: 1%; background: var(--app-secondary-bg); }
@@ -814,7 +815,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
       <div class="bill-result-row" id="newsResultRow">
         <div class="result-caption" id="resultCaption"></div>
-        <button type="button" id="newsAddToCartBtn" class="cart-add-btn">선택 담기</button>
         <div class="pg-top"><select id="pageSizeSel">
           <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
@@ -890,7 +890,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
       <div class="bill-result-row">
         <div class="result-caption" id="billResultCaption"></div>
-        <button type="button" id="billAddToCartBtn" class="cart-add-btn">선택 담기</button>
         <div class="pg-top"><select id="billPageSizeSel">
           <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
@@ -1103,27 +1102,34 @@ function getCart() {
 function saveCart(items) {
   try { localStorage.setItem(CART_KEY, JSON.stringify(items)); } catch(e) {}
 }
-function addItemsToCart(itemsMap) {
-  const cart = getCart();
-  const existingIds = new Set(cart.map(i => i.id));
-  let added = 0;
-  itemsMap.forEach((item, id) => {
-    if (existingIds.has(id)) return;
-    cart.push(item);
-    existingIds.add(id);
-    added++;
-  });
-  saveCart(cart);
-  return added;
+function cartHasId(id) {
+  return getCart().some(i => i.id === id);
 }
 function removeCartItem(id) {
   saveCart(getCart().filter(i => i.id !== id));
 }
 
-function updateCartBarLabel(kind) {
-  const btn = document.getElementById(kind === 'news' ? 'newsAddToCartBtn' : 'billAddToCartBtn');
-  const map = kind === 'news' ? state.newsCheckedItems : state.billCheckedItems;
-  if (btn) btn.textContent = map.size ? `선택 담기 (${map.size})` : '선택 담기';
+// 뉴스/입법 카드마다 붙는 "담기" 버튼 - 체크박스+일괄 담기 버튼 대신, 항목
+// 하나마다 바로 담고 뺄 수 있는 토글 버튼으로 바꿨다(사용자 요청, 2026-09-14 -
+// "ㅁ 박스보다는 담기가 나은거 같은데?"). 버튼 자체의 data-* 속성에 담을
+// 내용을 실어두고, 클릭 시 지금 장바구니에 있는지 여부로 담기/빼기를 정한다.
+function toggleCartItem(btn) {
+  const id = btn.dataset.cartId;
+  if (cartHasId(id)) {
+    removeCartItem(id);
+  } else {
+    const cart = getCart();
+    cart.push({ id, type: btn.dataset.type, category: btn.dataset.category, title: btn.dataset.title, link: btn.dataset.link });
+    saveCart(cart);
+  }
+  updateCartInlineBtn(btn);
+  renderTabsAndDate(); // 탭의 담은 건수 + 사이드바 미리보기도 같이 갱신
+  if (state.activeTab === '장바구니') renderCartView();
+}
+function updateCartInlineBtn(btn) {
+  const inCart = cartHasId(btn.dataset.cartId);
+  btn.textContent = inCart ? '담음' : '담기';
+  btn.classList.toggle('in-cart', inCart);
 }
 
 function renderCartView() {
@@ -1190,16 +1196,6 @@ function renderCartPreview() {
   });
 }
 
-document.getElementById('newsAddToCartBtn').addEventListener('click', () => {
-  addItemsToCart(state.newsCheckedItems);
-  state.newsCheckedItems.clear();
-  renderAll();
-});
-document.getElementById('billAddToCartBtn').addEventListener('click', () => {
-  addItemsToCart(state.billCheckedItems);
-  state.billCheckedItems.clear();
-  renderAll();
-});
 document.getElementById('cartClearBtn').addEventListener('click', () => {
   saveCart([]);
   renderCartView();
@@ -1302,10 +1298,6 @@ const state = {
   penaltySearch: '',
   penaltyPage: 1,
   penaltyPageSize: getSavedPageSize('penalty'),
-  // 장바구니에 아직 안 담고 체크만 해둔 항목(탭을 벗어나면 초기화됨 - 담긴
-  // 것만 localStorage에 영구 저장된다). id -> {id, type, category, title, link}
-  newsCheckedItems: new Map(),
-  billCheckedItems: new Map(),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -2192,12 +2184,11 @@ function renderMainList(scoped, allGroups) {
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
       const related = g.rows.map(r => {
         const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
-        const rChecked = state.newsCheckedItems.has(rCartId);
+        const rInCart = cartHasId(rCartId);
         const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
         return `<div class="related-row-item">
-          <input type="checkbox" class="cart-check news-cart-check" data-cart-id="${rCartId}"
-            data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}" ${rChecked?'checked':''}
-            title="장바구니에 담기">
+          <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
+            data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
           - [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a>
         </div>`;
       }).join('');
@@ -2220,16 +2211,8 @@ function renderMainList(scoped, allGroups) {
     listEl.querySelectorAll('.toggle-btn').forEach(btn => {
       btn.addEventListener('click', () => { const k = btn.dataset.key; state.openIssues[k] = !state.openIssues[k]; renderMainList(scoped, allGroups); });
     });
-    listEl.querySelectorAll('.news-cart-check').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const id = cb.dataset.cartId;
-        if (cb.checked) {
-          state.newsCheckedItems.set(id, { id, type: 'news', category: cb.dataset.category, title: cb.dataset.title, link: cb.dataset.link });
-        } else {
-          state.newsCheckedItems.delete(id);
-        }
-        updateCartBarLabel('news');
-      });
+    listEl.querySelectorAll('.news-cart-inline-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCartItem(btn));
     });
   }
 
@@ -2589,13 +2572,12 @@ function renderBillList() {
         ? `<a href="${summaryLink}" class="summary-box-blue bill-popup-link" data-url="${summaryLink}">${b.summary}</a>`
         : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" class="bill-popup-link" data-url="${summaryLink}">원문 보기</a>)</div>`;
       const cartId = 'bill:' + b.id;
-      const cartChecked = state.billCheckedItems.has(cartId);
+      const cartInCart = cartHasId(cartId);
       const cartTitle = titleAttr + (b.no ? ` (의안번호 ${b.no})` : '');
       return `<div class="article-card bill-card">
         <div class="card-head bill-title-line">
-          <input type="checkbox" class="cart-check bill-cart-check" data-cart-id="${cartId}"
-            data-title="${cartTitle}" data-link="${summaryLink}" ${cartChecked?'checked':''}
-            title="장바구니에 담기">
+          <button type="button" class="cart-inline-btn bill-cart-inline-btn ${cartInCart?'in-cart':''}" data-cart-id="${cartId}"
+            data-type="bill" data-title="${cartTitle}" data-link="${summaryLink}" data-category="법안">${cartInCart?'담음':'담기'}</button>
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
@@ -2608,16 +2590,8 @@ function renderBillList() {
     listEl.querySelectorAll('.star-btn').forEach(btn => {
       btn.addEventListener('click', () => { toggleStarredBill(btn.dataset.id); renderBillList(); });
     });
-    listEl.querySelectorAll('.bill-cart-check').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const id = cb.dataset.cartId;
-        if (cb.checked) {
-          state.billCheckedItems.set(id, { id, type: 'bill', category: '법안', title: cb.dataset.title, link: cb.dataset.link });
-        } else {
-          state.billCheckedItems.delete(id);
-        }
-        updateCartBarLabel('bill');
-      });
+    listEl.querySelectorAll('.bill-cart-inline-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCartItem(btn));
     });
     listEl.querySelectorAll('.bill-popup-link').forEach(a => {
       a.addEventListener('click', (e) => {
