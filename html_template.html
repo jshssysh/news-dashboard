@@ -848,7 +848,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         </div>
         <div class="sidebar-panel" id="cartPreviewPanel">
           <div class="panel-title">담기 미리보기</div>
-          <div id="cartPreviewList"></div>
+          <div id="cartPreviewList" class="cart-preview-list"></div>
         </div>
       </div>
     </div>
@@ -886,6 +886,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="stage-flow-compact" id="billStatusChipRow"></div>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
+      </div>
+      <div class="sidebar-panel" id="billCartPreviewPanel">
+        <div class="panel-title" style="cursor:default;">담기 미리보기</div>
+        <div id="billCartPreviewList" class="cart-preview-list"></div>
       </div>
       <hr class="thin">
       <div class="bill-result-row">
@@ -1171,27 +1175,30 @@ function renderCartView() {
   });
 }
 
-// 뉴스 탭 사이드바("수집 현황" 밑)에 지금까지 담은 항목을 간단히 보여주고,
-// 여기서도 바로 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 장바구니 탭까지
-// 안 가도 뭘 담았는지 바로 확인하고 정리할 수 있도록).
+// 뉴스 탭 사이드바("수집 현황" 밑)·입법 탭("전체▶입안▶상임위..." 흐름과
+// 법안 목록 사이)에 지금까지 담은 항목을 간단히 보여주고, 여기서도 바로
+// 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 장바구니 탭까지 안 가도 뭘
+// 담았는지 바로 확인하고 정리할 수 있도록). 두 탭 다 같은 내용을 보여주므로
+// .cart-preview-list 클래스를 가진 모든 위치에 한 번에 그린다.
 function renderCartPreview() {
-  const listEl = document.getElementById('cartPreviewList');
-  if (!listEl) return;
+  const lists = document.querySelectorAll('.cart-preview-list');
+  if (!lists.length) return;
   const cart = getCart();
-  if (!cart.length) {
-    listEl.innerHTML = "<div class='info-box' style='font-size:0.82em;padding:8px 10px;'>담은 항목이 없습니다.</div>";
-    return;
-  }
-  listEl.innerHTML = cart.map(it => `
-    <div class="cart-preview-item">
-      <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">[${it.category || '기타'}] ${it.title}</a>
-      <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
-    </div>`).join('');
-  listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      removeCartItem(btn.dataset.id);
-      renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기도 다시 그림
-      if (state.activeTab === '장바구니') renderCartView();
+  const html = cart.length
+    ? cart.map(it => `
+      <div class="cart-preview-item">
+        <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">[${it.category || '기타'}] ${it.title}</a>
+        <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
+      </div>`).join('')
+    : "<div class='info-box' style='font-size:0.82em;padding:8px 10px;'>담은 항목이 없습니다.</div>";
+  lists.forEach(listEl => {
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        removeCartItem(btn.dataset.id);
+        renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기들도 다시 그림
+        if (state.activeTab === '장바구니') renderCartView();
+      });
     });
   });
 }
