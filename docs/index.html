@@ -170,6 +170,19 @@ a.badge-skipped:hover { text-decoration: underline; }
 .custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
+/* 법령 탭 하단 "계약서 문구 검토(AI)" - Cloudflare Worker(worker/)를 통해
+   Gemini로 저촉 소지 조문을 판단한다(2026-09-14). */
+#contractCheckerBox { padding-top: 6px; }
+#contractClauseInput { width: 100%; box-sizing: border-box; background: var(--app-secondary-bg); color: var(--app-text);
+  border: 1px solid var(--app-border); border-radius: 8px; padding: 10px 12px; font-size: 0.9em;
+  font-family: inherit; resize: vertical; margin: 8px 0; }
+#contractClauseInput:focus { outline: none; border-color: var(--app-primary); }
+.contract-check-btn { background: var(--app-primary); color: #fff; border: none; border-radius: 7px;
+  padding: 8px 18px; font-size: 0.88em; font-weight: 700; cursor: pointer; }
+.contract-check-btn:hover { opacity: 0.9; }
+#contractCheckResult { margin-top: 12px; }
+#contractCheckResult .article-card { margin-bottom: 8px; }
+
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 /* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
    줄바꿈 - 모바일에서도 안 깨짐). 두 섹션의 아래 여백은 바깥 줄에서 대신 준다. */
@@ -976,6 +989,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
     </div>
     <div id="penaltyListArea"></div>
+
+    <hr class="thin">
+    <div class="bill-filter-sticky" id="contractCheckerBox">
+      <h5>계약서 문구 검토 (AI)</h5>
+      <textarea id="contractClauseInput" rows="5" placeholder="검토할 계약서 문구를 붙여넣으세요 (최대 8000자)"></textarea>
+      <button type="button" id="contractCheckBtn" class="contract-check-btn">검토</button>
+      <div id="contractCheckResult"></div>
+    </div>
   </div>
 
   <div id="view-empty" class="view">
@@ -983,7 +1004,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-14 10:33 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-14 11:21 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -2726,6 +2747,48 @@ document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
   savePageSize('penalty', state.penaltyPageSize);
   state.penaltyPage = 1;
   renderPenaltyList();
+});
+
+// ── 계약서 문구 검토 (Cloudflare Worker + Gemini, worker/ 참고) ──────────
+// GitHub Pages는 정적 사이트라 이 호출만은 별도로 배포한 Worker가 대신
+// 받는다. 배포 후 실제 워커 주소로 아래 값을 바꾼다.
+const CONTRACT_CHECKER_URL = 'https://news-dashboard-contract-checker.jshssysh.workers.dev';
+
+function contractRiskCardHtml(m) {
+  return `<div class="article-card">
+    <div class="card-head">
+      <span class="card-tags"><span class="chip-category">${m.law || ''}</span><span class="chip-alert">위험도 ${m.risk || '?'}</span></span>
+      <span class="article-title">${m.article || ''}</span>
+    </div>
+    <div class="summary-box-blue">${m.reason || ''}</div>
+  </div>`;
+}
+
+document.getElementById('contractCheckBtn').addEventListener('click', async () => {
+  const text = document.getElementById('contractClauseInput').value.trim();
+  const resultEl = document.getElementById('contractCheckResult');
+  if (!text) {
+    resultEl.innerHTML = "<div class='info-box'>검토할 문구를 입력해주세요.</div>";
+    return;
+  }
+  resultEl.innerHTML = "<div class='info-box'>검토 중…</div>";
+  try {
+    const res = await fetch(CONTRACT_CHECKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      resultEl.innerHTML = `<div class='info-box'>${data.error}</div>`;
+      return;
+    }
+    resultEl.innerHTML = (data.matches && data.matches.length)
+      ? data.matches.map(contractRiskCardHtml).join('')
+      : "<div class='info-box'>저촉 소지가 있는 조문을 찾지 못했습니다.</div>";
+  } catch (e) {
+    resultEl.innerHTML = "<div class='info-box'>검토 요청에 실패했습니다. 잠시 후 다시 시도해주세요.</div>";
+  }
 });
 
 function renderAll() {
