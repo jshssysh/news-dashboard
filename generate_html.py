@@ -37,6 +37,7 @@ BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
 MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
 WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
 DECISIONS_JSON_PATH = os.path.join(OUT_DIR, "decisions.json")
+LAW_PENALTIES_JSON_PATH = os.path.join(OUT_DIR, "law_penalties.json")
 TEMPLATE_PATH = "html_template.html"
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -161,6 +162,50 @@ def load_decisions():
             "link": nz(row.get("상세링크"), ""),
         }
         for _, row in ddf.iterrows()
+    ]
+
+
+def law_deep_link(law_name, article_label):
+    """법제처 공식 조문 딥링크(OC 인증키 불필요, 누구나 접근 가능)를 만든다.
+    조문라벨은 "제25조의3(과징금)"처럼 괄호 제목이 붙어있는데, 링크 경로에는
+    번호 부분만 써야 한다(예: "제25조의3")."""
+    bare = article_label.split("(")[0].strip()
+    from urllib.parse import quote
+    return f"https://www.law.go.kr/법령/{quote(law_name)}/{quote(bare)}"
+
+
+def load_law_penalties():
+    """collect_law_penalties.py가 쌓은 law_penalty_list.csv(공정위 소관 법령 +
+    상법의 벌칙/과징금/과태료/양벌규정 조문과 그 산정기준 별표)를 읽는다.
+    decision_list.csv처럼 무기한 누적이 아니라 매번 전체를 새로 받아쓰는
+    파일이라(법 개정이 반영되면 이전 조문은 그 자체가 사라짐) 별도 보관기간
+    제한이 필요 없다."""
+    path = "law_penalty_list.csv"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    try:
+        ldf = pd.read_csv(path, dtype=str, keep_default_na=False)
+    except Exception:
+        return []
+    ldf = ldf.sort_values("개정일", ascending=False)
+    return [
+        {
+            "lawName": nz(row.get("법령명"), ""),
+            "lawAbbr": nz(row.get("법령약칭"), ""),
+            "lawKind": nz(row.get("법령구분"), ""),
+            "article": nz(row.get("조문"), ""),
+            "kind": nz(row.get("유형"), ""),
+            "date": nz(row.get("개정일"), ""),
+            "requirement": nz(row.get("위반요건"), ""),
+            "prison": nz(row.get("형벌_징역"), ""),
+            "fine": nz(row.get("형벌_벌금"), ""),
+            "adminFine": nz(row.get("과태료"), ""),
+            "surcharge": nz(row.get("과징금"), ""),
+            "byllTitles": nz(row.get("산정기준별표"), ""),
+            "byllDetail": nz(row.get("산정기준상세"), ""),
+            "link": law_deep_link(nz(row.get("법령명"), ""), nz(row.get("조문"), "")),
+        }
+        for _, row in ldf.iterrows()
     ]
 
 
@@ -380,6 +425,42 @@ def bill_stats(bills):
     }
 
 
+def bill_stats_by_date(bills):
+    """뉴스 탭의 날짜 이동(state.currentDate)에 맞춰 '입법 현황' 타일도 그 날짜를
+    반영하고 싶다는 요청(2026-09-14)에 따라, 제안일별 누적 스냅샷 배열을 만든다.
+    화면은 이 배열을 날짜로 찾아(그 날짜 이하 중 가장 최근 것) 타일에 쓴다.
+
+    법안의 처리단계(상임위/법사위/본회의)는 그 날짜 시점의 실제 이력이 아니라
+    지금 저장된 현재값을 그대로 센다 - 단계 전환 이력을 따로 안 쌓으므로 과거
+    시점 재구성은 불가능하다(2026-09-14 확인된 요청사항: 이 정도로 충분하다는
+    사용자 확인 하에, "그 날짜까지 발의된 법안 수를 지금 단계 기준으로 집계"만
+    구현). 제안일이 없는 법안(위원장 발의 등 극소수)은 집계에서 제외한다.
+
+    bill_stats()의 전체 총계(BILL_STATS)와 별개로 두는 이유: 페이지 첫 로딩
+    직후(아직 날짜를 하나도 안 옮겼을 때)는 이 배열 없이도 곧바로 보여줄 값이
+    필요해서다."""
+    by_date = {}
+    for bill in bills:
+        date = bill.get("proposeDate")
+        if not date:
+            continue
+        by_date.setdefault(date, []).append(bill.get("stage", ""))
+
+    running = {"draft": 0, "committee": 0, "law": 0, "plenary": 0}
+    stage_key = {
+        "입안 및 발의": "draft", "상임위 심사": "committee",
+        "법사위 심사": "law", "본회의 의결": "plenary",
+    }
+    snapshots = []
+    for date in sorted(by_date.keys()):
+        for stage in by_date[date]:
+            key = stage_key.get(stage)
+            if key:
+                running[key] += 1
+        snapshots.append({"date": date, "total": sum(running.values()), **running})
+    return snapshots
+
+
 def sanitize(rows):
     """혹시 위에서 놓친 결측이 남아 있으면 여기서 마지막으로 걷어낸다.
 
@@ -414,16 +495,19 @@ def build():
     members = load_members(bills)
     cluster_warnings = load_cluster_warnings()
     decisions = load_decisions()
+    law_penalties = load_law_penalties()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
     personnel_json = json.dumps(sanitize(personnel), ensure_ascii=False, allow_nan=False)
     stats_json = json.dumps(bill_stats(bills), ensure_ascii=False, allow_nan=False)
+    date_stats_json = json.dumps(bill_stats_by_date(bills), ensure_ascii=False, allow_nan=False)
 
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
 
     html = template.replace("__PERSONNEL_DATA_JSON__", personnel_json.replace("</", "<\\/"))
+    html = html.replace("__BILL_DATE_STATS_JSON__", date_stats_json.replace("</", "<\\/"))
     html = html.replace("__BILL_STATS_JSON__", stats_json.replace("</", "<\\/"))
     html = html.replace("__GENERATED_AT__", now_kst)
 
@@ -435,6 +519,7 @@ def build():
     members_bytes = dump_json(MEMBERS_JSON_PATH, members)
     warnings_bytes = dump_json(WARNINGS_JSON_PATH, cluster_warnings)
     decisions_bytes = dump_json(DECISIONS_JSON_PATH, decisions)
+    law_penalties_bytes = dump_json(LAW_PENALTIES_JSON_PATH, law_penalties)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
@@ -443,7 +528,8 @@ def build():
         f"  {BILLS_JSON_PATH:<20} {bills_bytes/1024:8.0f}KB (법안 {len(bills)}건)\n"
         f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)\n"
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
-        f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)"
+        f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)\n"
+        f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)"
     )
 
 

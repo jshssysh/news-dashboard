@@ -631,29 +631,29 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #newsFilterToggle.is-collapsed .toggle-caret,
   #sidebarToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
 
-  /* 입법 탭: "검색"/☆ 즐겨찾기/"소관위"를 한 줄로(사용자 요청) - 세 개는 길이가
-     다 달라서 뉴스 탭처럼 반반 등분하지 않고 각자 필요한 만큼만 차지하게 둔다. */
-  #mobileBillToggleRow { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
-  #mobileBillToggleRow > * { flex: 0 0 auto; margin: 0 !important; padding: 0; cursor: pointer;
-    display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; border: none; background: none; color: inherit; }
-  #mobileBillToggleRow #billStarredToggle { font-size: 0.99em; }
-  #mobileBillToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  /* 입법 탭: "검색"▶ 토글 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 한 줄에서
+     같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"과 "제안일"이
+     서로 다른 두 줄이었다). "소관위"는 사용자가 지정한 순서에 없었으므로 이
+     줄에서 빼고 원래 있던 자리(바로 아래 filter-section)에 그대로 둔다. */
+  #mobileBillSearchRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  #mobileBillSearchRow > * { margin: 0 !important; padding: 0; }
+  #mobileBillSearchRow #billSearchToggle { flex: 0 0 auto; display: flex; align-items: center; gap: 4px;
+    font-weight: 700; font-size: 0.95em; cursor: pointer; }
+  #mobileBillSearchRow #billStarredToggle { flex: 0 0 auto; font-size: 0.99em; cursor: pointer;
+    border: none; background: none; color: inherit; }
+  #mobileBillSearchRow #billSearchInput { flex: 1 1 100px; min-width: 0; }
+  #mobileBillSearchRow .custom-range-inputs { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; font-size: 0.82em; }
+  #mobileBillSearchRow .custom-range-inputs input[type=date] { min-width: 0; width: 106px; padding: 5px 3px; font-size: 0.88em; }
+  #mobileBillSearchRow #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
+  #mobileBillSearchRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #billSearchToggle.is-collapsed .toggle-caret,
   .filter-section-toggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 접으면 "검색"▶ 토글 자신만 남기고 나머지(제안일 범위·☆·검색창)는 숨긴다. */
+  #mobileBillSearchRow.bill-search-collapsed > *:not(#billSearchToggle) { display: none; }
   /* "소관위" 접었을 때(▶) 그 밑에 남아있는 "전체 14831" 칩도 같이 숨긴다.
-     토글 버튼 자체는 이미 위 공유 행으로 옮겨졌으니(#mobileBillToggleRow),
-     여기 남은 .filter-section-header에는 그 칩과 현재선택 태그뿐이라 통째로
-     숨겨도 다시 펼치는 버튼이 사라지는 문제가 없다 - #committeeFilterSection
-     하나로만 한정해서, 토글 버튼이 안 옮겨지는 다른 필터 섹션(심·판결 구분,
-     의원 정당/법안/소속위원회)이나 데스크톱에는 영향 없다. */
-  /* 헤더만 숨기면 .filter-section 자신의 테두리·여백(border/padding)이 남아
+     헤더만 숨기면 .filter-section 자신의 테두리·여백(border/padding)이 남아
      빈 상자로 보인다(실측) - 접혔을 때는 섹션 전체를 숨긴다. */
   #committeeFilterSection.collapsed { display: none; }
-  /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. 제안일 필터도
-     검색 관련 필터라 같이 묶어서 접는다(사용자 요청) - .bill-date-filter-row는
-     #billMainFilterRow의 형제 요소라 같은 클래스를 자기 자신에도 받아서 숨는다. */
-  #billMainFilterRow.bill-search-collapsed #billSearchInput { display: none; }
-  .bill-date-filter-row.bill-search-collapsed { display: none; }
 
   /* 의원 탭: "국회의원 제22대" -> "검색"으로 간소화하고(입법 탭과 같은 패턴),
      접으면 "기본" 범위토글 버튼과 검색창을 같이 숨긴다(사용자 요청,
@@ -678,15 +678,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #partyFilterSection.collapsed,
   #billBucketFilterSection.collapsed,
   #memberCommitteeFilterSection.collapsed { display: none; }
-
-  /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
-     두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
-     좁으니 라벨·입력칸·버튼을 조금씩 줄여서 한 줄에 맞춘다. */
-  .bill-date-filter-row { flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 6px; }
-  .bill-date-filter-label { width: auto !important; font-size: 0.78em; }
-  .bill-date-filter-row .custom-range-inputs { flex: 1 1 auto; min-width: 0; gap: 4px; font-size: 0.82em; }
-  .bill-date-filter-row .custom-range-inputs input[type=date] { min-width: 0; flex: 1 1 0; padding: 5px 3px; font-size: 0.92em; }
-  .bill-date-filter-row #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
 
   /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
   .kw-row { margin-bottom: 14px; }
@@ -953,6 +944,40 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div id="memberListArea"></div>
   </div>
 
+  <div id="view-penalty" class="view">
+    <hr class="thin">
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>법령</h5>
+        <input type="text" id="penaltySearchInput" placeholder="법령명, 조문, 위반요건에서 검색">
+      </div>
+      <div class="filter-section" id="penaltyKindFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="penaltyKindFilterSection">유형 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="penaltyKindCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="penaltyKindChipRow"></div>
+      </div>
+      <div class="filter-section" id="penaltyLawFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="penaltyLawFilterSection">법령 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="penaltyLawCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="penaltyLawChipRow"></div>
+      </div>
+      <hr class="thin">
+      <div class="bill-result-row">
+        <div class="result-caption" id="penaltyResultCaption"></div>
+        <div class="pg-top"><select id="penaltyPageSizeSel">
+          <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+        </select></div>
+        <div class="pg-nav" id="penaltyPgNav"></div>
+      </div>
+      <hr class="thin">
+    </div>
+    <div id="penaltyListArea"></div>
+  </div>
+
   <div id="view-empty" class="view">
     <hr class="thin">
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
@@ -968,12 +993,31 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 let NEWS_DATA = [];
 let BILL_DATA = [];
 let DECISION_DATA = [];
+let LAW_PENALTY_DATA = [];
 let MEMBER_DATA = [];
 let WARNINGS_DATA = [];
 let allDates = [];
 const PERSONNEL_DATA = __PERSONNEL_DATA_JSON__;
 // 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
 const BILL_STATS = __BILL_STATS_JSON__;
+// 뉴스 탭 날짜 이동에 맞춰 타일도 "그 날짜까지 발의된 법안" 누적치를 보여주기 위한
+// 날짜별 스냅샷 배열(제안일 오름차순) - generate_html.py의 bill_stats_by_date 참고.
+const BILL_DATE_STATS = __BILL_DATE_STATS_JSON__;
+
+// state.currentDate는 "2026/09/07"(뉴스 탭 날짜 표기)이고 BILL_DATE_STATS의 date는
+// "2026-09-07"(제안일 원본 표기)이라 구분자가 다르다 - 비교 전에 맞춰준다.
+function getBillStatsForDate(currentDate) {
+  if (!BILL_DATE_STATS.length || !currentDate) return BILL_STATS;
+  const target = currentDate.replace(/\//g, '-');
+  // BILL_DATE_STATS는 날짜 오름차순이므로, target 이하인 것 중 가장 마지막(최신) 항목을 찾는다.
+  let lo = 0, hi = BILL_DATE_STATS.length - 1, found = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (BILL_DATE_STATS[mid].date <= target) { found = BILL_DATE_STATS[mid]; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return found || { total: 0, draft: 0, committee: 0, law: 0, plenary: 0 };
+}
 
 const STARRED_BILLS_KEY = 'starredBills';
 function getStarredBills() {
@@ -997,7 +1041,7 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
-const TAB_VALUES = ['뉴스', '입법', '국회의원'];
+const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령'];
 function getSavedTab() {
   // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
   // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
@@ -1012,7 +1056,7 @@ function saveActiveTab(tab) {
 
 // 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
 // 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
-const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize', decision: 'decisionPageSize' };
+const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize', decision: 'decisionPageSize', penalty: 'penaltyPageSize' };
 // 좁은 화면에서는 한 화면에 한두 건씩 보고 넘기는 편이 편해서 1~5를 넣고 50은 뺀다.
 const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
 const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
@@ -1030,7 +1074,7 @@ function getSavedPageSize(kind) {
 }
 // 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
 function fillPageSizeOptions() {
-  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명', decisionPageSizeSel: '건' };
+  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명', decisionPageSizeSel: '건', penaltyPageSizeSel: '건' };
   Object.keys(unitById).forEach(id => {
     const sel = document.getElementById(id);
     if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}${unitById[id]}</option>`).join('');
@@ -1078,6 +1122,11 @@ const state = {
   decisionSearch: '',
   decisionPage: 1,
   decisionPageSize: getSavedPageSize('decision'),
+  penaltyKind: '전체',
+  penaltyLaw: '전체',
+  penaltySearch: '',
+  penaltyPage: 1,
+  penaltyPageSize: getSavedPageSize('penalty'),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1247,28 +1296,32 @@ function renderTopTiles() {
      </div>`;
 
   // 법안 목록(bills.json)은 입법 탭을 볼 때만 받으므로, 이 타일은 미리 세어 둔
-  // BILL_STATS 로 그린다(목록이 아직 없어도 숫자는 정확하다).
+  // BILL_DATE_STATS(제안일 누적 스냅샷)에서 지금 보고 있는 날짜(state.currentDate)에
+  // 해당하는 값을 찾아 그린다 - 목록이 아직 없어도 숫자는 정확하다. 뉴스 탭에서
+  // 날짜를 옮기면 "그 날짜까지 발의된 법안" 기준으로 같이 바뀐다(처리단계는 지금
+  // 저장된 현재값 기준 - 과거 시점 재구성은 아님).
+  const billStatsNow = getBillStatsForDate(state.currentDate);
   document.getElementById('statLaw').innerHTML =
-    `<div class="label">입법 현황 <span class="era-tag">제22대</span></div>
+    `<div class="label">입법 현황 <span class="era-tag">제22대 · ${state.currentDate || '-'}까지</span></div>
      <div class="value-line">
-       <span class="value">${BILL_STATS.total}건</span>
+       <span class="value">${billStatsNow.total}건</span>
        <div class="law-substats-block">
-         <div>입안 및 발의 ${BILL_STATS.draft}건</div>
-         <div>상임위 ${BILL_STATS.committee} · 법사위 ${BILL_STATS.law} · 본회의 ${BILL_STATS.plenary}</div>
+         <div>입안 및 발의 ${billStatsNow.draft}건</div>
+         <div>상임위 ${billStatsNow.committee} · 법사위 ${billStatsNow.law} · 본회의 ${billStatsNow.plenary}</div>
        </div>
      </div>`;
 
   // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약 - 펼친 타일과 같은 숫자를 써야 하므로
   // 여기도 수집일자 기준 groups가 아니라 발행시각 기준 windowGroups를 쓴다.
   document.getElementById('statSummaryText').textContent =
-    `수집 ${windowGroups.length}건 · 입법 ${BILL_STATS.total}건 (발의 ${BILL_STATS.draft})`;
+    `수집 ${windowGroups.length}건 · 입법 ${billStatsNow.total}건 (발의 ${billStatsNow.draft})`;
 
   return { dr, groups, sentCounts };
 }
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
@@ -2531,13 +2584,170 @@ document.getElementById('decisionPageSizeSel').addEventListener('change', e => {
   renderDecisionList();
 });
 
+// ── 법령(벌칙/과징금) ──────────────────────────────────────────────
+function lawPenaltyCardHtml(r) {
+  const badges = [`<span class="chip-category">${r.lawAbbr}</span>`, `<span class="chip-tag-warn">${r.kind}</span>`];
+  if (r.prison) badges.push(`<span class="chip-alert">${r.prison}</span>`);
+  if (r.fine) badges.push(`<span class="chip-alert">${r.fine}</span>`);
+  if (r.adminFine) badges.push(`<span class="chip-alert">${r.adminFine}</span>`);
+  if (r.surcharge) badges.push(`<span class="chip-alert">${r.surcharge}</span>`);
+  const byllHtml = r.byllDetail
+    ? `<div class="decision-summary-row">
+        <div class="summary-box-blue decision-summary-text">[산정기준] ${r.byllDetail}</div>
+        <button type="button" class="decision-summary-toggle" title="산정기준 펼치기/접기">▼</button>
+      </div>`
+    : '';
+  return `<div class="article-card">
+    <div class="card-head decision-card-head">
+      <span class="card-tags">${badges.join(' ')}</span>
+      <a class="article-title" href="${r.link}" target="_blank">${r.article}</a>
+      <span class="card-meta-group"><span class="card-meta-inline">개정일 ${r.date} · ${r.lawName}</span></span>
+    </div>
+    <div class="decision-summary-row">
+      <div class="summary-box-blue decision-summary-text">${r.requirement}</div>
+      <button type="button" class="decision-summary-toggle" title="조문 전문 펼치기/접기">▼</button>
+    </div>
+    ${byllHtml}
+  </div>`;
+}
+
+function renderPenaltyKindChipRow() {
+  const counts = {};
+  LAW_PENALTY_DATA.forEach(r => { counts[r.kind || '기타'] = (counts[r.kind || '기타']||0) + 1; });
+  if (state.penaltyKind !== '전체' && !(state.penaltyKind in counts)) state.penaltyKind = '전체';
+  const row = document.getElementById('penaltyKindChipRow');
+  const tag = document.getElementById('penaltyKindCurrentTag');
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  tag.textContent = state.penaltyKind === '전체' ? '' : `${state.penaltyKind} ${counts[state.penaltyKind]||0}`;
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyKind===v?'active':''}">${v} ${cnt}</button>`;
+  }).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.penaltyKind = btn.dataset.val;
+    state.penaltyPage = 1;
+    renderPenaltyList();
+  }));
+}
+
+function renderPenaltyLawChipRow() {
+  const counts = {};
+  LAW_PENALTY_DATA.forEach(r => { counts[r.lawAbbr || '기타'] = (counts[r.lawAbbr || '기타']||0) + 1; });
+  if (state.penaltyLaw !== '전체' && !(state.penaltyLaw in counts)) state.penaltyLaw = '전체';
+  const row = document.getElementById('penaltyLawChipRow');
+  const tag = document.getElementById('penaltyLawCurrentTag');
+  // 법령이 27개나 되므로 등장 빈도(=벌칙류 조문 수)가 아니라 이름 가나다순으로 보여야 찾기 쉽다.
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => a.localeCompare(b, 'ko')));
+  tag.textContent = state.penaltyLaw === '전체' ? '' : `${state.penaltyLaw} ${counts[state.penaltyLaw]||0}`;
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyLaw===v?'active':''}">${v} ${cnt}</button>`;
+  }).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.penaltyLaw = btn.dataset.val;
+    state.penaltyPage = 1;
+    renderPenaltyList();
+  }));
+}
+
+function renderLawPenalties() {
+  renderPenaltyKindChipRow();
+  renderPenaltyLawChipRow();
+  renderPenaltyList();
+}
+
+function renderPenaltyList() {
+  let filtered = LAW_PENALTY_DATA.slice();
+  if (state.penaltyKind !== '전체') filtered = filtered.filter(r => r.kind === state.penaltyKind);
+  if (state.penaltyLaw !== '전체') filtered = filtered.filter(r => r.lawAbbr === state.penaltyLaw);
+  if (state.penaltySearch) {
+    filtered = filtered.filter(r => matchesSearchTokens([r.lawName, r.article, r.requirement], state.penaltySearch));
+  }
+  // LAW_PENALTY_DATA는 이미 개정일 내림차순으로 온다(generate_html.py) - 사용자가
+  // 요청한 표시 순서(개정일 -> 형벌 -> 과징금 -> 위반요건)의 첫 기준이 바로 이것.
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.penaltyPageSize));
+  if (state.penaltyPage > totalPages) state.penaltyPage = totalPages;
+  if (state.penaltyPage < 1) state.penaltyPage = 1;
+  const startN = (state.penaltyPage - 1) * state.penaltyPageSize;
+  const pageItems = filtered.slice(startN, startN + state.penaltyPageSize);
+
+  document.getElementById('penaltyResultCaption').textContent = totalCount === 0
+    ? "조건에 맞는 조문이 없습니다."
+    : `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.penaltyPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  document.getElementById('penaltyPageSizeSel').value = String(state.penaltyPageSize);
+
+  const listEl = document.getElementById('penaltyListArea');
+  listEl.innerHTML = pageItems.length ? pageItems.map(lawPenaltyCardHtml).join('')
+    : "<div class='info-box'>조건에 맞는 조문이 없습니다.</div>";
+  listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
+
+  renderPenaltyPagination(totalPages);
+}
+
+function renderPenaltyPagination(totalPages) {
+  const pg = document.getElementById('penaltyPgNav');
+  const WINDOW = 10;
+  const startP = Math.max(1, Math.min(state.penaltyPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let navHtml = `<button id="penaltyPgPrev" ${state.penaltyPage<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.penaltyPage?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="penaltyPgNext" ${state.penaltyPage>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = navHtml;
+  document.getElementById('penaltyPgPrev').addEventListener('click', () => { if (state.penaltyPage>1) { state.penaltyPage--; renderPenaltyList(); } });
+  document.getElementById('penaltyPgNext').addEventListener('click', () => { if (state.penaltyPage<totalPages) { state.penaltyPage++; renderPenaltyList(); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.penaltyPage = parseInt(b.dataset.p,10); renderPenaltyList(); }));
+}
+
+let lawPenaltiesLoaded = false;
+let lawPenaltiesPromise = null;
+function ensureLawPenalties() {
+  if (lawPenaltiesLoaded) return Promise.resolve();
+  if (!lawPenaltiesPromise) {
+    lawPenaltiesPromise = loadJson('law_penalties.json')
+      .then(rows => { LAW_PENALTY_DATA = rows; lawPenaltiesLoaded = true; })
+      .catch(err => { lawPenaltiesPromise = null; throw err; });
+  }
+  return lawPenaltiesPromise;
+}
+
+document.getElementById('penaltySearchInput').addEventListener('input', e => {
+  state.penaltySearch = e.target.value;
+  state.penaltyPage = 1;
+  renderPenaltyList();
+});
+document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
+  state.penaltyPageSize = parseInt(e.target.value, 10);
+  savePageSize('penalty', state.penaltyPageSize);
+  state.penaltyPage = 1;
+  renderPenaltyList();
+});
+
 function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
 
-  ['view-news','view-law','view-org','view-decision','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+  ['view-news','view-law','view-org','view-decision','view-penalty','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '심결판결') {
+  if (state.activeTab === '법령') {
+    document.getElementById('view-penalty').classList.add('active');
+    if (lawPenaltiesLoaded) {
+      renderLawPenalties();
+    } else {
+      document.getElementById('penaltyListArea').innerHTML =
+        "<div class='info-box'>법령 목록을 불러오는 중…</div>";
+      ensureLawPenalties().then(() => { if (state.activeTab === '법령') renderAll(); })
+        .catch(() => {
+          document.getElementById('penaltyListArea').innerHTML =
+            "<div class='info-box'>법령 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
+  } else if (state.activeTab === '심결판결') {
     document.getElementById('view-decision').classList.add('active');
     if (decisionsLoaded) {
       renderDecisions();
@@ -2780,37 +2990,44 @@ if (IS_NARROW) {
   }
 }
 
-// 입법 탭: "검색"/☆ 즐겨찾기/"소관위" 세 토글을 모바일에서만 한 줄로 합치고,
-// 검색창도 모바일에서만 접었다 펼친다(사용자 요청, 2026-09-11 - 데스크톱은
-// 원래처럼 검색창이 항상 보이는 채로 둔다. "소관위"는 원래 있던 필터-섹션
-// 토글 버튼을 그대로 재사용하되 공유 행으로 옮긴다 - 그 몸통인 위원회 칩
-// 목록은 #committeeFilterSection 안에 그대로 남아 원래 순서대로 펼쳐진다).
+// 입법 탭: "검색"▶ 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 모바일에서만 한
+// 줄로 합쳐서 같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"
+// 줄과 "제안일" 줄이 따로였다. 데스크톱은 원래처럼 각자 자리에 그대로 둔다).
+// "소관위"는 이 줄에 넣지 않고 원래 있던 필터-섹션에 그대로 남겨둔다.
 const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
 const billMainFilterRow = document.getElementById('billMainFilterRow');
 const billSearchToggleEl = document.getElementById('billSearchToggle');
 const billDateFilterRow = document.querySelector('.bill-date-filter-row');
+// 주의: 뉴스 탭에도 같은 클래스(.custom-range-inputs)를 쓰는 날짜 범위 입력이
+// 있어(id="customRangeInputs", 평소엔 style="display:none") 문서 전체에서
+// querySelector로 찾으면 그쪽이 먼저 걸린다 - billDateFilterRow 안에서만 찾는다.
+const billDateRangeEl = billDateFilterRow ? billDateFilterRow.querySelector('.custom-range-inputs') : null;
 if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
   const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
     ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
-  billMainFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
-  billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
-  if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
-  billSearchToggleEl.addEventListener('click', () => {
-    const on = billMainFilterRow.classList.toggle('bill-search-collapsed');
-    billSearchToggleEl.classList.toggle('is-collapsed', on);
-    if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', on);
-    writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
-  });
 
   const billStarredToggleEl = document.getElementById('billStarredToggle');
-  const billCommitteeToggleEl = document.getElementById('billCommitteeToggle');
-  if (billStarredToggleEl && billCommitteeToggleEl && billMainFilterRow.parentNode) {
+  const billSearchInputEl = document.getElementById('billSearchInput');
+  if (billStarredToggleEl && billSearchInputEl && billMainFilterRow.parentNode) {
     const billCombinedRow = document.createElement('div');
-    billCombinedRow.id = 'mobileBillToggleRow';
+    billCombinedRow.id = 'mobileBillSearchRow';
     billCombinedRow.appendChild(billSearchToggleEl);
+    if (billDateRangeEl) billCombinedRow.appendChild(billDateRangeEl);
     billCombinedRow.appendChild(billStarredToggleEl);
-    billCombinedRow.appendChild(billCommitteeToggleEl);
+    billCombinedRow.appendChild(billSearchInputEl);
     billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
+    // 검색토글/☆/입력창이 다 옮겨져 비었으니(billMainFilterRow), "제안일" 라벨만
+    // 남아 빈 껍데기가 되는 billDateFilterRow와 함께 통째로 숨긴다.
+    billMainFilterRow.style.display = 'none';
+    if (billDateFilterRow) billDateFilterRow.style.display = 'none';
+
+    billCombinedRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
+    billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
+    billSearchToggleEl.addEventListener('click', () => {
+      const on = billCombinedRow.classList.toggle('bill-search-collapsed');
+      billSearchToggleEl.classList.toggle('is-collapsed', on);
+      writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
+    });
   }
 }
 
