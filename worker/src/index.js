@@ -112,22 +112,40 @@ ${corpusBlock}
 ]}`;
 }
 
+// 8B급 모델은 프롬프트 지시만으로는 JSON 문법을 종종 깨뜨려서(실측:
+// "Expected ',' or ']'" 파싱 오류) - Workers AI의 JSON Mode(json_schema)로
+// 문법 자체를 강제한다. 이 모드를 지원하는 모델만 안전하며(Llama 3.1/3.3
+// 계열 포함), 스키마와 다르면 "JSON Mode couldn't be met" 오류가 난다.
+const MATCHES_SCHEMA = {
+  type: "object",
+  properties: {
+    matches: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          law: { type: "string" },
+          article: { type: "string" },
+          risk: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["law", "article", "risk", "reason"],
+      },
+    },
+  },
+  required: ["matches"],
+};
+
 async function callWorkersAI(clauseText, corpus, env) {
   const result = await env.AI.run(AI_MODEL, {
     messages: [
-      { role: "system", content: "당신은 지시받은 형식의 JSON만 출력하는 어시스턴트입니다. 코드블록이나 설명 없이 순수 JSON만 출력하세요." },
+      { role: "system", content: "당신은 지시받은 JSON 스키마 형식으로만 응답하는 어시스턴트입니다." },
       { role: "user", content: buildPrompt(clauseText, corpus) },
     ],
+    response_format: { type: "json_schema", json_schema: MATCHES_SCHEMA },
   });
 
-  let raw = (result.response || "").trim();
-  if (raw.startsWith("```json")) raw = raw.slice(7);
-  if (raw.startsWith("```")) raw = raw.slice(3);
-  if (raw.endsWith("```")) raw = raw.slice(0, -3);
-  // 모델이 JSON 앞뒤로 군말을 붙이는 경우가 있어, 첫 '{'부터 마지막 '}'까지만 잘라 파싱한다.
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error(`JSON을 찾지 못함: ${raw.slice(0, 200)}`);
-  const parsed = JSON.parse(raw.slice(start, end + 1));
-  return Array.isArray(parsed.matches) ? parsed.matches : [];
+  // env.AI.run이 이미 파싱된 객체를 줄 수도, 문자열을 줄 수도 있어 방어적으로 처리한다.
+  const parsed = typeof result.response === "string" ? JSON.parse(result.response) : result.response;
+  return Array.isArray(parsed?.matches) ? parsed.matches : [];
 }
