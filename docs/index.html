@@ -631,29 +631,29 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #newsFilterToggle.is-collapsed .toggle-caret,
   #sidebarToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
 
-  /* 입법 탭: "검색"/☆ 즐겨찾기/"소관위"를 한 줄로(사용자 요청) - 세 개는 길이가
-     다 달라서 뉴스 탭처럼 반반 등분하지 않고 각자 필요한 만큼만 차지하게 둔다. */
-  #mobileBillToggleRow { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
-  #mobileBillToggleRow > * { flex: 0 0 auto; margin: 0 !important; padding: 0; cursor: pointer;
-    display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; border: none; background: none; color: inherit; }
-  #mobileBillToggleRow #billStarredToggle { font-size: 0.99em; }
-  #mobileBillToggleRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+  /* 입법 탭: "검색"▶ 토글 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 한 줄에서
+     같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"과 "제안일"이
+     서로 다른 두 줄이었다). "소관위"는 사용자가 지정한 순서에 없었으므로 이
+     줄에서 빼고 원래 있던 자리(바로 아래 filter-section)에 그대로 둔다. */
+  #mobileBillSearchRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  #mobileBillSearchRow > * { margin: 0 !important; padding: 0; }
+  #mobileBillSearchRow #billSearchToggle { flex: 0 0 auto; display: flex; align-items: center; gap: 4px;
+    font-weight: 700; font-size: 0.95em; cursor: pointer; }
+  #mobileBillSearchRow #billStarredToggle { flex: 0 0 auto; font-size: 0.99em; cursor: pointer;
+    border: none; background: none; color: inherit; }
+  #mobileBillSearchRow #billSearchInput { flex: 1 1 100px; min-width: 0; }
+  #mobileBillSearchRow .custom-range-inputs { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; font-size: 0.82em; }
+  #mobileBillSearchRow .custom-range-inputs input[type=date] { min-width: 0; width: 106px; padding: 5px 3px; font-size: 0.88em; }
+  #mobileBillSearchRow #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
+  #mobileBillSearchRow .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #billSearchToggle.is-collapsed .toggle-caret,
   .filter-section-toggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 접으면 "검색"▶ 토글 자신만 남기고 나머지(제안일 범위·☆·검색창)는 숨긴다. */
+  #mobileBillSearchRow.bill-search-collapsed > *:not(#billSearchToggle) { display: none; }
   /* "소관위" 접었을 때(▶) 그 밑에 남아있는 "전체 14831" 칩도 같이 숨긴다.
-     토글 버튼 자체는 이미 위 공유 행으로 옮겨졌으니(#mobileBillToggleRow),
-     여기 남은 .filter-section-header에는 그 칩과 현재선택 태그뿐이라 통째로
-     숨겨도 다시 펼치는 버튼이 사라지는 문제가 없다 - #committeeFilterSection
-     하나로만 한정해서, 토글 버튼이 안 옮겨지는 다른 필터 섹션(심·판결 구분,
-     의원 정당/법안/소속위원회)이나 데스크톱에는 영향 없다. */
-  /* 헤더만 숨기면 .filter-section 자신의 테두리·여백(border/padding)이 남아
+     헤더만 숨기면 .filter-section 자신의 테두리·여백(border/padding)이 남아
      빈 상자로 보인다(실측) - 접혔을 때는 섹션 전체를 숨긴다. */
   #committeeFilterSection.collapsed { display: none; }
-  /* 검색창은 기본 접힘 - "검색" 토글을 누르기 전엔 안 보인다. 제안일 필터도
-     검색 관련 필터라 같이 묶어서 접는다(사용자 요청) - .bill-date-filter-row는
-     #billMainFilterRow의 형제 요소라 같은 클래스를 자기 자신에도 받아서 숨는다. */
-  #billMainFilterRow.bill-search-collapsed #billSearchInput { display: none; }
-  .bill-date-filter-row.bill-search-collapsed { display: none; }
 
   /* 의원 탭: "국회의원 제22대" -> "검색"으로 간소화하고(입법 탭과 같은 패턴),
      접으면 "기본" 범위토글 버튼과 검색창을 같이 숨긴다(사용자 요청,
@@ -678,15 +678,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #partyFilterSection.collapsed,
   #billBucketFilterSection.collapsed,
   #memberCommitteeFilterSection.collapsed { display: none; }
-
-  /* "제안일 ~초기화"가 기존엔 .news-filter-row 공용 규칙(세로 배치) 때문에
-     두 줄로 나뉘었다(사용자 요청으로 한 줄로) - 이 행만 가로 유지하고, 폭이
-     좁으니 라벨·입력칸·버튼을 조금씩 줄여서 한 줄에 맞춘다. */
-  .bill-date-filter-row { flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 6px; }
-  .bill-date-filter-label { width: auto !important; font-size: 0.78em; }
-  .bill-date-filter-row .custom-range-inputs { flex: 1 1 auto; min-width: 0; gap: 4px; font-size: 0.82em; }
-  .bill-date-filter-row .custom-range-inputs input[type=date] { min-width: 0; flex: 1 1 0; padding: 5px 3px; font-size: 0.92em; }
-  .bill-date-filter-row #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
 
   /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
   .kw-row { margin-bottom: 14px; }
@@ -953,12 +944,46 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div id="memberListArea"></div>
   </div>
 
+  <div id="view-penalty" class="view">
+    <hr class="thin">
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>법령</h5>
+        <input type="text" id="penaltySearchInput" placeholder="법령명, 조문, 위반요건에서 검색">
+      </div>
+      <div class="filter-section" id="penaltyKindFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="penaltyKindFilterSection">유형 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="penaltyKindCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="penaltyKindChipRow"></div>
+      </div>
+      <div class="filter-section" id="penaltyLawFilterSection">
+        <div class="filter-section-header">
+          <button class="filter-section-toggle" data-target="penaltyLawFilterSection">법령 <span class="toggle-caret">▼</span></button>
+          <span class="current-tag" id="penaltyLawCurrentTag"></span>
+        </div>
+        <div class="cat-chip-row filter-section-body" id="penaltyLawChipRow"></div>
+      </div>
+      <hr class="thin">
+      <div class="bill-result-row">
+        <div class="result-caption" id="penaltyResultCaption"></div>
+        <div class="pg-top"><select id="penaltyPageSizeSel">
+          <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
+        </select></div>
+        <div class="pg-nav" id="penaltyPgNav"></div>
+      </div>
+      <hr class="thin">
+    </div>
+    <div id="penaltyListArea"></div>
+  </div>
+
   <div id="view-empty" class="view">
     <hr class="thin">
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-14 09:43 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-14 10:33 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <script>
@@ -968,12 +993,31 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 let NEWS_DATA = [];
 let BILL_DATA = [];
 let DECISION_DATA = [];
+let LAW_PENALTY_DATA = [];
 let MEMBER_DATA = [];
 let WARNINGS_DATA = [];
 let allDates = [];
 const PERSONNEL_DATA = [{"dept": "경인사무소", "role": "가맹유통소비자과장", "name": "문경만", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "건설하도급과장", "name": "신재규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "경인사무소장", "name": "황태호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "민원신속대응팀장", "name": "변동영", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "제조하도급과장", "name": "김성수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "경인사무소", "role": "총괄과장", "name": "하은광", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "경쟁과장", "name": "박종언", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "광주사무소장", "name": "김현철", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "소비자과장", "name": "김성봉", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "총괄과장", "name": "임수환", "start": null, "end": null, "source": null, "verified": true}, {"dept": "광주사무소", "role": "하도급과장", "name": "최현록", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "경쟁과장", "name": "윤영술", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "대구사무소장", "name": "남형우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "소비자과장", "name": "송호열", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "총괄과장", "name": "백성하", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대구사무소", "role": "하도급과장", "name": "장재혁", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "경쟁과장", "name": "최경원", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "대전사무소장", "name": "최병국", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "소비자과장", "name": "김혜정", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "총괄과장", "name": "박진호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "대전사무소", "role": "하도급과장", "name": "송길용", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "경쟁과장", "name": "정문홍", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "부산사무소장", "name": "이상협", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "소비자과장", "name": "백성우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "총괄과장", "name": "박재생", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부산사무소", "role": "하도급과장", "name": "백성우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부위원장실", "role": "감사담당관", "name": "노태근", "start": null, "end": null, "source": null, "verified": true}, {"dept": "부위원장실", "role": "심판관리관", "name": "박세민", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "경쟁정책국장", "name": "선중규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "기업협력정책관", "name": "정창욱", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "기획조정관", "name": "김문식", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "대변인", "name": "전성복", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "법률자문관", "name": "이혜현", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "사무처장", "name": "신동열", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "소비자정책국장", "name": "정보름", "start": null, "end": null, "source": null, "verified": true}, {"dept": "사무처", "role": "운영지원과장", "name": "신용희", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "가맹유통팀장", "name": "김세겸", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "건설하도급과장", "name": "김태우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "경쟁과장", "name": "류용래", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "민원신속대응팀장", "name": "정운학", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "소비자과장", "name": "오갑수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "전자거래팀장", "name": "이성태", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "제조하도급과장", "name": "장혜림", "start": null, "end": null, "source": null, "verified": true}, {"dept": "서울사무소", "role": "총괄과장", "name": "박정웅", "start": null, "end": null, "source": null, "verified": true}, {"dept": "위원장실", "role": "부위원장", "name": "남동일", "start": null, "end": null, "source": null, "verified": true}, {"dept": "위원장실", "role": "위원장", "name": "주병기", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "가맹거래조사과장", "name": "이득규", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "가맹유통심의관", "name": "오동욱", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "공시점검과장", "name": "문종숙", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "국제기업결합과장", "name": "신용호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "국제카르텔조사과장", "name": "전상훈", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기술유용조사과장", "name": "박정현", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업결합과장", "name": "김성한", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단감시국장", "name": "최장관", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단관리과장", "name": "음잔디", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "기업집단정보분석팀장", "name": "안석우", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "내부거래감시과장", "name": "정신기", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "대리점거래조사과장", "name": "조원식", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "부당지원감시과장", "name": "김재진", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "서비스업감시과장", "name": "이준헌", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "서비스카르텔조사과장", "name": "임선정", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "시장감시국장", "name": "정희은", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "신산업하도급조사과장", "name": "김동명", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "약관특수거래과장", "name": "곽고은", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "유통거래조사과장", "name": "김수주", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "입찰담합조사과장", "name": "배문성", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "전자거래감시과장", "name": "정현일", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "제조업감시과장", "name": "석동수", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "제조카르텔조사과장", "name": "이선미", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "조사관리관", "name": "문재호", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "지식산업감시과장", "name": "고영환", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "카르텔조사국장", "name": "오행록", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "표시광고감시팀장", "name": "이영희", "start": null, "end": null, "source": null, "verified": true}, {"dept": "조사처", "role": "하도급조사과장", "name": "이태휘", "start": null, "end": null, "source": null, "verified": true}];
 // 상단 '입법 현황' 타일은 법안 목록을 받기 전에도 숫자가 떠야 해서 건수만 미리 받는다
 const BILL_STATS = {"total": 14867, "draft": 37, "committee": 14784, "law": 6, "plenary": 40};
+// 뉴스 탭 날짜 이동에 맞춰 타일도 "그 날짜까지 발의된 법안" 누적치를 보여주기 위한
+// 날짜별 스냅샷 배열(제안일 오름차순) - generate_html.py의 bill_stats_by_date 참고.
+const BILL_DATE_STATS = [{"date": "2024-05-30", "total": 26, "draft": 0, "committee": 26, "law": 0, "plenary": 0}, {"date": "2024-05-31", "total": 36, "draft": 0, "committee": 36, "law": 0, "plenary": 0}, {"date": "2024-06-03", "total": 48, "draft": 0, "committee": 48, "law": 0, "plenary": 0}, {"date": "2024-06-04", "total": 61, "draft": 0, "committee": 61, "law": 0, "plenary": 0}, {"date": "2024-06-05", "total": 90, "draft": 0, "committee": 90, "law": 0, "plenary": 0}, {"date": "2024-06-07", "total": 117, "draft": 0, "committee": 117, "law": 0, "plenary": 0}, {"date": "2024-06-10", "total": 135, "draft": 0, "committee": 134, "law": 0, "plenary": 1}, {"date": "2024-06-11", "total": 174, "draft": 0, "committee": 173, "law": 0, "plenary": 1}, {"date": "2024-06-12", "total": 212, "draft": 0, "committee": 211, "law": 0, "plenary": 1}, {"date": "2024-06-13", "total": 239, "draft": 0, "committee": 237, "law": 1, "plenary": 1}, {"date": "2024-06-14", "total": 269, "draft": 0, "committee": 267, "law": 1, "plenary": 1}, {"date": "2024-06-17", "total": 284, "draft": 0, "committee": 282, "law": 1, "plenary": 1}, {"date": "2024-06-18", "total": 309, "draft": 0, "committee": 307, "law": 1, "plenary": 1}, {"date": "2024-06-19", "total": 352, "draft": 0, "committee": 350, "law": 1, "plenary": 1}, {"date": "2024-06-20", "total": 401, "draft": 0, "committee": 399, "law": 1, "plenary": 1}, {"date": "2024-06-21", "total": 437, "draft": 0, "committee": 435, "law": 1, "plenary": 1}, {"date": "2024-06-24", "total": 472, "draft": 0, "committee": 470, "law": 1, "plenary": 1}, {"date": "2024-06-25", "total": 506, "draft": 0, "committee": 504, "law": 1, "plenary": 1}, {"date": "2024-06-26", "total": 538, "draft": 0, "committee": 536, "law": 1, "plenary": 1}, {"date": "2024-06-27", "total": 572, "draft": 0, "committee": 570, "law": 1, "plenary": 1}, {"date": "2024-06-28", "total": 644, "draft": 0, "committee": 642, "law": 1, "plenary": 1}, {"date": "2024-07-01", "total": 684, "draft": 0, "committee": 682, "law": 1, "plenary": 1}, {"date": "2024-07-02", "total": 707, "draft": 0, "committee": 705, "law": 1, "plenary": 1}, {"date": "2024-07-03", "total": 734, "draft": 0, "committee": 732, "law": 1, "plenary": 1}, {"date": "2024-07-04", "total": 754, "draft": 0, "committee": 752, "law": 1, "plenary": 1}, {"date": "2024-07-05", "total": 780, "draft": 0, "committee": 778, "law": 1, "plenary": 1}, {"date": "2024-07-08", "total": 816, "draft": 0, "committee": 814, "law": 1, "plenary": 1}, {"date": "2024-07-09", "total": 840, "draft": 0, "committee": 838, "law": 1, "plenary": 1}, {"date": "2024-07-10", "total": 871, "draft": 0, "committee": 869, "law": 1, "plenary": 1}, {"date": "2024-07-11", "total": 903, "draft": 0, "committee": 901, "law": 1, "plenary": 1}, {"date": "2024-07-12", "total": 956, "draft": 0, "committee": 954, "law": 1, "plenary": 1}, {"date": "2024-07-15", "total": 984, "draft": 0, "committee": 982, "law": 1, "plenary": 1}, {"date": "2024-07-16", "total": 1013, "draft": 0, "committee": 1011, "law": 1, "plenary": 1}, {"date": "2024-07-17", "total": 1064, "draft": 0, "committee": 1062, "law": 1, "plenary": 1}, {"date": "2024-07-18", "total": 1109, "draft": 0, "committee": 1107, "law": 1, "plenary": 1}, {"date": "2024-07-19", "total": 1144, "draft": 0, "committee": 1142, "law": 1, "plenary": 1}, {"date": "2024-07-22", "total": 1187, "draft": 0, "committee": 1185, "law": 1, "plenary": 1}, {"date": "2024-07-23", "total": 1218, "draft": 0, "committee": 1216, "law": 1, "plenary": 1}, {"date": "2024-07-24", "total": 1254, "draft": 0, "committee": 1252, "law": 1, "plenary": 1}, {"date": "2024-07-25", "total": 1279, "draft": 0, "committee": 1277, "law": 1, "plenary": 1}, {"date": "2024-07-26", "total": 1310, "draft": 0, "committee": 1308, "law": 1, "plenary": 1}, {"date": "2024-07-29", "total": 1345, "draft": 0, "committee": 1343, "law": 1, "plenary": 1}, {"date": "2024-07-30", "total": 1378, "draft": 0, "committee": 1376, "law": 1, "plenary": 1}, {"date": "2024-07-31", "total": 1399, "draft": 0, "committee": 1397, "law": 1, "plenary": 1}, {"date": "2024-08-01", "total": 1422, "draft": 0, "committee": 1420, "law": 1, "plenary": 1}, {"date": "2024-08-02", "total": 1445, "draft": 0, "committee": 1443, "law": 1, "plenary": 1}, {"date": "2024-08-05", "total": 1457, "draft": 0, "committee": 1455, "law": 1, "plenary": 1}, {"date": "2024-08-06", "total": 1473, "draft": 0, "committee": 1471, "law": 1, "plenary": 1}, {"date": "2024-08-07", "total": 1494, "draft": 0, "committee": 1492, "law": 1, "plenary": 1}, {"date": "2024-08-08", "total": 1525, "draft": 0, "committee": 1523, "law": 1, "plenary": 1}, {"date": "2024-08-09", "total": 1549, "draft": 0, "committee": 1547, "law": 1, "plenary": 1}, {"date": "2024-08-12", "total": 1572, "draft": 0, "committee": 1570, "law": 1, "plenary": 1}, {"date": "2024-08-13", "total": 1605, "draft": 0, "committee": 1603, "law": 1, "plenary": 1}, {"date": "2024-08-14", "total": 1638, "draft": 0, "committee": 1636, "law": 1, "plenary": 1}, {"date": "2024-08-16", "total": 1670, "draft": 0, "committee": 1668, "law": 1, "plenary": 1}, {"date": "2024-08-19", "total": 1689, "draft": 0, "committee": 1687, "law": 1, "plenary": 1}, {"date": "2024-08-20", "total": 1717, "draft": 0, "committee": 1715, "law": 1, "plenary": 1}, {"date": "2024-08-21", "total": 1744, "draft": 0, "committee": 1742, "law": 1, "plenary": 1}, {"date": "2024-08-22", "total": 1770, "draft": 0, "committee": 1768, "law": 1, "plenary": 1}, {"date": "2024-08-23", "total": 1811, "draft": 0, "committee": 1809, "law": 1, "plenary": 1}, {"date": "2024-08-26", "total": 1827, "draft": 0, "committee": 1825, "law": 1, "plenary": 1}, {"date": "2024-08-27", "total": 1846, "draft": 0, "committee": 1844, "law": 1, "plenary": 1}, {"date": "2024-08-28", "total": 1871, "draft": 0, "committee": 1869, "law": 1, "plenary": 1}, {"date": "2024-08-29", "total": 1911, "draft": 0, "committee": 1909, "law": 1, "plenary": 1}, {"date": "2024-08-30", "total": 1958, "draft": 0, "committee": 1956, "law": 1, "plenary": 1}, {"date": "2024-09-02", "total": 1987, "draft": 0, "committee": 1985, "law": 1, "plenary": 1}, {"date": "2024-09-03", "total": 2021, "draft": 0, "committee": 2019, "law": 1, "plenary": 1}, {"date": "2024-09-04", "total": 2068, "draft": 0, "committee": 2066, "law": 1, "plenary": 1}, {"date": "2024-09-05", "total": 2112, "draft": 0, "committee": 2110, "law": 1, "plenary": 1}, {"date": "2024-09-06", "total": 2143, "draft": 0, "committee": 2141, "law": 1, "plenary": 1}, {"date": "2024-09-09", "total": 2175, "draft": 0, "committee": 2173, "law": 1, "plenary": 1}, {"date": "2024-09-10", "total": 2217, "draft": 0, "committee": 2215, "law": 1, "plenary": 1}, {"date": "2024-09-11", "total": 2255, "draft": 0, "committee": 2253, "law": 1, "plenary": 1}, {"date": "2024-09-12", "total": 2288, "draft": 0, "committee": 2285, "law": 2, "plenary": 1}, {"date": "2024-09-13", "total": 2322, "draft": 0, "committee": 2319, "law": 2, "plenary": 1}, {"date": "2024-09-19", "total": 2356, "draft": 0, "committee": 2353, "law": 2, "plenary": 1}, {"date": "2024-09-20", "total": 2398, "draft": 0, "committee": 2395, "law": 2, "plenary": 1}, {"date": "2024-09-23", "total": 2427, "draft": 0, "committee": 2424, "law": 2, "plenary": 1}, {"date": "2024-09-24", "total": 2455, "draft": 0, "committee": 2452, "law": 2, "plenary": 1}, {"date": "2024-09-25", "total": 2486, "draft": 0, "committee": 2483, "law": 2, "plenary": 1}, {"date": "2024-09-26", "total": 2517, "draft": 0, "committee": 2513, "law": 3, "plenary": 1}, {"date": "2024-09-27", "total": 2535, "draft": 0, "committee": 2531, "law": 3, "plenary": 1}, {"date": "2024-09-30", "total": 2579, "draft": 0, "committee": 2575, "law": 3, "plenary": 1}, {"date": "2024-10-02", "total": 2607, "draft": 0, "committee": 2603, "law": 3, "plenary": 1}, {"date": "2024-10-04", "total": 2643, "draft": 0, "committee": 2639, "law": 3, "plenary": 1}, {"date": "2024-10-07", "total": 2656, "draft": 0, "committee": 2652, "law": 3, "plenary": 1}, {"date": "2024-10-08", "total": 2666, "draft": 0, "committee": 2662, "law": 3, "plenary": 1}, {"date": "2024-10-10", "total": 2679, "draft": 0, "committee": 2675, "law": 3, "plenary": 1}, {"date": "2024-10-11", "total": 2694, "draft": 0, "committee": 2690, "law": 3, "plenary": 1}, {"date": "2024-10-14", "total": 2701, "draft": 0, "committee": 2697, "law": 3, "plenary": 1}, {"date": "2024-10-15", "total": 2709, "draft": 0, "committee": 2705, "law": 3, "plenary": 1}, {"date": "2024-10-16", "total": 2725, "draft": 0, "committee": 2720, "law": 4, "plenary": 1}, {"date": "2024-10-17", "total": 2744, "draft": 0, "committee": 2739, "law": 4, "plenary": 1}, {"date": "2024-10-18", "total": 2758, "draft": 0, "committee": 2753, "law": 4, "plenary": 1}, {"date": "2024-10-21", "total": 2771, "draft": 0, "committee": 2766, "law": 4, "plenary": 1}, {"date": "2024-10-22", "total": 2784, "draft": 0, "committee": 2779, "law": 4, "plenary": 1}, {"date": "2024-10-23", "total": 2807, "draft": 0, "committee": 2802, "law": 4, "plenary": 1}, {"date": "2024-10-24", "total": 2823, "draft": 0, "committee": 2818, "law": 4, "plenary": 1}, {"date": "2024-10-25", "total": 2832, "draft": 0, "committee": 2827, "law": 4, "plenary": 1}, {"date": "2024-10-28", "total": 2869, "draft": 0, "committee": 2864, "law": 4, "plenary": 1}, {"date": "2024-10-29", "total": 2892, "draft": 0, "committee": 2887, "law": 4, "plenary": 1}, {"date": "2024-10-30", "total": 2937, "draft": 0, "committee": 2932, "law": 4, "plenary": 1}, {"date": "2024-10-31", "total": 2986, "draft": 0, "committee": 2981, "law": 4, "plenary": 1}, {"date": "2024-11-01", "total": 3012, "draft": 0, "committee": 3007, "law": 4, "plenary": 1}, {"date": "2024-11-04", "total": 3036, "draft": 0, "committee": 3031, "law": 4, "plenary": 1}, {"date": "2024-11-05", "total": 3073, "draft": 0, "committee": 3068, "law": 4, "plenary": 1}, {"date": "2024-11-06", "total": 3100, "draft": 0, "committee": 3095, "law": 4, "plenary": 1}, {"date": "2024-11-07", "total": 3123, "draft": 0, "committee": 3118, "law": 4, "plenary": 1}, {"date": "2024-11-08", "total": 3143, "draft": 0, "committee": 3138, "law": 4, "plenary": 1}, {"date": "2024-11-11", "total": 3166, "draft": 0, "committee": 3161, "law": 4, "plenary": 1}, {"date": "2024-11-12", "total": 3188, "draft": 0, "committee": 3183, "law": 4, "plenary": 1}, {"date": "2024-11-13", "total": 3204, "draft": 0, "committee": 3199, "law": 4, "plenary": 1}, {"date": "2024-11-14", "total": 3238, "draft": 0, "committee": 3233, "law": 4, "plenary": 1}, {"date": "2024-11-15", "total": 3258, "draft": 0, "committee": 3253, "law": 4, "plenary": 1}, {"date": "2024-11-18", "total": 3283, "draft": 0, "committee": 3278, "law": 4, "plenary": 1}, {"date": "2024-11-19", "total": 3303, "draft": 0, "committee": 3298, "law": 4, "plenary": 1}, {"date": "2024-11-20", "total": 3328, "draft": 0, "committee": 3323, "law": 4, "plenary": 1}, {"date": "2024-11-21", "total": 3348, "draft": 0, "committee": 3343, "law": 4, "plenary": 1}, {"date": "2024-11-22", "total": 3381, "draft": 0, "committee": 3376, "law": 4, "plenary": 1}, {"date": "2024-11-25", "total": 3398, "draft": 0, "committee": 3393, "law": 4, "plenary": 1}, {"date": "2024-11-26", "total": 3429, "draft": 0, "committee": 3424, "law": 4, "plenary": 1}, {"date": "2024-11-27", "total": 3461, "draft": 0, "committee": 3456, "law": 4, "plenary": 1}, {"date": "2024-11-28", "total": 3503, "draft": 0, "committee": 3498, "law": 4, "plenary": 1}, {"date": "2024-11-29", "total": 3543, "draft": 0, "committee": 3538, "law": 4, "plenary": 1}, {"date": "2024-12-02", "total": 3581, "draft": 0, "committee": 3576, "law": 4, "plenary": 1}, {"date": "2024-12-03", "total": 3620, "draft": 0, "committee": 3615, "law": 4, "plenary": 1}, {"date": "2024-12-04", "total": 3623, "draft": 0, "committee": 3618, "law": 4, "plenary": 1}, {"date": "2024-12-05", "total": 3665, "draft": 0, "committee": 3660, "law": 4, "plenary": 1}, {"date": "2024-12-06", "total": 3680, "draft": 0, "committee": 3675, "law": 4, "plenary": 1}, {"date": "2024-12-09", "total": 3697, "draft": 0, "committee": 3692, "law": 4, "plenary": 1}, {"date": "2024-12-10", "total": 3728, "draft": 0, "committee": 3723, "law": 4, "plenary": 1}, {"date": "2024-12-11", "total": 3756, "draft": 0, "committee": 3750, "law": 5, "plenary": 1}, {"date": "2024-12-12", "total": 3785, "draft": 0, "committee": 3779, "law": 5, "plenary": 1}, {"date": "2024-12-13", "total": 3812, "draft": 0, "committee": 3806, "law": 5, "plenary": 1}, {"date": "2024-12-16", "total": 3849, "draft": 0, "committee": 3843, "law": 5, "plenary": 1}, {"date": "2024-12-17", "total": 3899, "draft": 0, "committee": 3893, "law": 5, "plenary": 1}, {"date": "2024-12-18", "total": 3939, "draft": 0, "committee": 3933, "law": 5, "plenary": 1}, {"date": "2024-12-19", "total": 3982, "draft": 0, "committee": 3976, "law": 5, "plenary": 1}, {"date": "2024-12-20", "total": 4014, "draft": 0, "committee": 4008, "law": 5, "plenary": 1}, {"date": "2024-12-23", "total": 4041, "draft": 0, "committee": 4035, "law": 5, "plenary": 1}, {"date": "2024-12-24", "total": 4072, "draft": 0, "committee": 4066, "law": 5, "plenary": 1}, {"date": "2024-12-26", "total": 4115, "draft": 0, "committee": 4109, "law": 5, "plenary": 1}, {"date": "2024-12-27", "total": 4160, "draft": 0, "committee": 4154, "law": 5, "plenary": 1}, {"date": "2024-12-30", "total": 4205, "draft": 0, "committee": 4199, "law": 5, "plenary": 1}, {"date": "2024-12-31", "total": 4256, "draft": 0, "committee": 4250, "law": 5, "plenary": 1}, {"date": "2025-01-02", "total": 4271, "draft": 0, "committee": 4265, "law": 5, "plenary": 1}, {"date": "2025-01-03", "total": 4283, "draft": 0, "committee": 4277, "law": 5, "plenary": 1}, {"date": "2025-01-06", "total": 4311, "draft": 0, "committee": 4305, "law": 5, "plenary": 1}, {"date": "2025-01-07", "total": 4337, "draft": 0, "committee": 4331, "law": 5, "plenary": 1}, {"date": "2025-01-08", "total": 4368, "draft": 0, "committee": 4362, "law": 5, "plenary": 1}, {"date": "2025-01-09", "total": 4399, "draft": 0, "committee": 4393, "law": 5, "plenary": 1}, {"date": "2025-01-10", "total": 4427, "draft": 0, "committee": 4421, "law": 5, "plenary": 1}, {"date": "2025-01-13", "total": 4445, "draft": 0, "committee": 4439, "law": 5, "plenary": 1}, {"date": "2025-01-14", "total": 4462, "draft": 0, "committee": 4456, "law": 5, "plenary": 1}, {"date": "2025-01-15", "total": 4504, "draft": 0, "committee": 4498, "law": 5, "plenary": 1}, {"date": "2025-01-16", "total": 4529, "draft": 0, "committee": 4523, "law": 5, "plenary": 1}, {"date": "2025-01-17", "total": 4550, "draft": 0, "committee": 4544, "law": 5, "plenary": 1}, {"date": "2025-01-20", "total": 4570, "draft": 0, "committee": 4564, "law": 5, "plenary": 1}, {"date": "2025-01-21", "total": 4596, "draft": 0, "committee": 4590, "law": 5, "plenary": 1}, {"date": "2025-01-22", "total": 4621, "draft": 0, "committee": 4615, "law": 5, "plenary": 1}, {"date": "2025-01-23", "total": 4671, "draft": 0, "committee": 4665, "law": 5, "plenary": 1}, {"date": "2025-01-24", "total": 4707, "draft": 0, "committee": 4701, "law": 5, "plenary": 1}, {"date": "2025-01-31", "total": 4715, "draft": 0, "committee": 4709, "law": 5, "plenary": 1}, {"date": "2025-02-03", "total": 4726, "draft": 0, "committee": 4720, "law": 5, "plenary": 1}, {"date": "2025-02-04", "total": 4741, "draft": 0, "committee": 4735, "law": 5, "plenary": 1}, {"date": "2025-02-05", "total": 4752, "draft": 0, "committee": 4746, "law": 5, "plenary": 1}, {"date": "2025-02-06", "total": 4775, "draft": 0, "committee": 4769, "law": 5, "plenary": 1}, {"date": "2025-02-07", "total": 4815, "draft": 0, "committee": 4809, "law": 5, "plenary": 1}, {"date": "2025-02-10", "total": 4838, "draft": 0, "committee": 4832, "law": 5, "plenary": 1}, {"date": "2025-02-11", "total": 4865, "draft": 0, "committee": 4859, "law": 5, "plenary": 1}, {"date": "2025-02-12", "total": 4890, "draft": 0, "committee": 4884, "law": 5, "plenary": 1}, {"date": "2025-02-13", "total": 4919, "draft": 0, "committee": 4913, "law": 5, "plenary": 1}, {"date": "2025-02-14", "total": 4944, "draft": 0, "committee": 4938, "law": 5, "plenary": 1}, {"date": "2025-02-17", "total": 4968, "draft": 0, "committee": 4962, "law": 5, "plenary": 1}, {"date": "2025-02-18", "total": 4995, "draft": 0, "committee": 4989, "law": 5, "plenary": 1}, {"date": "2025-02-19", "total": 5013, "draft": 0, "committee": 5007, "law": 5, "plenary": 1}, {"date": "2025-02-20", "total": 5029, "draft": 0, "committee": 5023, "law": 5, "plenary": 1}, {"date": "2025-02-21", "total": 5059, "draft": 0, "committee": 5053, "law": 5, "plenary": 1}, {"date": "2025-02-24", "total": 5083, "draft": 0, "committee": 5077, "law": 5, "plenary": 1}, {"date": "2025-02-25", "total": 5102, "draft": 0, "committee": 5096, "law": 5, "plenary": 1}, {"date": "2025-02-26", "total": 5135, "draft": 0, "committee": 5129, "law": 5, "plenary": 1}, {"date": "2025-02-27", "total": 5169, "draft": 0, "committee": 5163, "law": 5, "plenary": 1}, {"date": "2025-02-28", "total": 5203, "draft": 0, "committee": 5197, "law": 5, "plenary": 1}, {"date": "2025-03-04", "total": 5224, "draft": 0, "committee": 5218, "law": 5, "plenary": 1}, {"date": "2025-03-05", "total": 5245, "draft": 0, "committee": 5239, "law": 5, "plenary": 1}, {"date": "2025-03-06", "total": 5260, "draft": 0, "committee": 5254, "law": 5, "plenary": 1}, {"date": "2025-03-07", "total": 5286, "draft": 0, "committee": 5280, "law": 5, "plenary": 1}, {"date": "2025-03-10", "total": 5313, "draft": 0, "committee": 5307, "law": 5, "plenary": 1}, {"date": "2025-03-11", "total": 5344, "draft": 0, "committee": 5338, "law": 5, "plenary": 1}, {"date": "2025-03-12", "total": 5374, "draft": 0, "committee": 5368, "law": 5, "plenary": 1}, {"date": "2025-03-13", "total": 5397, "draft": 0, "committee": 5391, "law": 5, "plenary": 1}, {"date": "2025-03-14", "total": 5434, "draft": 0, "committee": 5428, "law": 5, "plenary": 1}, {"date": "2025-03-17", "total": 5463, "draft": 0, "committee": 5457, "law": 5, "plenary": 1}, {"date": "2025-03-18", "total": 5494, "draft": 0, "committee": 5488, "law": 5, "plenary": 1}, {"date": "2025-03-19", "total": 5543, "draft": 0, "committee": 5537, "law": 5, "plenary": 1}, {"date": "2025-03-20", "total": 5588, "draft": 0, "committee": 5582, "law": 5, "plenary": 1}, {"date": "2025-03-21", "total": 5641, "draft": 0, "committee": 5635, "law": 5, "plenary": 1}, {"date": "2025-03-24", "total": 5663, "draft": 0, "committee": 5657, "law": 5, "plenary": 1}, {"date": "2025-03-25", "total": 5689, "draft": 0, "committee": 5683, "law": 5, "plenary": 1}, {"date": "2025-03-26", "total": 5707, "draft": 0, "committee": 5701, "law": 5, "plenary": 1}, {"date": "2025-03-27", "total": 5726, "draft": 0, "committee": 5720, "law": 5, "plenary": 1}, {"date": "2025-03-28", "total": 5759, "draft": 0, "committee": 5753, "law": 5, "plenary": 1}, {"date": "2025-03-31", "total": 5780, "draft": 0, "committee": 5774, "law": 5, "plenary": 1}, {"date": "2025-04-01", "total": 5803, "draft": 0, "committee": 5797, "law": 5, "plenary": 1}, {"date": "2025-04-02", "total": 5816, "draft": 0, "committee": 5810, "law": 5, "plenary": 1}, {"date": "2025-04-03", "total": 5839, "draft": 0, "committee": 5833, "law": 5, "plenary": 1}, {"date": "2025-04-04", "total": 5852, "draft": 0, "committee": 5846, "law": 5, "plenary": 1}, {"date": "2025-04-07", "total": 5872, "draft": 0, "committee": 5866, "law": 5, "plenary": 1}, {"date": "2025-04-08", "total": 5886, "draft": 0, "committee": 5880, "law": 5, "plenary": 1}, {"date": "2025-04-09", "total": 5905, "draft": 0, "committee": 5899, "law": 5, "plenary": 1}, {"date": "2025-04-10", "total": 5934, "draft": 0, "committee": 5928, "law": 5, "plenary": 1}, {"date": "2025-04-11", "total": 5962, "draft": 0, "committee": 5956, "law": 5, "plenary": 1}, {"date": "2025-04-14", "total": 5983, "draft": 0, "committee": 5977, "law": 5, "plenary": 1}, {"date": "2025-04-15", "total": 6012, "draft": 0, "committee": 6006, "law": 5, "plenary": 1}, {"date": "2025-04-16", "total": 6039, "draft": 0, "committee": 6033, "law": 5, "plenary": 1}, {"date": "2025-04-17", "total": 6067, "draft": 0, "committee": 6061, "law": 5, "plenary": 1}, {"date": "2025-04-18", "total": 6085, "draft": 0, "committee": 6079, "law": 5, "plenary": 1}, {"date": "2025-04-21", "total": 6105, "draft": 0, "committee": 6099, "law": 5, "plenary": 1}, {"date": "2025-04-22", "total": 6135, "draft": 0, "committee": 6129, "law": 5, "plenary": 1}, {"date": "2025-04-23", "total": 6159, "draft": 0, "committee": 6153, "law": 5, "plenary": 1}, {"date": "2025-04-24", "total": 6178, "draft": 0, "committee": 6172, "law": 5, "plenary": 1}, {"date": "2025-04-25", "total": 6208, "draft": 0, "committee": 6202, "law": 5, "plenary": 1}, {"date": "2025-04-28", "total": 6239, "draft": 0, "committee": 6233, "law": 5, "plenary": 1}, {"date": "2025-04-29", "total": 6262, "draft": 0, "committee": 6256, "law": 5, "plenary": 1}, {"date": "2025-04-30", "total": 6295, "draft": 0, "committee": 6289, "law": 5, "plenary": 1}, {"date": "2025-05-01", "total": 6325, "draft": 0, "committee": 6319, "law": 5, "plenary": 1}, {"date": "2025-05-02", "total": 6360, "draft": 0, "committee": 6353, "law": 5, "plenary": 2}, {"date": "2025-05-07", "total": 6375, "draft": 0, "committee": 6368, "law": 5, "plenary": 2}, {"date": "2025-05-08", "total": 6394, "draft": 0, "committee": 6387, "law": 5, "plenary": 2}, {"date": "2025-05-09", "total": 6416, "draft": 0, "committee": 6409, "law": 5, "plenary": 2}, {"date": "2025-05-12", "total": 6426, "draft": 0, "committee": 6419, "law": 5, "plenary": 2}, {"date": "2025-05-13", "total": 6438, "draft": 0, "committee": 6431, "law": 5, "plenary": 2}, {"date": "2025-05-14", "total": 6452, "draft": 0, "committee": 6445, "law": 5, "plenary": 2}, {"date": "2025-05-15", "total": 6459, "draft": 0, "committee": 6452, "law": 5, "plenary": 2}, {"date": "2025-05-16", "total": 6463, "draft": 0, "committee": 6456, "law": 5, "plenary": 2}, {"date": "2025-05-19", "total": 6471, "draft": 0, "committee": 6464, "law": 5, "plenary": 2}, {"date": "2025-05-20", "total": 6483, "draft": 0, "committee": 6476, "law": 5, "plenary": 2}, {"date": "2025-05-21", "total": 6490, "draft": 0, "committee": 6483, "law": 5, "plenary": 2}, {"date": "2025-05-22", "total": 6503, "draft": 0, "committee": 6496, "law": 5, "plenary": 2}, {"date": "2025-05-23", "total": 6510, "draft": 0, "committee": 6503, "law": 5, "plenary": 2}, {"date": "2025-05-26", "total": 6517, "draft": 0, "committee": 6510, "law": 5, "plenary": 2}, {"date": "2025-05-27", "total": 6524, "draft": 0, "committee": 6517, "law": 5, "plenary": 2}, {"date": "2025-05-28", "total": 6534, "draft": 0, "committee": 6527, "law": 5, "plenary": 2}, {"date": "2025-05-29", "total": 6538, "draft": 0, "committee": 6531, "law": 5, "plenary": 2}, {"date": "2025-05-30", "total": 6545, "draft": 0, "committee": 6538, "law": 5, "plenary": 2}, {"date": "2025-06-02", "total": 6554, "draft": 0, "committee": 6547, "law": 5, "plenary": 2}, {"date": "2025-06-04", "total": 6557, "draft": 0, "committee": 6550, "law": 5, "plenary": 2}, {"date": "2025-06-05", "total": 6562, "draft": 0, "committee": 6555, "law": 5, "plenary": 2}, {"date": "2025-06-09", "total": 6568, "draft": 0, "committee": 6561, "law": 5, "plenary": 2}, {"date": "2025-06-10", "total": 6579, "draft": 0, "committee": 6572, "law": 5, "plenary": 2}, {"date": "2025-06-11", "total": 6602, "draft": 0, "committee": 6595, "law": 5, "plenary": 2}, {"date": "2025-06-12", "total": 6637, "draft": 0, "committee": 6630, "law": 5, "plenary": 2}, {"date": "2025-06-13", "total": 6682, "draft": 0, "committee": 6675, "law": 5, "plenary": 2}, {"date": "2025-06-16", "total": 6700, "draft": 0, "committee": 6693, "law": 5, "plenary": 2}, {"date": "2025-06-17", "total": 6732, "draft": 0, "committee": 6725, "law": 5, "plenary": 2}, {"date": "2025-06-18", "total": 6745, "draft": 0, "committee": 6738, "law": 5, "plenary": 2}, {"date": "2025-06-19", "total": 6763, "draft": 0, "committee": 6756, "law": 5, "plenary": 2}, {"date": "2025-06-20", "total": 6781, "draft": 0, "committee": 6774, "law": 5, "plenary": 2}, {"date": "2025-06-23", "total": 6807, "draft": 0, "committee": 6800, "law": 5, "plenary": 2}, {"date": "2025-06-24", "total": 6824, "draft": 0, "committee": 6817, "law": 5, "plenary": 2}, {"date": "2025-06-25", "total": 6842, "draft": 0, "committee": 6835, "law": 5, "plenary": 2}, {"date": "2025-06-26", "total": 6860, "draft": 0, "committee": 6853, "law": 5, "plenary": 2}, {"date": "2025-06-27", "total": 6885, "draft": 0, "committee": 6878, "law": 5, "plenary": 2}, {"date": "2025-06-30", "total": 6906, "draft": 0, "committee": 6899, "law": 5, "plenary": 2}, {"date": "2025-07-01", "total": 6918, "draft": 0, "committee": 6911, "law": 5, "plenary": 2}, {"date": "2025-07-02", "total": 6940, "draft": 0, "committee": 6933, "law": 5, "plenary": 2}, {"date": "2025-07-03", "total": 6963, "draft": 0, "committee": 6956, "law": 5, "plenary": 2}, {"date": "2025-07-04", "total": 6981, "draft": 0, "committee": 6974, "law": 5, "plenary": 2}, {"date": "2025-07-07", "total": 6999, "draft": 0, "committee": 6992, "law": 5, "plenary": 2}, {"date": "2025-07-08", "total": 7024, "draft": 0, "committee": 7017, "law": 5, "plenary": 2}, {"date": "2025-07-09", "total": 7046, "draft": 0, "committee": 7039, "law": 5, "plenary": 2}, {"date": "2025-07-10", "total": 7071, "draft": 0, "committee": 7064, "law": 5, "plenary": 2}, {"date": "2025-07-11", "total": 7091, "draft": 0, "committee": 7084, "law": 5, "plenary": 2}, {"date": "2025-07-14", "total": 7103, "draft": 0, "committee": 7096, "law": 5, "plenary": 2}, {"date": "2025-07-15", "total": 7121, "draft": 0, "committee": 7114, "law": 5, "plenary": 2}, {"date": "2025-07-16", "total": 7131, "draft": 0, "committee": 7124, "law": 5, "plenary": 2}, {"date": "2025-07-17", "total": 7154, "draft": 0, "committee": 7147, "law": 5, "plenary": 2}, {"date": "2025-07-18", "total": 7188, "draft": 0, "committee": 7181, "law": 5, "plenary": 2}, {"date": "2025-07-21", "total": 7202, "draft": 0, "committee": 7195, "law": 5, "plenary": 2}, {"date": "2025-07-22", "total": 7219, "draft": 0, "committee": 7212, "law": 5, "plenary": 2}, {"date": "2025-07-23", "total": 7247, "draft": 0, "committee": 7240, "law": 5, "plenary": 2}, {"date": "2025-07-24", "total": 7266, "draft": 0, "committee": 7259, "law": 5, "plenary": 2}, {"date": "2025-07-25", "total": 7305, "draft": 0, "committee": 7298, "law": 5, "plenary": 2}, {"date": "2025-07-28", "total": 7322, "draft": 0, "committee": 7315, "law": 5, "plenary": 2}, {"date": "2025-07-29", "total": 7347, "draft": 0, "committee": 7340, "law": 5, "plenary": 2}, {"date": "2025-07-30", "total": 7370, "draft": 0, "committee": 7363, "law": 5, "plenary": 2}, {"date": "2025-07-31", "total": 7403, "draft": 0, "committee": 7396, "law": 5, "plenary": 2}, {"date": "2025-08-01", "total": 7424, "draft": 0, "committee": 7417, "law": 5, "plenary": 2}, {"date": "2025-08-04", "total": 7435, "draft": 0, "committee": 7428, "law": 5, "plenary": 2}, {"date": "2025-08-05", "total": 7454, "draft": 0, "committee": 7447, "law": 5, "plenary": 2}, {"date": "2025-08-06", "total": 7472, "draft": 0, "committee": 7465, "law": 5, "plenary": 2}, {"date": "2025-08-07", "total": 7488, "draft": 0, "committee": 7481, "law": 5, "plenary": 2}, {"date": "2025-08-08", "total": 7507, "draft": 0, "committee": 7500, "law": 5, "plenary": 2}, {"date": "2025-08-11", "total": 7525, "draft": 0, "committee": 7518, "law": 5, "plenary": 2}, {"date": "2025-08-12", "total": 7552, "draft": 0, "committee": 7545, "law": 5, "plenary": 2}, {"date": "2025-08-13", "total": 7562, "draft": 0, "committee": 7555, "law": 5, "plenary": 2}, {"date": "2025-08-14", "total": 7582, "draft": 0, "committee": 7575, "law": 5, "plenary": 2}, {"date": "2025-08-18", "total": 7602, "draft": 0, "committee": 7595, "law": 5, "plenary": 2}, {"date": "2025-08-19", "total": 7621, "draft": 0, "committee": 7614, "law": 5, "plenary": 2}, {"date": "2025-08-20", "total": 7636, "draft": 0, "committee": 7629, "law": 5, "plenary": 2}, {"date": "2025-08-21", "total": 7651, "draft": 0, "committee": 7644, "law": 5, "plenary": 2}, {"date": "2025-08-22", "total": 7668, "draft": 0, "committee": 7661, "law": 5, "plenary": 2}, {"date": "2025-08-25", "total": 7690, "draft": 0, "committee": 7683, "law": 5, "plenary": 2}, {"date": "2025-08-26", "total": 7710, "draft": 0, "committee": 7703, "law": 5, "plenary": 2}, {"date": "2025-08-27", "total": 7747, "draft": 0, "committee": 7740, "law": 5, "plenary": 2}, {"date": "2025-08-28", "total": 7776, "draft": 0, "committee": 7769, "law": 5, "plenary": 2}, {"date": "2025-08-29", "total": 7817, "draft": 0, "committee": 7810, "law": 5, "plenary": 2}, {"date": "2025-09-01", "total": 7841, "draft": 0, "committee": 7834, "law": 5, "plenary": 2}, {"date": "2025-09-02", "total": 7862, "draft": 0, "committee": 7855, "law": 5, "plenary": 2}, {"date": "2025-09-03", "total": 7892, "draft": 0, "committee": 7885, "law": 5, "plenary": 2}, {"date": "2025-09-04", "total": 7907, "draft": 0, "committee": 7900, "law": 5, "plenary": 2}, {"date": "2025-09-05", "total": 7939, "draft": 0, "committee": 7932, "law": 5, "plenary": 2}, {"date": "2025-09-08", "total": 7971, "draft": 0, "committee": 7964, "law": 5, "plenary": 2}, {"date": "2025-09-09", "total": 7993, "draft": 0, "committee": 7986, "law": 5, "plenary": 2}, {"date": "2025-09-10", "total": 8024, "draft": 0, "committee": 8017, "law": 5, "plenary": 2}, {"date": "2025-09-11", "total": 8046, "draft": 0, "committee": 8039, "law": 5, "plenary": 2}, {"date": "2025-09-12", "total": 8062, "draft": 0, "committee": 8055, "law": 5, "plenary": 2}, {"date": "2025-09-15", "total": 8093, "draft": 0, "committee": 8086, "law": 5, "plenary": 2}, {"date": "2025-09-16", "total": 8127, "draft": 0, "committee": 8120, "law": 5, "plenary": 2}, {"date": "2025-09-17", "total": 8167, "draft": 0, "committee": 8160, "law": 5, "plenary": 2}, {"date": "2025-09-18", "total": 8197, "draft": 0, "committee": 8190, "law": 5, "plenary": 2}, {"date": "2025-09-19", "total": 8222, "draft": 0, "committee": 8215, "law": 5, "plenary": 2}, {"date": "2025-09-22", "total": 8233, "draft": 0, "committee": 8226, "law": 5, "plenary": 2}, {"date": "2025-09-23", "total": 8255, "draft": 0, "committee": 8248, "law": 5, "plenary": 2}, {"date": "2025-09-24", "total": 8271, "draft": 0, "committee": 8264, "law": 5, "plenary": 2}, {"date": "2025-09-25", "total": 8291, "draft": 0, "committee": 8284, "law": 5, "plenary": 2}, {"date": "2025-09-26", "total": 8324, "draft": 0, "committee": 8316, "law": 5, "plenary": 3}, {"date": "2025-09-29", "total": 8347, "draft": 0, "committee": 8339, "law": 5, "plenary": 3}, {"date": "2025-09-30", "total": 8363, "draft": 0, "committee": 8355, "law": 5, "plenary": 3}, {"date": "2025-10-01", "total": 8400, "draft": 0, "committee": 8392, "law": 5, "plenary": 3}, {"date": "2025-10-02", "total": 8426, "draft": 0, "committee": 8418, "law": 5, "plenary": 3}, {"date": "2025-10-10", "total": 8455, "draft": 0, "committee": 8447, "law": 5, "plenary": 3}, {"date": "2025-10-13", "total": 8486, "draft": 0, "committee": 8478, "law": 5, "plenary": 3}, {"date": "2025-10-14", "total": 8501, "draft": 0, "committee": 8493, "law": 5, "plenary": 3}, {"date": "2025-10-15", "total": 8514, "draft": 0, "committee": 8506, "law": 5, "plenary": 3}, {"date": "2025-10-16", "total": 8519, "draft": 0, "committee": 8511, "law": 5, "plenary": 3}, {"date": "2025-10-17", "total": 8529, "draft": 0, "committee": 8521, "law": 5, "plenary": 3}, {"date": "2025-10-20", "total": 8538, "draft": 0, "committee": 8530, "law": 5, "plenary": 3}, {"date": "2025-10-21", "total": 8546, "draft": 0, "committee": 8538, "law": 5, "plenary": 3}, {"date": "2025-10-22", "total": 8555, "draft": 0, "committee": 8547, "law": 5, "plenary": 3}, {"date": "2025-10-23", "total": 8562, "draft": 0, "committee": 8554, "law": 5, "plenary": 3}, {"date": "2025-10-24", "total": 8573, "draft": 0, "committee": 8565, "law": 5, "plenary": 3}, {"date": "2025-10-27", "total": 8597, "draft": 0, "committee": 8589, "law": 5, "plenary": 3}, {"date": "2025-10-28", "total": 8621, "draft": 0, "committee": 8613, "law": 5, "plenary": 3}, {"date": "2025-10-29", "total": 8646, "draft": 0, "committee": 8638, "law": 5, "plenary": 3}, {"date": "2025-10-30", "total": 8656, "draft": 0, "committee": 8648, "law": 5, "plenary": 3}, {"date": "2025-10-31", "total": 8675, "draft": 0, "committee": 8667, "law": 5, "plenary": 3}, {"date": "2025-11-03", "total": 8689, "draft": 0, "committee": 8681, "law": 5, "plenary": 3}, {"date": "2025-11-04", "total": 8713, "draft": 0, "committee": 8705, "law": 5, "plenary": 3}, {"date": "2025-11-05", "total": 8730, "draft": 0, "committee": 8721, "law": 6, "plenary": 3}, {"date": "2025-11-06", "total": 8772, "draft": 0, "committee": 8763, "law": 6, "plenary": 3}, {"date": "2025-11-07", "total": 8803, "draft": 0, "committee": 8794, "law": 6, "plenary": 3}, {"date": "2025-11-10", "total": 8834, "draft": 0, "committee": 8825, "law": 6, "plenary": 3}, {"date": "2025-11-11", "total": 8857, "draft": 0, "committee": 8848, "law": 6, "plenary": 3}, {"date": "2025-11-12", "total": 8887, "draft": 0, "committee": 8878, "law": 6, "plenary": 3}, {"date": "2025-11-13", "total": 8911, "draft": 0, "committee": 8902, "law": 6, "plenary": 3}, {"date": "2025-11-14", "total": 8959, "draft": 0, "committee": 8950, "law": 6, "plenary": 3}, {"date": "2025-11-17", "total": 8975, "draft": 0, "committee": 8966, "law": 6, "plenary": 3}, {"date": "2025-11-18", "total": 9002, "draft": 0, "committee": 8993, "law": 6, "plenary": 3}, {"date": "2025-11-19", "total": 9035, "draft": 0, "committee": 9026, "law": 6, "plenary": 3}, {"date": "2025-11-20", "total": 9062, "draft": 0, "committee": 9053, "law": 6, "plenary": 3}, {"date": "2025-11-21", "total": 9092, "draft": 0, "committee": 9083, "law": 6, "plenary": 3}, {"date": "2025-11-24", "total": 9113, "draft": 0, "committee": 9103, "law": 6, "plenary": 4}, {"date": "2025-11-25", "total": 9135, "draft": 0, "committee": 9125, "law": 6, "plenary": 4}, {"date": "2025-11-26", "total": 9162, "draft": 0, "committee": 9151, "law": 6, "plenary": 5}, {"date": "2025-11-27", "total": 9211, "draft": 0, "committee": 9199, "law": 6, "plenary": 6}, {"date": "2025-11-28", "total": 9259, "draft": 0, "committee": 9247, "law": 6, "plenary": 6}, {"date": "2025-12-01", "total": 9268, "draft": 0, "committee": 9256, "law": 6, "plenary": 6}, {"date": "2025-12-02", "total": 9312, "draft": 0, "committee": 9300, "law": 6, "plenary": 6}, {"date": "2025-12-03", "total": 9347, "draft": 0, "committee": 9335, "law": 6, "plenary": 6}, {"date": "2025-12-04", "total": 9394, "draft": 0, "committee": 9382, "law": 6, "plenary": 6}, {"date": "2025-12-05", "total": 9422, "draft": 0, "committee": 9410, "law": 6, "plenary": 6}, {"date": "2025-12-08", "total": 9444, "draft": 0, "committee": 9432, "law": 6, "plenary": 6}, {"date": "2025-12-09", "total": 9479, "draft": 0, "committee": 9467, "law": 6, "plenary": 6}, {"date": "2025-12-10", "total": 9524, "draft": 0, "committee": 9512, "law": 6, "plenary": 6}, {"date": "2025-12-11", "total": 9562, "draft": 0, "committee": 9549, "law": 6, "plenary": 7}, {"date": "2025-12-12", "total": 9595, "draft": 0, "committee": 9582, "law": 6, "plenary": 7}, {"date": "2025-12-15", "total": 9623, "draft": 0, "committee": 9610, "law": 6, "plenary": 7}, {"date": "2025-12-16", "total": 9664, "draft": 0, "committee": 9651, "law": 6, "plenary": 7}, {"date": "2025-12-17", "total": 9700, "draft": 0, "committee": 9687, "law": 6, "plenary": 7}, {"date": "2025-12-18", "total": 9729, "draft": 0, "committee": 9716, "law": 6, "plenary": 7}, {"date": "2025-12-19", "total": 9768, "draft": 0, "committee": 9753, "law": 6, "plenary": 9}, {"date": "2025-12-22", "total": 9804, "draft": 0, "committee": 9789, "law": 6, "plenary": 9}, {"date": "2025-12-23", "total": 9853, "draft": 0, "committee": 9838, "law": 6, "plenary": 9}, {"date": "2025-12-24", "total": 9908, "draft": 0, "committee": 9893, "law": 6, "plenary": 9}, {"date": "2025-12-26", "total": 9927, "draft": 0, "committee": 9912, "law": 6, "plenary": 9}, {"date": "2025-12-29", "total": 9969, "draft": 0, "committee": 9954, "law": 6, "plenary": 9}, {"date": "2025-12-30", "total": 10029, "draft": 0, "committee": 10014, "law": 6, "plenary": 9}, {"date": "2025-12-31", "total": 10076, "draft": 0, "committee": 10061, "law": 6, "plenary": 9}, {"date": "2026-01-02", "total": 10085, "draft": 0, "committee": 10070, "law": 6, "plenary": 9}, {"date": "2026-01-05", "total": 10101, "draft": 0, "committee": 10086, "law": 6, "plenary": 9}, {"date": "2026-01-06", "total": 10120, "draft": 0, "committee": 10105, "law": 6, "plenary": 9}, {"date": "2026-01-07", "total": 10138, "draft": 0, "committee": 10123, "law": 6, "plenary": 9}, {"date": "2026-01-08", "total": 10162, "draft": 0, "committee": 10147, "law": 6, "plenary": 9}, {"date": "2026-01-09", "total": 10190, "draft": 0, "committee": 10175, "law": 6, "plenary": 9}, {"date": "2026-01-12", "total": 10214, "draft": 0, "committee": 10199, "law": 6, "plenary": 9}, {"date": "2026-01-13", "total": 10241, "draft": 0, "committee": 10226, "law": 6, "plenary": 9}, {"date": "2026-01-14", "total": 10272, "draft": 0, "committee": 10257, "law": 6, "plenary": 9}, {"date": "2026-01-15", "total": 10299, "draft": 0, "committee": 10284, "law": 6, "plenary": 9}, {"date": "2026-01-16", "total": 10332, "draft": 0, "committee": 10317, "law": 6, "plenary": 9}, {"date": "2026-01-19", "total": 10359, "draft": 0, "committee": 10344, "law": 6, "plenary": 9}, {"date": "2026-01-20", "total": 10379, "draft": 0, "committee": 10364, "law": 6, "plenary": 9}, {"date": "2026-01-21", "total": 10400, "draft": 0, "committee": 10385, "law": 6, "plenary": 9}, {"date": "2026-01-22", "total": 10435, "draft": 0, "committee": 10420, "law": 6, "plenary": 9}, {"date": "2026-01-23", "total": 10465, "draft": 0, "committee": 10450, "law": 6, "plenary": 9}, {"date": "2026-01-26", "total": 10483, "draft": 0, "committee": 10468, "law": 6, "plenary": 9}, {"date": "2026-01-27", "total": 10512, "draft": 0, "committee": 10497, "law": 6, "plenary": 9}, {"date": "2026-01-28", "total": 10539, "draft": 0, "committee": 10524, "law": 6, "plenary": 9}, {"date": "2026-01-29", "total": 10559, "draft": 0, "committee": 10544, "law": 6, "plenary": 9}, {"date": "2026-01-30", "total": 10602, "draft": 0, "committee": 10587, "law": 6, "plenary": 9}, {"date": "2026-02-02", "total": 10627, "draft": 0, "committee": 10612, "law": 6, "plenary": 9}, {"date": "2026-02-03", "total": 10655, "draft": 0, "committee": 10640, "law": 6, "plenary": 9}, {"date": "2026-02-04", "total": 10680, "draft": 0, "committee": 10665, "law": 6, "plenary": 9}, {"date": "2026-02-05", "total": 10718, "draft": 0, "committee": 10703, "law": 6, "plenary": 9}, {"date": "2026-02-06", "total": 10739, "draft": 0, "committee": 10724, "law": 6, "plenary": 9}, {"date": "2026-02-09", "total": 10760, "draft": 0, "committee": 10745, "law": 6, "plenary": 9}, {"date": "2026-02-10", "total": 10794, "draft": 0, "committee": 10779, "law": 6, "plenary": 9}, {"date": "2026-02-11", "total": 10826, "draft": 0, "committee": 10810, "law": 6, "plenary": 10}, {"date": "2026-02-12", "total": 10873, "draft": 0, "committee": 10857, "law": 6, "plenary": 10}, {"date": "2026-02-13", "total": 10895, "draft": 0, "committee": 10879, "law": 6, "plenary": 10}, {"date": "2026-02-19", "total": 10914, "draft": 0, "committee": 10898, "law": 6, "plenary": 10}, {"date": "2026-02-20", "total": 10950, "draft": 0, "committee": 10934, "law": 6, "plenary": 10}, {"date": "2026-02-23", "total": 10973, "draft": 0, "committee": 10956, "law": 6, "plenary": 11}, {"date": "2026-02-24", "total": 11005, "draft": 0, "committee": 10988, "law": 6, "plenary": 11}, {"date": "2026-02-25", "total": 11046, "draft": 0, "committee": 11029, "law": 6, "plenary": 11}, {"date": "2026-02-26", "total": 11110, "draft": 0, "committee": 11093, "law": 6, "plenary": 11}, {"date": "2026-02-27", "total": 11157, "draft": 0, "committee": 11140, "law": 6, "plenary": 11}, {"date": "2026-03-03", "total": 11177, "draft": 0, "committee": 11160, "law": 6, "plenary": 11}, {"date": "2026-03-04", "total": 11212, "draft": 0, "committee": 11195, "law": 6, "plenary": 11}, {"date": "2026-03-05", "total": 11242, "draft": 0, "committee": 11222, "law": 6, "plenary": 14}, {"date": "2026-03-06", "total": 11284, "draft": 0, "committee": 11264, "law": 6, "plenary": 14}, {"date": "2026-03-09", "total": 11307, "draft": 0, "committee": 11287, "law": 6, "plenary": 14}, {"date": "2026-03-10", "total": 11322, "draft": 0, "committee": 11302, "law": 6, "plenary": 14}, {"date": "2026-03-11", "total": 11354, "draft": 0, "committee": 11334, "law": 6, "plenary": 14}, {"date": "2026-03-12", "total": 11388, "draft": 0, "committee": 11368, "law": 6, "plenary": 14}, {"date": "2026-03-13", "total": 11415, "draft": 0, "committee": 11395, "law": 6, "plenary": 14}, {"date": "2026-03-16", "total": 11450, "draft": 0, "committee": 11429, "law": 6, "plenary": 15}, {"date": "2026-03-17", "total": 11489, "draft": 0, "committee": 11468, "law": 6, "plenary": 15}, {"date": "2026-03-18", "total": 11521, "draft": 0, "committee": 11500, "law": 6, "plenary": 15}, {"date": "2026-03-19", "total": 11551, "draft": 0, "committee": 11530, "law": 6, "plenary": 15}, {"date": "2026-03-20", "total": 11585, "draft": 0, "committee": 11564, "law": 6, "plenary": 15}, {"date": "2026-03-23", "total": 11608, "draft": 0, "committee": 11587, "law": 6, "plenary": 15}, {"date": "2026-03-24", "total": 11623, "draft": 0, "committee": 11602, "law": 6, "plenary": 15}, {"date": "2026-03-25", "total": 11664, "draft": 0, "committee": 11643, "law": 6, "plenary": 15}, {"date": "2026-03-26", "total": 11684, "draft": 0, "committee": 11663, "law": 6, "plenary": 15}, {"date": "2026-03-27", "total": 11714, "draft": 0, "committee": 11693, "law": 6, "plenary": 15}, {"date": "2026-03-30", "total": 11760, "draft": 0, "committee": 11739, "law": 6, "plenary": 15}, {"date": "2026-03-31", "total": 11810, "draft": 0, "committee": 11789, "law": 6, "plenary": 15}, {"date": "2026-04-01", "total": 11832, "draft": 0, "committee": 11811, "law": 6, "plenary": 15}, {"date": "2026-04-02", "total": 11861, "draft": 0, "committee": 11840, "law": 6, "plenary": 15}, {"date": "2026-04-03", "total": 11897, "draft": 0, "committee": 11876, "law": 6, "plenary": 15}, {"date": "2026-04-06", "total": 11930, "draft": 0, "committee": 11909, "law": 6, "plenary": 15}, {"date": "2026-04-07", "total": 11960, "draft": 0, "committee": 11939, "law": 6, "plenary": 15}, {"date": "2026-04-08", "total": 11988, "draft": 0, "committee": 11967, "law": 6, "plenary": 15}, {"date": "2026-04-09", "total": 12013, "draft": 0, "committee": 11992, "law": 6, "plenary": 15}, {"date": "2026-04-10", "total": 12050, "draft": 0, "committee": 12029, "law": 6, "plenary": 15}, {"date": "2026-04-13", "total": 12087, "draft": 0, "committee": 12066, "law": 6, "plenary": 15}, {"date": "2026-04-14", "total": 12117, "draft": 0, "committee": 12096, "law": 6, "plenary": 15}, {"date": "2026-04-15", "total": 12148, "draft": 0, "committee": 12127, "law": 6, "plenary": 15}, {"date": "2026-04-16", "total": 12173, "draft": 0, "committee": 12152, "law": 6, "plenary": 15}, {"date": "2026-04-17", "total": 12204, "draft": 0, "committee": 12183, "law": 6, "plenary": 15}, {"date": "2026-04-20", "total": 12223, "draft": 0, "committee": 12202, "law": 6, "plenary": 15}, {"date": "2026-04-21", "total": 12257, "draft": 0, "committee": 12236, "law": 6, "plenary": 15}, {"date": "2026-04-22", "total": 12274, "draft": 0, "committee": 12253, "law": 6, "plenary": 15}, {"date": "2026-04-23", "total": 12294, "draft": 0, "committee": 12273, "law": 6, "plenary": 15}, {"date": "2026-04-24", "total": 12318, "draft": 0, "committee": 12297, "law": 6, "plenary": 15}, {"date": "2026-04-27", "total": 12346, "draft": 0, "committee": 12325, "law": 6, "plenary": 15}, {"date": "2026-04-28", "total": 12374, "draft": 0, "committee": 12353, "law": 6, "plenary": 15}, {"date": "2026-04-29", "total": 12411, "draft": 0, "committee": 12390, "law": 6, "plenary": 15}, {"date": "2026-04-30", "total": 12461, "draft": 0, "committee": 12440, "law": 6, "plenary": 15}, {"date": "2026-05-04", "total": 12486, "draft": 0, "committee": 12465, "law": 6, "plenary": 15}, {"date": "2026-05-06", "total": 12511, "draft": 0, "committee": 12488, "law": 6, "plenary": 17}, {"date": "2026-05-07", "total": 12529, "draft": 0, "committee": 12506, "law": 6, "plenary": 17}, {"date": "2026-05-08", "total": 12542, "draft": 0, "committee": 12519, "law": 6, "plenary": 17}, {"date": "2026-05-11", "total": 12557, "draft": 0, "committee": 12534, "law": 6, "plenary": 17}, {"date": "2026-05-12", "total": 12571, "draft": 0, "committee": 12548, "law": 6, "plenary": 17}, {"date": "2026-05-13", "total": 12598, "draft": 0, "committee": 12575, "law": 6, "plenary": 17}, {"date": "2026-05-14", "total": 12618, "draft": 0, "committee": 12595, "law": 6, "plenary": 17}, {"date": "2026-05-15", "total": 12629, "draft": 0, "committee": 12606, "law": 6, "plenary": 17}, {"date": "2026-05-18", "total": 12644, "draft": 0, "committee": 12621, "law": 6, "plenary": 17}, {"date": "2026-05-19", "total": 12660, "draft": 0, "committee": 12637, "law": 6, "plenary": 17}, {"date": "2026-05-20", "total": 12668, "draft": 0, "committee": 12645, "law": 6, "plenary": 17}, {"date": "2026-05-21", "total": 12680, "draft": 0, "committee": 12657, "law": 6, "plenary": 17}, {"date": "2026-05-22", "total": 12691, "draft": 0, "committee": 12668, "law": 6, "plenary": 17}, {"date": "2026-05-26", "total": 12700, "draft": 0, "committee": 12677, "law": 6, "plenary": 17}, {"date": "2026-05-27", "total": 12707, "draft": 0, "committee": 12684, "law": 6, "plenary": 17}, {"date": "2026-05-28", "total": 12710, "draft": 0, "committee": 12687, "law": 6, "plenary": 17}, {"date": "2026-05-29", "total": 12715, "draft": 0, "committee": 12692, "law": 6, "plenary": 17}, {"date": "2026-06-01", "total": 12718, "draft": 0, "committee": 12695, "law": 6, "plenary": 17}, {"date": "2026-06-02", "total": 12721, "draft": 0, "committee": 12698, "law": 6, "plenary": 17}, {"date": "2026-06-04", "total": 12725, "draft": 0, "committee": 12702, "law": 6, "plenary": 17}, {"date": "2026-06-05", "total": 12738, "draft": 0, "committee": 12715, "law": 6, "plenary": 17}, {"date": "2026-06-08", "total": 12761, "draft": 0, "committee": 12738, "law": 6, "plenary": 17}, {"date": "2026-06-09", "total": 12773, "draft": 0, "committee": 12750, "law": 6, "plenary": 17}, {"date": "2026-06-10", "total": 12798, "draft": 0, "committee": 12775, "law": 6, "plenary": 17}, {"date": "2026-06-11", "total": 12824, "draft": 0, "committee": 12801, "law": 6, "plenary": 17}, {"date": "2026-06-12", "total": 12854, "draft": 0, "committee": 12823, "law": 6, "plenary": 25}, {"date": "2026-06-15", "total": 12889, "draft": 0, "committee": 12858, "law": 6, "plenary": 25}, {"date": "2026-06-16", "total": 12913, "draft": 0, "committee": 12882, "law": 6, "plenary": 25}, {"date": "2026-06-17", "total": 12935, "draft": 0, "committee": 12904, "law": 6, "plenary": 25}, {"date": "2026-06-18", "total": 12968, "draft": 0, "committee": 12937, "law": 6, "plenary": 25}, {"date": "2026-06-19", "total": 13008, "draft": 0, "committee": 12977, "law": 6, "plenary": 25}, {"date": "2026-06-22", "total": 13036, "draft": 0, "committee": 13005, "law": 6, "plenary": 25}, {"date": "2026-06-23", "total": 13071, "draft": 0, "committee": 13040, "law": 6, "plenary": 25}, {"date": "2026-06-24", "total": 13099, "draft": 0, "committee": 13068, "law": 6, "plenary": 25}, {"date": "2026-06-25", "total": 13139, "draft": 0, "committee": 13108, "law": 6, "plenary": 25}, {"date": "2026-06-26", "total": 13185, "draft": 0, "committee": 13154, "law": 6, "plenary": 25}, {"date": "2026-06-29", "total": 13229, "draft": 0, "committee": 13198, "law": 6, "plenary": 25}, {"date": "2026-06-30", "total": 13272, "draft": 0, "committee": 13241, "law": 6, "plenary": 25}, {"date": "2026-07-01", "total": 13303, "draft": 0, "committee": 13272, "law": 6, "plenary": 25}, {"date": "2026-07-02", "total": 13332, "draft": 0, "committee": 13301, "law": 6, "plenary": 25}, {"date": "2026-07-03", "total": 13373, "draft": 0, "committee": 13342, "law": 6, "plenary": 25}, {"date": "2026-07-06", "total": 13395, "draft": 0, "committee": 13364, "law": 6, "plenary": 25}, {"date": "2026-07-07", "total": 13424, "draft": 0, "committee": 13393, "law": 6, "plenary": 25}, {"date": "2026-07-08", "total": 13457, "draft": 0, "committee": 13426, "law": 6, "plenary": 25}, {"date": "2026-07-09", "total": 13488, "draft": 0, "committee": 13457, "law": 6, "plenary": 25}, {"date": "2026-07-10", "total": 13517, "draft": 0, "committee": 13486, "law": 6, "plenary": 25}, {"date": "2026-07-13", "total": 13534, "draft": 0, "committee": 13503, "law": 6, "plenary": 25}, {"date": "2026-07-14", "total": 13560, "draft": 0, "committee": 13529, "law": 6, "plenary": 25}, {"date": "2026-07-15", "total": 13601, "draft": 0, "committee": 13570, "law": 6, "plenary": 25}, {"date": "2026-07-16", "total": 13629, "draft": 0, "committee": 13598, "law": 6, "plenary": 25}, {"date": "2026-07-20", "total": 13660, "draft": 0, "committee": 13629, "law": 6, "plenary": 25}, {"date": "2026-07-21", "total": 13693, "draft": 0, "committee": 13662, "law": 6, "plenary": 25}, {"date": "2026-07-22", "total": 13716, "draft": 0, "committee": 13685, "law": 6, "plenary": 25}, {"date": "2026-07-23", "total": 13734, "draft": 0, "committee": 13703, "law": 6, "plenary": 25}, {"date": "2026-07-24", "total": 13762, "draft": 0, "committee": 13731, "law": 6, "plenary": 25}, {"date": "2026-07-27", "total": 13786, "draft": 0, "committee": 13755, "law": 6, "plenary": 25}, {"date": "2026-07-28", "total": 13807, "draft": 0, "committee": 13776, "law": 6, "plenary": 25}, {"date": "2026-07-29", "total": 13836, "draft": 0, "committee": 13804, "law": 6, "plenary": 26}, {"date": "2026-07-30", "total": 13887, "draft": 0, "committee": 13855, "law": 6, "plenary": 26}, {"date": "2026-07-31", "total": 13911, "draft": 0, "committee": 13879, "law": 6, "plenary": 26}, {"date": "2026-08-03", "total": 13944, "draft": 0, "committee": 13912, "law": 6, "plenary": 26}, {"date": "2026-08-04", "total": 13980, "draft": 0, "committee": 13948, "law": 6, "plenary": 26}, {"date": "2026-08-05", "total": 14017, "draft": 0, "committee": 13985, "law": 6, "plenary": 26}, {"date": "2026-08-06", "total": 14031, "draft": 0, "committee": 13999, "law": 6, "plenary": 26}, {"date": "2026-08-07", "total": 14057, "draft": 0, "committee": 14025, "law": 6, "plenary": 26}, {"date": "2026-08-10", "total": 14078, "draft": 0, "committee": 14046, "law": 6, "plenary": 26}, {"date": "2026-08-11", "total": 14091, "draft": 0, "committee": 14059, "law": 6, "plenary": 26}, {"date": "2026-08-12", "total": 14108, "draft": 0, "committee": 14076, "law": 6, "plenary": 26}, {"date": "2026-08-13", "total": 14127, "draft": 0, "committee": 14095, "law": 6, "plenary": 26}, {"date": "2026-08-14", "total": 14156, "draft": 0, "committee": 14124, "law": 6, "plenary": 26}, {"date": "2026-08-18", "total": 14175, "draft": 0, "committee": 14143, "law": 6, "plenary": 26}, {"date": "2026-08-19", "total": 14189, "draft": 0, "committee": 14157, "law": 6, "plenary": 26}, {"date": "2026-08-20", "total": 14215, "draft": 0, "committee": 14183, "law": 6, "plenary": 26}, {"date": "2026-08-21", "total": 14247, "draft": 0, "committee": 14215, "law": 6, "plenary": 26}, {"date": "2026-08-24", "total": 14285, "draft": 0, "committee": 14253, "law": 6, "plenary": 26}, {"date": "2026-08-25", "total": 14323, "draft": 0, "committee": 14291, "law": 6, "plenary": 26}, {"date": "2026-08-26", "total": 14366, "draft": 0, "committee": 14334, "law": 6, "plenary": 26}, {"date": "2026-08-27", "total": 14402, "draft": 0, "committee": 14370, "law": 6, "plenary": 26}, {"date": "2026-08-28", "total": 14447, "draft": 0, "committee": 14415, "law": 6, "plenary": 26}, {"date": "2026-08-31", "total": 14487, "draft": 1, "committee": 14454, "law": 6, "plenary": 26}, {"date": "2026-09-01", "total": 14524, "draft": 1, "committee": 14491, "law": 6, "plenary": 26}, {"date": "2026-09-02", "total": 14548, "draft": 1, "committee": 14515, "law": 6, "plenary": 26}, {"date": "2026-09-03", "total": 14598, "draft": 1, "committee": 14565, "law": 6, "plenary": 26}, {"date": "2026-09-04", "total": 14631, "draft": 1, "committee": 14598, "law": 6, "plenary": 26}, {"date": "2026-09-07", "total": 14651, "draft": 1, "committee": 14618, "law": 6, "plenary": 26}, {"date": "2026-09-08", "total": 14731, "draft": 1, "committee": 14698, "law": 6, "plenary": 26}, {"date": "2026-09-09", "total": 14784, "draft": 1, "committee": 14749, "law": 6, "plenary": 28}, {"date": "2026-09-10", "total": 14831, "draft": 1, "committee": 14784, "law": 6, "plenary": 40}, {"date": "2026-09-11", "total": 14867, "draft": 37, "committee": 14784, "law": 6, "plenary": 40}];
+
+// state.currentDate는 "2026/09/07"(뉴스 탭 날짜 표기)이고 BILL_DATE_STATS의 date는
+// "2026-09-07"(제안일 원본 표기)이라 구분자가 다르다 - 비교 전에 맞춰준다.
+function getBillStatsForDate(currentDate) {
+  if (!BILL_DATE_STATS.length || !currentDate) return BILL_STATS;
+  const target = currentDate.replace(/\//g, '-');
+  // BILL_DATE_STATS는 날짜 오름차순이므로, target 이하인 것 중 가장 마지막(최신) 항목을 찾는다.
+  let lo = 0, hi = BILL_DATE_STATS.length - 1, found = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (BILL_DATE_STATS[mid].date <= target) { found = BILL_DATE_STATS[mid]; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return found || { total: 0, draft: 0, committee: 0, law: 0, plenary: 0 };
+}
 
 const STARRED_BILLS_KEY = 'starredBills';
 function getStarredBills() {
@@ -997,7 +1041,7 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
-const TAB_VALUES = ['뉴스', '입법', '국회의원'];
+const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령'];
 function getSavedTab() {
   // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
   // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
@@ -1012,7 +1056,7 @@ function saveActiveTab(tab) {
 
 // 한 쪽에 몇 건씩 볼지는 사람마다 화면 크기가 달라 취향을 타므로, 고른 값을
 // 브라우저에 기억시킨다(안 그러면 새로고침마다 10개로 되돌아감).
-const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize', decision: 'decisionPageSize' };
+const PAGE_SIZE_KEYS = { news: 'newsPageSize', bill: 'billPageSize', member: 'memberPageSize', decision: 'decisionPageSize', penalty: 'penaltyPageSize' };
 // 좁은 화면에서는 한 화면에 한두 건씩 보고 넘기는 편이 편해서 1~5를 넣고 50은 뺀다.
 const IS_NARROW = (() => { try { return window.matchMedia('(max-width: 800px)').matches; } catch(e) { return false; } })();
 const ALLOWED_PAGE_SIZES = IS_NARROW ? [1, 2, 3, 4, 5, 10, 20] : [5, 10, 20, 50];
@@ -1030,7 +1074,7 @@ function getSavedPageSize(kind) {
 }
 // 선택지가 화면 폭에 따라 달라지므로 <option>은 HTML이 아니라 여기서 채운다.
 function fillPageSizeOptions() {
-  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명', decisionPageSizeSel: '건' };
+  const unitById = { pageSizeSel: '개', billPageSizeSel: '개', memberPageSizeSel: '명', decisionPageSizeSel: '건', penaltyPageSizeSel: '건' };
   Object.keys(unitById).forEach(id => {
     const sel = document.getElementById(id);
     if (sel) sel.innerHTML = ALLOWED_PAGE_SIZES.map(n => `<option value="${n}">${n}${unitById[id]}</option>`).join('');
@@ -1078,6 +1122,11 @@ const state = {
   decisionSearch: '',
   decisionPage: 1,
   decisionPageSize: getSavedPageSize('decision'),
+  penaltyKind: '전체',
+  penaltyLaw: '전체',
+  penaltySearch: '',
+  penaltyPage: 1,
+  penaltyPageSize: getSavedPageSize('penalty'),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1247,28 +1296,32 @@ function renderTopTiles() {
      </div>`;
 
   // 법안 목록(bills.json)은 입법 탭을 볼 때만 받으므로, 이 타일은 미리 세어 둔
-  // BILL_STATS 로 그린다(목록이 아직 없어도 숫자는 정확하다).
+  // BILL_DATE_STATS(제안일 누적 스냅샷)에서 지금 보고 있는 날짜(state.currentDate)에
+  // 해당하는 값을 찾아 그린다 - 목록이 아직 없어도 숫자는 정확하다. 뉴스 탭에서
+  // 날짜를 옮기면 "그 날짜까지 발의된 법안" 기준으로 같이 바뀐다(처리단계는 지금
+  // 저장된 현재값 기준 - 과거 시점 재구성은 아님).
+  const billStatsNow = getBillStatsForDate(state.currentDate);
   document.getElementById('statLaw').innerHTML =
-    `<div class="label">입법 현황 <span class="era-tag">제22대</span></div>
+    `<div class="label">입법 현황 <span class="era-tag">제22대 · ${state.currentDate || '-'}까지</span></div>
      <div class="value-line">
-       <span class="value">${BILL_STATS.total}건</span>
+       <span class="value">${billStatsNow.total}건</span>
        <div class="law-substats-block">
-         <div>입안 및 발의 ${BILL_STATS.draft}건</div>
-         <div>상임위 ${BILL_STATS.committee} · 법사위 ${BILL_STATS.law} · 본회의 ${BILL_STATS.plenary}</div>
+         <div>입안 및 발의 ${billStatsNow.draft}건</div>
+         <div>상임위 ${billStatsNow.committee} · 법사위 ${billStatsNow.law} · 본회의 ${billStatsNow.plenary}</div>
        </div>
      </div>`;
 
   // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약 - 펼친 타일과 같은 숫자를 써야 하므로
   // 여기도 수집일자 기준 groups가 아니라 발행시각 기준 windowGroups를 쓴다.
   document.getElementById('statSummaryText').textContent =
-    `수집 ${windowGroups.length}건 · 입법 ${BILL_STATS.total}건 (발의 ${BILL_STATS.draft})`;
+    `수집 ${windowGroups.length}건 · 입법 ${billStatsNow.total}건 (발의 ${billStatsNow.draft})`;
 
   return { dr, groups, sentCounts };
 }
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
@@ -2531,13 +2584,170 @@ document.getElementById('decisionPageSizeSel').addEventListener('change', e => {
   renderDecisionList();
 });
 
+// ── 법령(벌칙/과징금) ──────────────────────────────────────────────
+function lawPenaltyCardHtml(r) {
+  const badges = [`<span class="chip-category">${r.lawAbbr}</span>`, `<span class="chip-tag-warn">${r.kind}</span>`];
+  if (r.prison) badges.push(`<span class="chip-alert">${r.prison}</span>`);
+  if (r.fine) badges.push(`<span class="chip-alert">${r.fine}</span>`);
+  if (r.adminFine) badges.push(`<span class="chip-alert">${r.adminFine}</span>`);
+  if (r.surcharge) badges.push(`<span class="chip-alert">${r.surcharge}</span>`);
+  const byllHtml = r.byllDetail
+    ? `<div class="decision-summary-row">
+        <div class="summary-box-blue decision-summary-text">[산정기준] ${r.byllDetail}</div>
+        <button type="button" class="decision-summary-toggle" title="산정기준 펼치기/접기">▼</button>
+      </div>`
+    : '';
+  return `<div class="article-card">
+    <div class="card-head decision-card-head">
+      <span class="card-tags">${badges.join(' ')}</span>
+      <a class="article-title" href="${r.link}" target="_blank">${r.article}</a>
+      <span class="card-meta-group"><span class="card-meta-inline">개정일 ${r.date} · ${r.lawName}</span></span>
+    </div>
+    <div class="decision-summary-row">
+      <div class="summary-box-blue decision-summary-text">${r.requirement}</div>
+      <button type="button" class="decision-summary-toggle" title="조문 전문 펼치기/접기">▼</button>
+    </div>
+    ${byllHtml}
+  </div>`;
+}
+
+function renderPenaltyKindChipRow() {
+  const counts = {};
+  LAW_PENALTY_DATA.forEach(r => { counts[r.kind || '기타'] = (counts[r.kind || '기타']||0) + 1; });
+  if (state.penaltyKind !== '전체' && !(state.penaltyKind in counts)) state.penaltyKind = '전체';
+  const row = document.getElementById('penaltyKindChipRow');
+  const tag = document.getElementById('penaltyKindCurrentTag');
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => counts[b]-counts[a]));
+  tag.textContent = state.penaltyKind === '전체' ? '' : `${state.penaltyKind} ${counts[state.penaltyKind]||0}`;
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyKind===v?'active':''}">${v} ${cnt}</button>`;
+  }).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.penaltyKind = btn.dataset.val;
+    state.penaltyPage = 1;
+    renderPenaltyList();
+  }));
+}
+
+function renderPenaltyLawChipRow() {
+  const counts = {};
+  LAW_PENALTY_DATA.forEach(r => { counts[r.lawAbbr || '기타'] = (counts[r.lawAbbr || '기타']||0) + 1; });
+  if (state.penaltyLaw !== '전체' && !(state.penaltyLaw in counts)) state.penaltyLaw = '전체';
+  const row = document.getElementById('penaltyLawChipRow');
+  const tag = document.getElementById('penaltyLawCurrentTag');
+  // 법령이 27개나 되므로 등장 빈도(=벌칙류 조문 수)가 아니라 이름 가나다순으로 보여야 찾기 쉽다.
+  const values = ['전체'].concat(Object.keys(counts).sort((a,b) => a.localeCompare(b, 'ko')));
+  tag.textContent = state.penaltyLaw === '전체' ? '' : `${state.penaltyLaw} ${counts[state.penaltyLaw]||0}`;
+  row.innerHTML = values.map(v => {
+    const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyLaw===v?'active':''}">${v} ${cnt}</button>`;
+  }).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.penaltyLaw = btn.dataset.val;
+    state.penaltyPage = 1;
+    renderPenaltyList();
+  }));
+}
+
+function renderLawPenalties() {
+  renderPenaltyKindChipRow();
+  renderPenaltyLawChipRow();
+  renderPenaltyList();
+}
+
+function renderPenaltyList() {
+  let filtered = LAW_PENALTY_DATA.slice();
+  if (state.penaltyKind !== '전체') filtered = filtered.filter(r => r.kind === state.penaltyKind);
+  if (state.penaltyLaw !== '전체') filtered = filtered.filter(r => r.lawAbbr === state.penaltyLaw);
+  if (state.penaltySearch) {
+    filtered = filtered.filter(r => matchesSearchTokens([r.lawName, r.article, r.requirement], state.penaltySearch));
+  }
+  // LAW_PENALTY_DATA는 이미 개정일 내림차순으로 온다(generate_html.py) - 사용자가
+  // 요청한 표시 순서(개정일 -> 형벌 -> 과징금 -> 위반요건)의 첫 기준이 바로 이것.
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.penaltyPageSize));
+  if (state.penaltyPage > totalPages) state.penaltyPage = totalPages;
+  if (state.penaltyPage < 1) state.penaltyPage = 1;
+  const startN = (state.penaltyPage - 1) * state.penaltyPageSize;
+  const pageItems = filtered.slice(startN, startN + state.penaltyPageSize);
+
+  document.getElementById('penaltyResultCaption').textContent = totalCount === 0
+    ? "조건에 맞는 조문이 없습니다."
+    : `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.penaltyPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+  document.getElementById('penaltyPageSizeSel').value = String(state.penaltyPageSize);
+
+  const listEl = document.getElementById('penaltyListArea');
+  listEl.innerHTML = pageItems.length ? pageItems.map(lawPenaltyCardHtml).join('')
+    : "<div class='info-box'>조건에 맞는 조문이 없습니다.</div>";
+  listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
+
+  renderPenaltyPagination(totalPages);
+}
+
+function renderPenaltyPagination(totalPages) {
+  const pg = document.getElementById('penaltyPgNav');
+  const WINDOW = 10;
+  const startP = Math.max(1, Math.min(state.penaltyPage - Math.floor(WINDOW/2), totalPages - WINDOW + 1));
+  const endP = Math.min(totalPages, startP + WINDOW - 1);
+  const pageNums = [];
+  for (let p = startP; p <= endP; p++) pageNums.push(p);
+  let navHtml = `<button id="penaltyPgPrev" ${state.penaltyPage<=1?'disabled':''}>◀</button>`;
+  pageNums.forEach(p => { navHtml += `<button class="pg-num ${p===state.penaltyPage?'active':''}" data-p="${p}">${p}</button>`; });
+  navHtml += `<button id="penaltyPgNext" ${state.penaltyPage>=totalPages?'disabled':''}>▶</button>`;
+  pg.innerHTML = navHtml;
+  document.getElementById('penaltyPgPrev').addEventListener('click', () => { if (state.penaltyPage>1) { state.penaltyPage--; renderPenaltyList(); } });
+  document.getElementById('penaltyPgNext').addEventListener('click', () => { if (state.penaltyPage<totalPages) { state.penaltyPage++; renderPenaltyList(); } });
+  pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.penaltyPage = parseInt(b.dataset.p,10); renderPenaltyList(); }));
+}
+
+let lawPenaltiesLoaded = false;
+let lawPenaltiesPromise = null;
+function ensureLawPenalties() {
+  if (lawPenaltiesLoaded) return Promise.resolve();
+  if (!lawPenaltiesPromise) {
+    lawPenaltiesPromise = loadJson('law_penalties.json')
+      .then(rows => { LAW_PENALTY_DATA = rows; lawPenaltiesLoaded = true; })
+      .catch(err => { lawPenaltiesPromise = null; throw err; });
+  }
+  return lawPenaltiesPromise;
+}
+
+document.getElementById('penaltySearchInput').addEventListener('input', e => {
+  state.penaltySearch = e.target.value;
+  state.penaltyPage = 1;
+  renderPenaltyList();
+});
+document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
+  state.penaltyPageSize = parseInt(e.target.value, 10);
+  savePageSize('penalty', state.penaltyPageSize);
+  state.penaltyPage = 1;
+  renderPenaltyList();
+});
+
 function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
 
-  ['view-news','view-law','view-org','view-decision','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+  ['view-news','view-law','view-org','view-decision','view-penalty','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '심결판결') {
+  if (state.activeTab === '법령') {
+    document.getElementById('view-penalty').classList.add('active');
+    if (lawPenaltiesLoaded) {
+      renderLawPenalties();
+    } else {
+      document.getElementById('penaltyListArea').innerHTML =
+        "<div class='info-box'>법령 목록을 불러오는 중…</div>";
+      ensureLawPenalties().then(() => { if (state.activeTab === '법령') renderAll(); })
+        .catch(() => {
+          document.getElementById('penaltyListArea').innerHTML =
+            "<div class='info-box'>법령 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
+  } else if (state.activeTab === '심결판결') {
     document.getElementById('view-decision').classList.add('active');
     if (decisionsLoaded) {
       renderDecisions();
@@ -2780,37 +2990,44 @@ if (IS_NARROW) {
   }
 }
 
-// 입법 탭: "검색"/☆ 즐겨찾기/"소관위" 세 토글을 모바일에서만 한 줄로 합치고,
-// 검색창도 모바일에서만 접었다 펼친다(사용자 요청, 2026-09-11 - 데스크톱은
-// 원래처럼 검색창이 항상 보이는 채로 둔다. "소관위"는 원래 있던 필터-섹션
-// 토글 버튼을 그대로 재사용하되 공유 행으로 옮긴다 - 그 몸통인 위원회 칩
-// 목록은 #committeeFilterSection 안에 그대로 남아 원래 순서대로 펼쳐진다).
+// 입법 탭: "검색"▶ 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 모바일에서만 한
+// 줄로 합쳐서 같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"
+// 줄과 "제안일" 줄이 따로였다. 데스크톱은 원래처럼 각자 자리에 그대로 둔다).
+// "소관위"는 이 줄에 넣지 않고 원래 있던 필터-섹션에 그대로 남겨둔다.
 const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
 const billMainFilterRow = document.getElementById('billMainFilterRow');
 const billSearchToggleEl = document.getElementById('billSearchToggle');
 const billDateFilterRow = document.querySelector('.bill-date-filter-row');
+// 주의: 뉴스 탭에도 같은 클래스(.custom-range-inputs)를 쓰는 날짜 범위 입력이
+// 있어(id="customRangeInputs", 평소엔 style="display:none") 문서 전체에서
+// querySelector로 찾으면 그쪽이 먼저 걸린다 - billDateFilterRow 안에서만 찾는다.
+const billDateRangeEl = billDateFilterRow ? billDateFilterRow.querySelector('.custom-range-inputs') : null;
 if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
   const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
     ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
-  billMainFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
-  billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
-  if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
-  billSearchToggleEl.addEventListener('click', () => {
-    const on = billMainFilterRow.classList.toggle('bill-search-collapsed');
-    billSearchToggleEl.classList.toggle('is-collapsed', on);
-    if (billDateFilterRow) billDateFilterRow.classList.toggle('bill-search-collapsed', on);
-    writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
-  });
 
   const billStarredToggleEl = document.getElementById('billStarredToggle');
-  const billCommitteeToggleEl = document.getElementById('billCommitteeToggle');
-  if (billStarredToggleEl && billCommitteeToggleEl && billMainFilterRow.parentNode) {
+  const billSearchInputEl = document.getElementById('billSearchInput');
+  if (billStarredToggleEl && billSearchInputEl && billMainFilterRow.parentNode) {
     const billCombinedRow = document.createElement('div');
-    billCombinedRow.id = 'mobileBillToggleRow';
+    billCombinedRow.id = 'mobileBillSearchRow';
     billCombinedRow.appendChild(billSearchToggleEl);
+    if (billDateRangeEl) billCombinedRow.appendChild(billDateRangeEl);
     billCombinedRow.appendChild(billStarredToggleEl);
-    billCombinedRow.appendChild(billCommitteeToggleEl);
+    billCombinedRow.appendChild(billSearchInputEl);
     billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
+    // 검색토글/☆/입력창이 다 옮겨져 비었으니(billMainFilterRow), "제안일" 라벨만
+    // 남아 빈 껍데기가 되는 billDateFilterRow와 함께 통째로 숨긴다.
+    billMainFilterRow.style.display = 'none';
+    if (billDateFilterRow) billDateFilterRow.style.display = 'none';
+
+    billCombinedRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
+    billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
+    billSearchToggleEl.addEventListener('click', () => {
+      const on = billCombinedRow.classList.toggle('bill-search-collapsed');
+      billSearchToggleEl.classList.toggle('is-collapsed', on);
+      writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
+    });
   }
 }
 
