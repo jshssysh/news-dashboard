@@ -190,16 +190,23 @@ a.badge-skipped:hover { text-decoration: underline; }
   color: var(--app-text); padding: 2px 8px; font-size: 0.78em; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .cart-inline-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
 .cart-inline-btn.in-cart { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
-.cart-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
-.cart-table td { border: 1px solid var(--app-border); padding: 10px 12px; vertical-align: top; }
-.cart-cat-cell { font-weight: 700; white-space: nowrap; width: 1%; background: var(--app-secondary-bg); }
-.cart-title-cell { display: flex; align-items: baseline; gap: 8px; }
-.cart-title-cell a { flex: 1 1 auto; min-width: 0; }
 .cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
   cursor: pointer; font-size: 0.8em; padding: 0 2px; }
 .cart-remove-btn:hover { opacity: 0.9; }
-/* 뉴스 탭 사이드바 "담기 미리보기" - 제목 + 오른쪽 끝 ✕ */
-#cartPreviewList { display: flex; flex-direction: column; gap: 6px; }
+/* "담기 미리보기"(뉴스 탭 사이드바 + 입법 탭) - 제목 줄에 접기 캐럿과
+   "내보내기"를 같이 두고, 목록은 항목마다 제목 + 오른쪽 끝 ✕ (2026-09-14 -
+   따로 있던 "장바구니" 탭을 없애고 이 미리보기들로 통합). */
+.cart-preview-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.cart-preview-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0 !important; }
+.cart-preview-toggle .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.cart-preview-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
+/* .cart-preview-list는 클래스 선택자라 #cartPreviewList/#billCartPreviewList의
+   display:flex(아이디 선택자, 우선순위가 더 높음)에 그냥 지면 접히지 않는다 -
+   여기서도 아이디를 같이 걸어 우선순위를 맞춘다. */
+.cart-preview-panel.collapsed #cartPreviewList,
+.cart-preview-panel.collapsed #billCartPreviewList { display: none; }
+.cart-export-btn { flex-shrink: 0; font-size: 0.78em !important; }
+#cartPreviewList, #billCartPreviewList { display: flex; flex-direction: column; gap: 6px; }
 .cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
 .cart-preview-item a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -846,8 +853,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="panel-title" id="sidebarToggle">수집 현황<span class="toggle-caret">▼</span><span class="current-tag" id="sidebarCurrentTag"></span></div>
           <div id="sidebarBars"></div>
         </div>
-        <div class="sidebar-panel" id="cartPreviewPanel">
-          <div class="panel-title">담기 미리보기</div>
+        <div class="sidebar-panel cart-preview-panel" id="cartPreviewPanel">
+          <div class="panel-title-row">
+            <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
+            <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+          </div>
           <div id="cartPreviewList" class="cart-preview-list"></div>
         </div>
       </div>
@@ -887,8 +897,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
       </div>
-      <div class="sidebar-panel" id="billCartPreviewPanel">
-        <div class="panel-title" style="cursor:default;">담기 미리보기</div>
+      <div class="sidebar-panel cart-preview-panel" id="billCartPreviewPanel">
+        <div class="panel-title-row">
+          <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
+          <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+        </div>
         <div id="billCartPreviewList" class="cart-preview-list"></div>
       </div>
       <hr class="thin">
@@ -1027,19 +1040,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     </div>
   </div>
 
-  <div id="view-cart" class="view">
-    <hr class="thin">
-    <div class="bill-filter-sticky">
-      <div class="news-filter-row">
-        <h5>장바구니</h5>
-        <span class="result-caption" id="cartResultCaption"></span>
-        <button type="button" id="cartExportBtn" class="archive-toggle-link">내보내기</button>
-        <button type="button" id="cartClearBtn" class="archive-toggle-link">비우기</button>
-      </div>
-      <hr class="thin">
-    </div>
-    <div id="cartTableArea"></div>
-  </div>
 
   <div id="view-empty" class="view">
     <hr class="thin">
@@ -1129,7 +1129,6 @@ function toggleCartItem(btn) {
   }
   updateCartInlineBtn(btn);
   renderTabsAndDate(); // 탭의 담은 건수 + 사이드바 미리보기도 같이 갱신
-  if (state.activeTab === '장바구니') renderCartView();
 }
 function updateCartInlineBtn(btn) {
   const inCart = cartHasId(btn.dataset.cartId);
@@ -1137,50 +1136,11 @@ function updateCartInlineBtn(btn) {
   btn.classList.toggle('in-cart', inCart);
 }
 
-function renderCartView() {
-  const cart = getCart();
-  document.getElementById('cartResultCaption').textContent = cart.length ? `담은 항목 ${cart.length}건` : '';
-
-  const areaEl = document.getElementById('cartTableArea');
-  if (!cart.length) {
-    areaEl.innerHTML = "<div class='info-box'>담은 항목이 없습니다. 뉴스·입법 탭에서 체크박스로 담아보세요.</div>";
-    return;
-  }
-
-  // 한 항목 = 한 행("분야ㅣ제목" 형태로 캡처/복사하기 쉽게) - 분야는
-  // CART_CATEGORY_ORDER 순서대로, 같은 분야 안에서는 담은 순서 그대로 둔다.
-  const catRank = cat => {
-    const i = CART_CATEGORY_ORDER.indexOf(cat);
-    return i === -1 ? CART_CATEGORY_ORDER.length : i;
-  };
-  const sorted = cart.map((item, idx) => ({ item, idx }))
-    .sort((a, b) => (catRank(a.item.category) - catRank(b.item.category)) || (a.idx - b.idx))
-    .map(x => x.item);
-
-  const rowsHtml = sorted.map(it => `
-    <tr>
-      <td class="cart-cat-cell">${it.category || '기타'}</td>
-      <td class="cart-title-cell">
-        <a href="${it.link}" target="_blank">${it.title}</a>
-        <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
-      </td>
-    </tr>`).join('');
-
-  areaEl.innerHTML = `<table class="cart-table"><tbody>${rowsHtml}</tbody></table>`;
-  areaEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      removeCartItem(btn.dataset.id);
-      renderCartView();
-      renderTabsAndDate(); // 탭 버튼의 담은 건수 표시도 갱신
-    });
-  });
-}
-
 // 뉴스 탭 사이드바("수집 현황" 밑)·입법 탭("전체▶입안▶상임위..." 흐름과
 // 법안 목록 사이)에 지금까지 담은 항목을 간단히 보여주고, 여기서도 바로
-// 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 장바구니 탭까지 안 가도 뭘
-// 담았는지 바로 확인하고 정리할 수 있도록). 두 탭 다 같은 내용을 보여주므로
-// .cart-preview-list 클래스를 가진 모든 위치에 한 번에 그린다.
+// 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 애초에 따로 있던 "장바구니" 탭은
+// 이 미리보기 두 곳으로 충분하다고 판단해 없앴다). 두 탭 다 같은 내용을
+// 보여주므로 .cart-preview-list 클래스를 가진 모든 위치에 한 번에 그린다.
 function renderCartPreview() {
   const lists = document.querySelectorAll('.cart-preview-list');
   if (!lists.length) return;
@@ -1198,16 +1158,24 @@ function renderCartPreview() {
       btn.addEventListener('click', () => {
         removeCartItem(btn.dataset.id);
         renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기들도 다시 그림
-        if (state.activeTab === '장바구니') renderCartView();
       });
     });
   });
 }
 
-document.getElementById('cartClearBtn').addEventListener('click', () => {
-  saveCart([]);
-  renderCartView();
-  renderTabsAndDate();
+// "담기 미리보기" 제목을 누르면 목록을 접었다 펼친다 - 뉴스 탭/입법 탭 두
+// 자리 다 같은 상태로 맞춰서 어느 쪽에서 접든 똑같이 접힌다.
+const CART_PREVIEW_COLLAPSE_KEY = 'cartPreviewCollapsed';
+function applyCartPreviewCollapse() {
+  const collapsed = readFlag(CART_PREVIEW_COLLAPSE_KEY);
+  document.querySelectorAll('.cart-preview-panel').forEach(panel => panel.classList.toggle('collapsed', collapsed));
+}
+applyCartPreviewCollapse();
+document.querySelectorAll('.cart-preview-toggle').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    writeFlag(CART_PREVIEW_COLLAPSE_KEY, !readFlag(CART_PREVIEW_COLLAPSE_KEY));
+    applyCartPreviewCollapse();
+  });
 });
 
 // "2026/09/14" -> "'26.9.14" (사용자가 보여준 보고용 표 형식과 동일).
@@ -1257,7 +1225,7 @@ function buildCartExportHtml() {
 </body></html>`;
 }
 
-document.getElementById('cartExportBtn').addEventListener('click', () => {
+document.querySelectorAll('.cart-export-btn').forEach(btn => btn.addEventListener('click', () => {
   if (!getCart().length) { alert('담은 항목이 없습니다.'); return; }
   // 주의: 'noopener'를 쓰면 반환값이 항상 null이 되어(spec) 빈 창에 내용을
   // 써넣을 방법이 없어진다 - 그래서 여기만 noopener 없이 연다(팝업 내용은
@@ -1267,7 +1235,7 @@ document.getElementById('cartExportBtn').addEventListener('click', () => {
   popup.document.open();
   popup.document.write(buildCartExportHtml());
   popup.document.close();
-});
+}));
 
 const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
 function newsCategoryRank(c) {
@@ -1279,7 +1247,7 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
-const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령', '장바구니'];
+const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령'];
 function getSavedTab() {
   // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
   // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
@@ -1559,9 +1527,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const cartCount = getCart().length;
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령'],
-    [cartCount ? `장바구니 ${cartCount}` : '장바구니', '장바구니']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
@@ -3035,12 +3001,9 @@ function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
 
-  ['view-news','view-law','view-org','view-decision','view-penalty','view-cart','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+  ['view-news','view-law','view-org','view-decision','view-penalty','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '장바구니') {
-    document.getElementById('view-cart').classList.add('active');
-    renderCartView();
-  } else if (state.activeTab === '법령') {
+  if (state.activeTab === '법령') {
     document.getElementById('view-penalty').classList.add('active');
     if (lawPenaltiesLoaded) {
       renderLawPenalties();
