@@ -1250,25 +1250,40 @@ function buildCartExportTableHtml() {
     if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
   });
 
-  // 엑셀 기준(사용자 지정, 2026-09-14): 맑은 고딕 11pt, 검정 테두리 전체.
-  // pt 단위를 그대로 써야 엑셀에 붙여넣었을 때 글자 크기 11이 맞게 들어간다.
-  const cellStyle = "border:1px solid #000; padding:6px 10px; vertical-align:top; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:11pt; color:#000; background:#fff;";
-  const rowsHtml = orderedCats.map(cat => {
-    const itemsHtml = byCategory[cat]
-      .map(it => `<a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a>`)
-      .join('<br>');
-    return `<tr><td style="${cellStyle}font-weight:700;white-space:nowrap;">${cat}</td><td style="${cellStyle}">${itemsHtml}</td></tr>`;
-  }).join('');
+  // 엑셀 기준(사용자 지정, 2026-09-14): 맑은 고딕 11pt. pt 단위를 그대로 써야
+  // 엑셀에 붙여넣었을 때 글자 크기 11이 맞게 들어간다. 날짜 행(1행)은 테두리
+  // 없이, "정책/법개정 관련 보도 등"부터 아래로만 테두리를 준다. 분야명·제목
+  // 줄은 굵게 하지 않는다(날짜만 굵게). 같은 분야 기사가 여러 건이면 A열
+  // 분야명 한 칸을 그 건수만큼 rowspan으로 병합하고(왼쪽 정렬), B열은 기사
+  // 하나당 한 행씩 준다 - 한 칸에 <br>로 몰아넣지 않는다.
+  const fontStyle = "font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:11pt; color:#000; background:#fff;";
+  const borderedStyle = `border:1px solid #000; padding:6px 10px; vertical-align:top; ${fontStyle}`;
+  const noBorderStyle = `padding:6px 10px; vertical-align:top; ${fontStyle}`;
+
+  const itemRowsHtml = [];
+  orderedCats.forEach(cat => {
+    const items = byCategory[cat];
+    items.forEach((it, idx) => {
+      const linkCell = `<td style="${borderedStyle}"><a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a></td>`;
+      if (idx === 0) {
+        // 병합된 분야 칸은 가로 왼쪽 정렬 + 세로 가운데 정렬(사용자 지정) -
+        // 세로는 위에서 이미 깔린 vertical-align:top을 여기서 middle로 덮는다.
+        itemRowsHtml.push(`<tr><td rowspan="${items.length}" style="${borderedStyle}text-align:left;vertical-align:middle;white-space:nowrap;">${cat}</td>${linkCell}</tr>`);
+      } else {
+        itemRowsHtml.push(`<tr>${linkCell}</tr>`);
+      }
+    });
+  });
 
   return `<table style="border-collapse:collapse; width:100%;">
   <tr>
-    <td style="${cellStyle}font-weight:700;white-space:nowrap;background:#d9d9d9;">${formatExportDate(state.currentDate)}</td>
-    <td style="${cellStyle}"></td>
+    <td style="${noBorderStyle}font-weight:700;white-space:nowrap;background:#d9d9d9;">${formatExportDate(state.currentDate)}</td>
+    <td style="${noBorderStyle}"></td>
   </tr>
   <tr>
-    <td colspan="2" style="${cellStyle}font-weight:700;text-align:left;">정책/법개정 관련 보도 등</td>
+    <td colspan="2" style="${borderedStyle}text-align:left;">정책/법개정 관련 보도 등</td>
   </tr>
-  ${rowsHtml}
+  ${itemRowsHtml.join('')}
 </table>`;
 }
 
