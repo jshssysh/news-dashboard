@@ -1,12 +1,22 @@
 /**
- * news-dashboard의 "법령" 탭에서 붙여넣은 계약서 문구를, 이미 수집돼 있는
- * 공정위 소관 법령 + 상법 벌칙/과징금 조문(law_penalties.json)과 대조해
+ * news-dashboard의 "법령" 탭에서 붙여넣은 계약서 문구를, 하도급·유통·가맹·
+ * 대리점·약관 계열 법령의 조문 전체(contract_law_corpus.json)와 대조해
  * 저촉 소지가 있는 조문을 AI로 판단해준다.
  *
  * 이 프로젝트(news-dashboard)는 GitHub Pages 정적 사이트라 서버가 없어서,
  * "사용자가 그 순간 입력하는 임의의 텍스트"를 실시간으로 AI 검토하려면
  * 별도의 서버가 필요하다 - 이 Worker가 그 역할이다 (2026-09-14, 계약서
  * 조항 저촉 확인 기능 논의 결과).
+ *
+ * 처음엔 law_penalties.json(벌칙/과징금 조문만 좁힌 목록)을 후보로 썼는데,
+ * "부당한 특약의 금지" 같은 금지·의무 조항 자체가 벌칙류 제목이 아니라서
+ * 후보에 아예 없었다(실측: 명백한 부당특약 문구도 "저촉 조문 없음"으로
+ * 오판). contract_law_corpus.json은 그 법령들의 조문 전체를 담고 있어
+ * 이 문제가 없다 - 다만 693건이나 되므로, 매 요청마다 전부 프롬프트에
+ * 넣지 않고 계약서 문구와 키워드가 겹치는 상위 후보만 추려 보낸다
+ * (selectTopCandidates - 형태소 분석기 없이 2글자 이상 부분열 겹침으로
+ * 근사한 것이라 완벽하진 않지만, 법률 용어는 대개 고유명사성 조각이라
+ * 실용적으로 잘 걸린다).
  *
  * 처음엔 Gemini API를 불렀는데, Cloudflare Worker는 요청마다 전 세계 아무
  * 데이터센터에서나 실행될 수 있어서 그중 Gemini가 막아둔 지역(예: 유럽)에서
@@ -15,14 +25,16 @@
  * 도는 별도 계정/키 없이 쓰는 서비스라 이 지역 차단 문제 자체가 없다 -
  * 그래서 Gemini 대신 이걸로 바꿨다(wrangler.toml의 [ai] binding 참고).
  *
- * law_penalties.json은 매번 GitHub Pages에서 그대로 fetch해 온다(빌드 시
- * 번들링하지 않음) - 법령탭 데이터가 갱신될 때마다 이 Worker를 재배포할
- * 필요가 없도록.
+ * contract_law_corpus.json은 매번 GitHub Pages에서 그대로 fetch해 온다
+ * (빌드 시 번들링하지 않음) - 법령 데이터가 갱신될 때마다 이 Worker를
+ * 재배포할 필요가 없도록.
  */
 
 const ALLOWED_ORIGIN = "https://jshssysh.github.io";
-const LAW_DATA_URL = "https://jshssysh.github.io/news-dashboard/law_penalties.json";
+const LAW_DATA_URL = "https://jshssysh.github.io/news-dashboard/contract_law_corpus.json";
 const MAX_TEXT_LENGTH = 8000;
+const TOP_CANDIDATE_COUNT = 40;
+const ARTICLE_SNIPPET_LENGTH = 500;
 // @cf/meta/llama-3.1-8b-instruct는 2026-05-30 deprecated돼 실제로 호출 실패가
 // 났고(실측), 후속 -fast 버전은 JSON Mode를 켜도 문법을 깨뜨리는 경우가
 // 실측됐다(8B급이라 스키마 준수력이 떨어지는 듯) - 70B 모델로 올려 안정성을
@@ -76,16 +88,10 @@ export default {
       return jsonResponse({ error: "법령 데이터를 불러오지 못했습니다" }, 502);
     }
 
-    // 프롬프트 길이를 감안해 조문 본문은 앞부분만 잘라 후보로 넣는다.
-    const corpus = lawRows.map((r) => ({
-      law: r.lawAbbr,
-      article: r.article,
-      kind: r.kind,
-      summary: (r.requirement || "").slice(0, 300),
-    }));
+    const candidates = selectTopCandidates(text, lawRows, TOP_CANDIDATE_COUNT);
 
     try {
-      const matches = await callWorkersAI(text, corpus, env);
+      const matches = await callWorkersAI(text, candidates, env);
       return jsonResponse({ matches });
     } catch (e) {
       return jsonResponse({ error: `AI 호출 실패: ${e.message}` }, 502);
@@ -93,9 +99,31 @@ export default {
   },
 };
 
-function buildPrompt(clauseText, corpus) {
-  const corpusBlock = corpus
-    .map((c) => `- [${c.law} ${c.article} / ${c.kind}] ${c.summary}`)
+// 형태소 분석기 없이 한글 2글자 이상 부분열 + 영숫자 조각을 대충 토큰으로
+// 삼는다 - 법률 용어("하도급대금", "부당한특약" 등)는 대개 고유명사성이라
+// 이 정도 근사로도 실용적으로 겹침이 잘 걸린다.
+function tokenize(text) {
+  return (String(text || "").match(/[가-힣]{2,}|[a-zA-Z0-9]{2,}/g) || []);
+}
+
+function selectTopCandidates(clauseText, corpus, topN) {
+  const clauseTokens = new Set(tokenize(clauseText));
+  const scored = corpus.map((c) => {
+    const articleTokens = tokenize(c.text);
+    let score = 0;
+    for (const t of articleTokens) if (clauseTokens.has(t)) score++;
+    return { ...c, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const withHits = scored.filter((c) => c.score > 0);
+  // 겹치는 키워드가 하나도 없으면(전혀 다른 도메인의 문구 등) 그래도 뭔가는
+  // 보여주도록 상위 topN을 그냥 채워서 보낸다 - 빈 결과보다 낫다.
+  return (withHits.length ? withHits : scored).slice(0, topN);
+}
+
+function buildPrompt(clauseText, candidates) {
+  const corpusBlock = candidates
+    .map((c) => `- [${c.lawAbbr} ${c.article}] ${(c.text || "").slice(0, ARTICLE_SNIPPET_LENGTH)}`)
     .join("\n");
   return `당신은 한국 기업 법무 검토 담당자입니다.
 아래 [검토할 계약서 문구]가 [관련 법령 후보] 중 어느 조문과 저촉될 소지가
@@ -138,11 +166,11 @@ const MATCHES_SCHEMA = {
   required: ["matches"],
 };
 
-async function callWorkersAI(clauseText, corpus, env) {
+async function callWorkersAI(clauseText, candidates, env) {
   const result = await env.AI.run(AI_MODEL, {
     messages: [
       { role: "system", content: "당신은 지시받은 JSON 스키마 형식으로만 응답하는 어시스턴트입니다." },
-      { role: "user", content: buildPrompt(clauseText, corpus) },
+      { role: "user", content: buildPrompt(clauseText, candidates) },
     ],
     response_format: { type: "json_schema", json_schema: MATCHES_SCHEMA },
   });

@@ -38,6 +38,9 @@ MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
 WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
 DECISIONS_JSON_PATH = os.path.join(OUT_DIR, "decisions.json")
 LAW_PENALTIES_JSON_PATH = os.path.join(OUT_DIR, "law_penalties.json")
+# 화면 어느 탭에도 안 쓰인다 - 계약서 문구 검토 Worker(worker/)가 GitHub Pages에서
+# 이 파일 하나만 fetch해서 AI 프롬프트의 후보 법령 코퍼스로 쓴다.
+CONTRACT_LAW_CORPUS_JSON_PATH = os.path.join(OUT_DIR, "contract_law_corpus.json")
 TEMPLATE_PATH = "html_template.html"
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -206,6 +209,28 @@ def load_law_penalties():
             "link": law_deep_link(nz(row.get("법령명"), ""), nz(row.get("조문"), "")),
         }
         for _, row in ldf.iterrows()
+    ]
+
+
+def load_contract_law_corpus():
+    """collect_law_penalties.py가 만든 contract_law_corpus.csv(하도급·유통·
+    가맹·대리점·약관 계열 법령의 조문 전체, 벌칙류로 안 좁힌 것)를 읽는다.
+    화면 어느 탭에도 안 쓰이고, 계약서 문구 검토 Cloudflare Worker가 이
+    JSON만 fetch해서 AI 프롬프트의 후보 법령으로 쓴다."""
+    path = "contract_law_corpus.csv"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    try:
+        cdf = pd.read_csv(path, dtype=str, keep_default_na=False)
+    except Exception:
+        return []
+    return [
+        {
+            "lawAbbr": nz(row.get("법령약칭"), ""),
+            "article": nz(row.get("조문"), ""),
+            "text": nz(row.get("조문내용"), ""),
+        }
+        for _, row in cdf.iterrows()
     ]
 
 
@@ -496,6 +521,7 @@ def build():
     cluster_warnings = load_cluster_warnings()
     decisions = load_decisions()
     law_penalties = load_law_penalties()
+    contract_law_corpus = load_contract_law_corpus()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
@@ -520,6 +546,7 @@ def build():
     warnings_bytes = dump_json(WARNINGS_JSON_PATH, cluster_warnings)
     decisions_bytes = dump_json(DECISIONS_JSON_PATH, decisions)
     law_penalties_bytes = dump_json(LAW_PENALTIES_JSON_PATH, law_penalties)
+    contract_corpus_bytes = dump_json(CONTRACT_LAW_CORPUS_JSON_PATH, contract_law_corpus)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
@@ -529,7 +556,8 @@ def build():
         f"  {MEMBERS_JSON_PATH:<20} {members_bytes/1024:8.0f}KB (의원 {len(members)}명)\n"
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
         f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)\n"
-        f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)"
+        f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)\n"
+        f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
     )
 
 
