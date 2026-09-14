@@ -1,0 +1,32 @@
+name: deploy-contract-checker-worker
+
+# worker/ 안이 바뀔 때만 돌린다 - 매번(하루 5번) 도는 daily.yml과 별개로,
+# 이 Worker 코드가 바뀔 때만 Cloudflare에 재배포하면 된다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Cloudflare Workers 배포
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          # GEMINI_API_KEY는 코드에 안 두고, 배포할 때마다 이미 있는 GitHub
+          # Secret 값을 그대로 Cloudflare Worker Secret으로 밀어넣는다
+          # (wrangler secret put을 손으로 칠 필요가 없다).
+          secrets: |
+            GEMINI_API_KEY
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

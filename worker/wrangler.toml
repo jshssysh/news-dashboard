@@ -1,0 +1,7 @@
+name = "news-dashboard-contract-checker"
+main = "src/index.js"
+compatibility_date = "2026-09-14"
+
+# GEMINI_API_KEY는 코드가 아니라 Cloudflare Worker Secret으로 넣는다
+# (.github/workflows/deploy-worker.yml이 배포 때마다 GitHub Secrets의
+# 같은 값을 그대로 주입한다 - wrangler secret put을 손으로 칠 필요 없음).
