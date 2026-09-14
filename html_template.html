@@ -183,6 +183,22 @@ a.badge-skipped:hover { text-decoration: underline; }
 #contractCheckResult { margin-top: 12px; }
 #contractCheckResult .article-card { margin-bottom: 8px; }
 
+/* 장바구니 - 뉴스/입법에서 체크한 항목을 모아 분야별 보고서 표로 보여준다
+   (2026-09-14, 화면에서 보고 캡처/복사해 쓰는 용도). */
+.cart-check { flex-shrink: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--app-primary); }
+.cart-add-btn { background: none; border: 1px solid var(--app-border); border-radius: 7px; color: var(--app-text);
+  padding: 5px 12px; font-size: 0.82em; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.cart-add-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.cart-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
+.cart-table td { border: 1px solid var(--app-border); padding: 10px 12px; vertical-align: top; }
+.cart-cat-cell { font-weight: 700; white-space: nowrap; width: 1%; background: var(--app-secondary-bg); }
+.cart-item { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+.cart-item:last-child { margin-bottom: 0; }
+.cart-item a { flex: 1 1 auto; min-width: 0; }
+.cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
+  cursor: pointer; font-size: 0.8em; padding: 0 2px; }
+.cart-remove-btn:hover { opacity: 0.9; }
+
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 /* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
    줄바꿈 - 모바일에서도 안 깨짐). 두 섹션의 아래 여백은 바깥 줄에서 대신 준다. */
@@ -795,6 +811,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
       <div class="bill-result-row" id="newsResultRow">
         <div class="result-caption" id="resultCaption"></div>
+        <button type="button" id="newsAddToCartBtn" class="cart-add-btn">선택 담기</button>
         <div class="pg-top"><select id="pageSizeSel">
           <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
@@ -866,6 +883,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
       <div class="bill-result-row">
         <div class="result-caption" id="billResultCaption"></div>
+        <button type="button" id="billAddToCartBtn" class="cart-add-btn">선택 담기</button>
         <div class="pg-top"><select id="billPageSizeSel">
           <option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
         </select></div>
@@ -999,6 +1017,19 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     </div>
   </div>
 
+  <div id="view-cart" class="view">
+    <hr class="thin">
+    <div class="bill-filter-sticky">
+      <div class="news-filter-row">
+        <h5>장바구니</h5>
+        <span class="result-caption" id="cartResultCaption"></span>
+        <button type="button" id="cartClearBtn" class="archive-toggle-link">비우기</button>
+      </div>
+      <hr class="thin">
+    </div>
+    <div id="cartTableArea"></div>
+  </div>
+
   <div id="view-empty" class="view">
     <hr class="thin">
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
@@ -1052,6 +1083,97 @@ function toggleStarredBill(id) {
   return s;
 }
 
+// ── 장바구니(뉴스/입법 담아서 보고서용 표로 모아보기) ──────────────────────
+const CART_KEY = 'reportCart';
+// 화면에는 이 순서대로 보여준다(사용자가 요청한 보도 요약표 형식과 동일) -
+// 목록에 없는 카테고리(뉴스 분야가 늘어나는 경우 등)는 "기타" 바로 앞에 끼운다.
+const CART_CATEGORY_ORDER = ['공정거래', '내부거래', '지배구조', '상생', '하도급', '상법', '시민단체', '노동', 'ESG', '법안', '기타'];
+
+function getCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function saveCart(items) {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(items)); } catch(e) {}
+}
+function addItemsToCart(itemsMap) {
+  const cart = getCart();
+  const existingIds = new Set(cart.map(i => i.id));
+  let added = 0;
+  itemsMap.forEach((item, id) => {
+    if (existingIds.has(id)) return;
+    cart.push(item);
+    existingIds.add(id);
+    added++;
+  });
+  saveCart(cart);
+  return added;
+}
+function removeCartItem(id) {
+  saveCart(getCart().filter(i => i.id !== id));
+}
+
+function updateCartBarLabel(kind) {
+  const btn = document.getElementById(kind === 'news' ? 'newsAddToCartBtn' : 'billAddToCartBtn');
+  const map = kind === 'news' ? state.newsCheckedItems : state.billCheckedItems;
+  if (btn) btn.textContent = map.size ? `선택 담기 (${map.size})` : '선택 담기';
+}
+
+function renderCartView() {
+  const cart = getCart();
+  document.getElementById('cartResultCaption').textContent = cart.length ? `담은 항목 ${cart.length}건` : '';
+
+  const areaEl = document.getElementById('cartTableArea');
+  if (!cart.length) {
+    areaEl.innerHTML = "<div class='info-box'>담은 항목이 없습니다. 뉴스·입법 탭에서 체크박스로 담아보세요.</div>";
+    return;
+  }
+
+  const byCategory = {};
+  cart.forEach(item => {
+    const cat = item.category || '기타';
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+  const orderedCats = CART_CATEGORY_ORDER.filter(c => byCategory[c]);
+  Object.keys(byCategory).forEach(c => {
+    if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
+  });
+
+  const rows = orderedCats.map(cat => {
+    const itemsHtml = byCategory[cat].map(it => `
+      <div class="cart-item">
+        <a href="${it.link}" target="_blank">${it.title}</a>
+        <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
+      </div>`).join('');
+    return `<tr><td class="cart-cat-cell">${cat}</td><td class="cart-items-cell">${itemsHtml}</td></tr>`;
+  }).join('');
+
+  areaEl.innerHTML = `<table class="cart-table"><tbody>${rows}</tbody></table>`;
+  areaEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeCartItem(btn.dataset.id);
+      renderCartView();
+      renderTabsAndDate(); // 탭 버튼의 담은 건수 표시도 갱신
+    });
+  });
+}
+
+document.getElementById('newsAddToCartBtn').addEventListener('click', () => {
+  addItemsToCart(state.newsCheckedItems);
+  state.newsCheckedItems.clear();
+  renderAll();
+});
+document.getElementById('billAddToCartBtn').addEventListener('click', () => {
+  addItemsToCart(state.billCheckedItems);
+  state.billCheckedItems.clear();
+  renderAll();
+});
+document.getElementById('cartClearBtn').addEventListener('click', () => {
+  saveCart([]);
+  renderCartView();
+  renderTabsAndDate();
+});
+
 const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
 function newsCategoryRank(c) {
   const idx = NEWS_CATEGORY_ORDER.indexOf(c);
@@ -1062,7 +1184,7 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
-const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령'];
+const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령', '장바구니'];
 function getSavedTab() {
   // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
   // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
@@ -1148,6 +1270,10 @@ const state = {
   penaltySearch: '',
   penaltyPage: 1,
   penaltyPageSize: getSavedPageSize('penalty'),
+  // 장바구니에 아직 안 담고 체크만 해둔 항목(탭을 벗어나면 초기화됨 - 담긴
+  // 것만 localStorage에 영구 저장된다). id -> {id, type, category, title, link}
+  newsCheckedItems: new Map(),
+  billCheckedItems: new Map(),
 };
 
 function extractDomain(url) { try { return new URL(url).host.replace(/^www\./, ""); } catch(e) { return ""; } }
@@ -1342,7 +1468,9 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령']];
+  const cartCount = getCart().length;
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령'],
+    [cartCount ? `장바구니 ${cartCount}` : '장바구니', '장바구니']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
@@ -2031,8 +2159,13 @@ function renderMainList(scoped, allGroups) {
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
       const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
+      const cartId = 'news:' + issueKey;
+      const cartChecked = state.newsCheckedItems.has(cartId);
       return `<div class="article-card">
         <div class="card-head">
+          <input type="checkbox" class="cart-check news-cart-check" data-cart-id="${cartId}"
+            data-title="${titleAttr}" data-link="${g.repLink}" data-category="${g.category}" ${cartChecked?'checked':''}
+            title="장바구니에 담기">
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
           <span class="card-meta-group"><span class="importance-tag" title="중요도 ${g.importance}/10">${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain}</span></span>
@@ -2048,6 +2181,17 @@ function renderMainList(scoped, allGroups) {
     }).join('');
     listEl.querySelectorAll('.toggle-btn').forEach(btn => {
       btn.addEventListener('click', () => { const k = btn.dataset.key; state.openIssues[k] = !state.openIssues[k]; renderMainList(scoped, allGroups); });
+    });
+    listEl.querySelectorAll('.news-cart-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = cb.dataset.cartId;
+        if (cb.checked) {
+          state.newsCheckedItems.set(id, { id, type: 'news', category: cb.dataset.category, title: cb.dataset.title, link: cb.dataset.link });
+        } else {
+          state.newsCheckedItems.delete(id);
+        }
+        updateCartBarLabel('news');
+      });
     });
   }
 
@@ -2406,8 +2550,14 @@ function renderBillList() {
       const summaryBox = b.summary
         ? `<a href="${summaryLink}" class="summary-box-blue bill-popup-link" data-url="${summaryLink}">${b.summary}</a>`
         : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" class="bill-popup-link" data-url="${summaryLink}">원문 보기</a>)</div>`;
+      const cartId = 'bill:' + b.id;
+      const cartChecked = state.billCheckedItems.has(cartId);
+      const cartTitle = titleAttr + (b.no ? ` (의안번호 ${b.no})` : '');
       return `<div class="article-card bill-card">
         <div class="card-head bill-title-line">
+          <input type="checkbox" class="cart-check bill-cart-check" data-cart-id="${cartId}"
+            data-title="${cartTitle}" data-link="${summaryLink}" ${cartChecked?'checked':''}
+            title="장바구니에 담기">
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
@@ -2419,6 +2569,17 @@ function renderBillList() {
     }).join('');
     listEl.querySelectorAll('.star-btn').forEach(btn => {
       btn.addEventListener('click', () => { toggleStarredBill(btn.dataset.id); renderBillList(); });
+    });
+    listEl.querySelectorAll('.bill-cart-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = cb.dataset.cartId;
+        if (cb.checked) {
+          state.billCheckedItems.set(id, { id, type: 'bill', category: '법안', title: cb.dataset.title, link: cb.dataset.link });
+        } else {
+          state.billCheckedItems.delete(id);
+        }
+        updateCartBarLabel('bill');
+      });
     });
     listEl.querySelectorAll('.bill-popup-link').forEach(a => {
       a.addEventListener('click', (e) => {
@@ -2795,9 +2956,12 @@ function renderAll() {
   renderTabsAndDate();
   const { dr, groups } = renderTopTiles();
 
-  ['view-news','view-law','view-org','view-decision','view-penalty','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
+  ['view-news','view-law','view-org','view-decision','view-penalty','view-cart','view-empty'].forEach(id => document.getElementById(id).classList.remove('active'));
 
-  if (state.activeTab === '법령') {
+  if (state.activeTab === '장바구니') {
+    document.getElementById('view-cart').classList.add('active');
+    renderCartView();
+  } else if (state.activeTab === '법령') {
     document.getElementById('view-penalty').classList.add('active');
     if (lawPenaltiesLoaded) {
       renderLawPenalties();
