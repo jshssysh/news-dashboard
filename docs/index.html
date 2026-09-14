@@ -183,6 +183,48 @@ a.badge-skipped:hover { text-decoration: underline; }
 #contractCheckResult { margin-top: 12px; }
 #contractCheckResult .article-card { margin-bottom: 8px; }
 
+/* 장바구니 - 뉴스/입법 항목마다 붙는 "담기" 버튼으로 하나씩 바로 담고 빼서,
+   모아둔 걸 분야별 보고서 표로 보여준다(2026-09-14, 화면에서 보고 캡처/복사해
+   쓰는 용도 - 체크박스+일괄 담기 대신 항목별 즉시 토글 버튼으로 바꿨다). */
+.cart-inline-btn { flex-shrink: 0; background: none; border: 1px solid var(--app-border); border-radius: 6px;
+  color: var(--app-text); padding: 2px 8px; font-size: 0.78em; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.cart-inline-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
+.cart-inline-btn.in-cart { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
+.cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
+  cursor: pointer; font-size: 0.8em; padding: 0 2px; }
+.cart-remove-btn:hover { opacity: 0.9; }
+/* "담기 미리보기"(뉴스 탭 사이드바 + 입법 탭) - 제목 줄에 접기 캐럿과
+   "내보내기"를 같이 두고, 목록은 항목마다 제목 + 오른쪽 끝 ✕ (2026-09-14 -
+   따로 있던 "장바구니" 탭을 없애고 이 미리보기들로 통합). */
+.cart-preview-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.cart-preview-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0 !important; }
+.cart-preview-toggle .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.cart-preview-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
+/* .cart-preview-list는 클래스 선택자라 #cartPreviewList/#billCartPreviewList의
+   display:flex(아이디 선택자, 우선순위가 더 높음)에 그냥 지면 접히지 않는다 -
+   여기서도 아이디를 같이 걸어 우선순위를 맞춘다. */
+.cart-preview-panel.collapsed #cartPreviewList,
+.cart-preview-panel.collapsed #billCartPreviewList { display: none; }
+.cart-export-btn { flex-shrink: 0; font-size: 0.78em !important; }
+#cartPreviewList, #billCartPreviewList { display: flex; flex-direction: column; gap: 6px; }
+.cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
+.cart-preview-item a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* "내보내기" 모달 - 팝업 창을 막는 환경에서도 항상 동작하도록 같은 페이지
+   안에 오버레이로 띄운다. 안의 표는 엑셀에 그대로 붙여넣기 좋게 검정
+   테두리·흰 배경을 고정으로 쓴다(이 사이트의 다크모드와 무관하게). */
+.cart-export-modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.cart-export-modal.open { display: block; }
+.cart-export-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
+.cart-export-modal-content { position: relative; max-width: 760px; margin: 5vh auto; max-height: 88vh;
+  background: #fff; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+.cart-export-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; background: #f0f2f6; color: #31333f; font-size: 0.85em; font-weight: 700;
+  border-bottom: 1px solid rgba(49,51,63,0.14); flex-shrink: 0; }
+.cart-export-modal-close { background: none; border: none; color: inherit; font-size: 1em; cursor: pointer; padding: 2px 6px; }
+.cart-export-modal-body { padding: 16px; overflow: auto; }
+
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 /* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
    줄바꿈 - 모바일에서도 안 깨짐). 두 섹션의 아래 여백은 바깥 줄에서 대신 준다. */
@@ -294,10 +336,16 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
-.sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px; }
-/* 접기 표시는 모바일 전용 - 데스크톱에선 그냥 제목이다(아래 미디어쿼리에서 되살림) */
-.sidebar-panel .panel-title .toggle-caret,
-.sidebar-panel .panel-title .current-tag { display: none; }
+/* "수집 현황" 패널 접기 - 예전엔 모바일 전용이었는데, 데스크톱에서도 접어두고
+   싶다는 요청(2026-09-14)으로 화면 폭과 무관하게 항상 켜둔다. */
+.sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px;
+  display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.sidebar-panel .panel-title .current-tag { display: inline; }
+.sidebar-panel.side-collapsed #sidebarBars { display: none; }
+.sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
+.sidebar-panel.side-collapsed { padding: 10px 14px; }
+.sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
 .kw-row { margin-bottom: 18px; }
 .kw-row:last-child { margin-bottom: 0; }
 .kw-row-total .kw-label { font-size: 0.9em; }
@@ -618,14 +666,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 순서를 바꾸고 나면 원래 자리 기준으로 넣었던 구분선은 의미가 없다 */
   #newsFilterSticky hr.thin { display: none; }
 
-  /* 패널 접기 (제목이 버튼 역할) */
-  .sidebar-panel .panel-title { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
-  .sidebar-panel .panel-title .current-tag { display: inline; }
-  .sidebar-panel.side-collapsed #sidebarBars { display: none; }
-  .sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
-  .sidebar-panel.side-collapsed { padding: 10px 14px; }
-  .sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 패널 접기 스타일 자체는 이제 화면 폭과 무관하게 기본 스타일(위쪽)에 있다 -
+     여기 남는 건 모바일에서만 다른 부분(아래, 제목 두 개를 한 줄로 합치는 것)뿐. */
 
   /* "카테고리별 주요뉴스"/"카테고리별 수집 현황" 두 접기 제목을 각자 한 줄씩
      따로 차지하지 않고 좌우로 나란히 붙인다(사용자 요청) - 두 제목이 서로
@@ -826,6 +868,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="panel-title" id="sidebarToggle">수집 현황<span class="toggle-caret">▼</span><span class="current-tag" id="sidebarCurrentTag"></span></div>
           <div id="sidebarBars"></div>
         </div>
+        <div class="sidebar-panel cart-preview-panel" id="cartPreviewPanel">
+          <div class="panel-title-row">
+            <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
+            <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+          </div>
+          <div id="cartPreviewList" class="cart-preview-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -862,6 +911,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="stage-flow-compact" id="billStatusChipRow"></div>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
+      </div>
+      <div class="sidebar-panel cart-preview-panel" id="billCartPreviewPanel">
+        <div class="panel-title-row">
+          <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
+          <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+        </div>
+        <div id="billCartPreviewList" class="cart-preview-list"></div>
       </div>
       <hr class="thin">
       <div class="bill-result-row">
@@ -999,12 +1055,27 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     </div>
   </div>
 
+
   <div id="view-empty" class="view">
     <hr class="thin">
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-14 13:55 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-14 16:54 (GitHub Actions에서 자동 생성됨)</div>
+</div>
+
+<!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
+     뜨는 오버레이라, 팝업을 막는 환경(Claude Code 앱 브라우저 패널 등)에서도
+     항상 동작한다. block-container 밖에 둬서 어느 탭에 있든 화면 전체를 덮는다. -->
+<div id="cartExportModal" class="cart-export-modal">
+  <div id="cartExportModalBackdrop" class="cart-export-modal-backdrop"></div>
+  <div class="cart-export-modal-content">
+    <div class="cart-export-modal-header">
+      <span>내보내기 - 표를 선택해 복사한 뒤 엑셀에 붙여넣으세요</span>
+      <button type="button" id="cartExportModalClose" class="cart-export-modal-close">✕</button>
+    </div>
+    <div id="cartExportModalBody" class="cart-export-modal-body"></div>
+  </div>
 </div>
 
 <script>
@@ -1051,6 +1122,183 @@ function toggleStarredBill(id) {
   try { localStorage.setItem(STARRED_BILLS_KEY, JSON.stringify(Array.from(s))); } catch(e) {}
   return s;
 }
+
+// ── 장바구니(뉴스/입법 담아서 보고서용 표로 모아보기) ──────────────────────
+const CART_KEY = 'reportCart';
+// 화면에는 이 순서대로 보여준다(사용자가 요청한 보도 요약표 형식과 동일) -
+// 목록에 없는 카테고리(뉴스 분야가 늘어나는 경우 등)는 "기타" 바로 앞에 끼운다.
+const CART_CATEGORY_ORDER = ['공정거래', '내부거래', '지배구조', '상생', '하도급', '상법', '시민단체', '노동', 'ESG', '법안', '기타'];
+
+function getCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function saveCart(items) {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(items)); } catch(e) {}
+}
+function cartHasId(id) {
+  return getCart().some(i => i.id === id);
+}
+function removeCartItem(id) {
+  saveCart(getCart().filter(i => i.id !== id));
+}
+
+// 뉴스/입법 카드마다 붙는 "담기" 버튼 - 체크박스+일괄 담기 버튼 대신, 항목
+// 하나마다 바로 담고 뺄 수 있는 토글 버튼으로 바꿨다(사용자 요청, 2026-09-14 -
+// "ㅁ 박스보다는 담기가 나은거 같은데?"). 버튼 자체의 data-* 속성에 담을
+// 내용을 실어두고, 클릭 시 지금 장바구니에 있는지 여부로 담기/빼기를 정한다.
+function toggleCartItem(btn) {
+  const id = btn.dataset.cartId;
+  if (cartHasId(id)) {
+    removeCartItem(id);
+  } else {
+    const cart = getCart();
+    cart.push({ id, type: btn.dataset.type, category: btn.dataset.category, title: btn.dataset.title, link: btn.dataset.link });
+    saveCart(cart);
+  }
+  updateCartInlineBtn(btn);
+  renderTabsAndDate(); // 탭의 담은 건수 + 사이드바 미리보기도 같이 갱신
+}
+function updateCartInlineBtn(btn) {
+  const inCart = cartHasId(btn.dataset.cartId);
+  btn.textContent = inCart ? '담음' : '담기';
+  btn.classList.toggle('in-cart', inCart);
+}
+
+// 뉴스 탭 사이드바("수집 현황" 밑)·입법 탭("전체▶입안▶상임위..." 흐름과
+// 법안 목록 사이)에 지금까지 담은 항목을 간단히 보여주고, 여기서도 바로
+// 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 애초에 따로 있던 "장바구니" 탭은
+// 이 미리보기 두 곳으로 충분하다고 판단해 없앴다). 두 탭 다 같은 내용을
+// 보여주므로 .cart-preview-list 클래스를 가진 모든 위치에 한 번에 그린다.
+function renderCartPreview() {
+  const lists = document.querySelectorAll('.cart-preview-list');
+  if (!lists.length) return;
+  const cart = getCart();
+  const html = cart.length
+    ? cart.map(it => `
+      <div class="cart-preview-item">
+        <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">[${it.category || '기타'}] ${it.title}</a>
+        <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
+      </div>`).join('')
+    : "<div class='info-box' style='font-size:0.82em;padding:8px 10px;'>담은 항목이 없습니다.</div>";
+  lists.forEach(listEl => {
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        removeCartItem(btn.dataset.id);
+        renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기들도 다시 그림
+      });
+    });
+  });
+}
+
+// 법안을 장바구니/내보내기에 담을 때 쓰는 표시 문구 - "법안명(제안일/대표
+// 발의자 의원/정당 첫 글자)" 형식(사용자가 지정한 엑셀 표 작성 기준,
+// 2026-09-14 - 예: "조세특례제한법 일부개정법률안(9.14/최은석 의원/국)").
+// b.proposer는 이미 "이름의원(정당, 선수, 지역구) 등 N인" 형태로 와 있어서
+// 첫 괄호 안 첫 항목(정당)만 뽑아 첫 글자만 쓴다.
+function billExportTitle(b) {
+  const parts = [];
+  const dateMatch = (b.proposeDate || '').match(/-(\d{2})-(\d{2})$/);
+  if (dateMatch) parts.push(`${parseInt(dateMatch[1], 10)}.${parseInt(dateMatch[2], 10)}`);
+  if (b.repProposer) parts.push(`${b.repProposer} 의원`);
+  const partyMatch = (b.proposer || '').match(/\(([^,)]+)/);
+  if (partyMatch) parts.push(partyMatch[1].charAt(0));
+  const name = b.name || '';
+  return parts.length ? `${name}(${parts.join('/')})` : name;
+}
+
+// "담기 미리보기" 제목을 누르면 목록을 접었다 펼친다 - 뉴스 탭/입법 탭 두
+// 자리 다 같은 상태로 맞춰서 어느 쪽에서 접든 똑같이 접힌다.
+const CART_PREVIEW_COLLAPSE_KEY = 'cartPreviewCollapsed';
+function applyCartPreviewCollapse() {
+  const collapsed = readFlag(CART_PREVIEW_COLLAPSE_KEY);
+  document.querySelectorAll('.cart-preview-panel').forEach(panel => panel.classList.toggle('collapsed', collapsed));
+}
+applyCartPreviewCollapse();
+document.querySelectorAll('.cart-preview-toggle').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    writeFlag(CART_PREVIEW_COLLAPSE_KEY, !readFlag(CART_PREVIEW_COLLAPSE_KEY));
+    applyCartPreviewCollapse();
+  });
+});
+
+// "2026/09/14" -> "'26.9.14" (사용자가 보여준 보고용 표 형식과 동일).
+function formatExportDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('/').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `'${String(y).slice(2)}.${m}.${d}`;
+}
+
+// 장바구니 "내보내기" - 화면의 항목별 표(한 행 = 한 항목)와 달리, 여기는
+// 분야별로 여러 건을 한 칸에 모아 엑셀에 그대로 붙여넣기 좋은 보고서 형태로
+// 보여준다(사용자 요청, 2026-09-14). 처음엔 별도 팝업 창(window.open)으로
+// 띄웠는데, Claude Code 앱 안의 브라우저 패널처럼 팝업 자체를 막는 환경에서는
+// 실제 클릭인데도 항상 차단당한다는 걸 실측으로 확인했다 - 그래서 새 창 대신
+// 같은 페이지 안에 뜨는 모달로 바꿔서 팝업 차단과 무관하게 항상 동작하게 했다.
+function buildCartExportTableHtml() {
+  const cart = getCart();
+  const byCategory = {};
+  cart.forEach(item => {
+    const cat = item.category || '기타';
+    (byCategory[cat] = byCategory[cat] || []).push(item);
+  });
+  const orderedCats = CART_CATEGORY_ORDER.filter(c => byCategory[c]);
+  Object.keys(byCategory).forEach(c => {
+    if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
+  });
+
+  // 엑셀 기준(사용자 지정, 2026-09-14): 맑은 고딕 11pt. pt 단위를 그대로 써야
+  // 엑셀에 붙여넣었을 때 글자 크기 11이 맞게 들어간다. 날짜 행(1행)은 테두리
+  // 없이, "정책/법개정 관련 보도 등"부터 아래로만 테두리를 준다. 분야명·제목
+  // 줄은 굵게 하지 않는다(날짜만 굵게). 같은 분야 기사가 여러 건이면 A열
+  // 분야명 한 칸을 그 건수만큼 rowspan으로 병합하고(왼쪽 정렬), B열은 기사
+  // 하나당 한 행씩 준다 - 한 칸에 <br>로 몰아넣지 않는다.
+  const fontStyle = "font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:11pt; color:#000; background:#fff;";
+  const borderedStyle = `border:1px solid #000; padding:6px 10px; vertical-align:top; ${fontStyle}`;
+  const noBorderStyle = `padding:6px 10px; vertical-align:top; ${fontStyle}`;
+
+  const itemRowsHtml = [];
+  orderedCats.forEach(cat => {
+    const items = byCategory[cat];
+    items.forEach((it, idx) => {
+      const linkCell = `<td style="${borderedStyle}"><a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a></td>`;
+      if (idx === 0) {
+        // 병합된 분야 칸은 가로 왼쪽 정렬 + 세로 가운데 정렬(사용자 지정) -
+        // 세로는 위에서 이미 깔린 vertical-align:top을 여기서 middle로 덮는다.
+        itemRowsHtml.push(`<tr><td rowspan="${items.length}" style="${borderedStyle}text-align:left;vertical-align:middle;white-space:nowrap;">${cat}</td>${linkCell}</tr>`);
+      } else {
+        itemRowsHtml.push(`<tr>${linkCell}</tr>`);
+      }
+    });
+  });
+
+  return `<table style="border-collapse:collapse; width:100%;">
+  <tr>
+    <td style="${noBorderStyle}font-weight:700;white-space:nowrap;background:#d9d9d9;">${formatExportDate(state.currentDate)}</td>
+    <td style="${noBorderStyle}"></td>
+  </tr>
+  <tr>
+    <td colspan="2" style="${borderedStyle}text-align:left;">정책/법개정 관련 보도 등</td>
+  </tr>
+  ${itemRowsHtml.join('')}
+</table>`;
+}
+
+function openCartExportModal() {
+  if (!getCart().length) { alert('담은 항목이 없습니다.'); return; }
+  document.getElementById('cartExportModalBody').innerHTML = buildCartExportTableHtml();
+  document.getElementById('cartExportModal').classList.add('open');
+}
+function closeCartExportModal() {
+  document.getElementById('cartExportModal').classList.remove('open');
+}
+document.querySelectorAll('.cart-export-btn').forEach(btn => btn.addEventListener('click', openCartExportModal));
+document.getElementById('cartExportModalClose').addEventListener('click', closeCartExportModal);
+document.getElementById('cartExportModalBackdrop').addEventListener('click', closeCartExportModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCartExportModal(); });
 
 const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
 function newsCategoryRank(c) {
@@ -1349,6 +1597,7 @@ function renderTabsAndDate() {
   tabsRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; saveActiveTab(state.activeTab); renderAll(); });
   });
+  renderCartPreview();
 }
 
 // ── 국회의원 검색 (제22대 현역) ────────────────────────────────────────────
@@ -2029,7 +2278,16 @@ function renderMainList(scoped, allGroups) {
       if (reasons.indexOf(REASON_SANCTION) !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
       if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
-      const related = g.rows.map(r => `<div>- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></div>`).join('');
+      const related = g.rows.map(r => {
+        const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
+        const rInCart = cartHasId(rCartId);
+        const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
+        return `<div class="related-row-item">
+          <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
+            data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
+          - [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a>
+        </div>`;
+      }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
       return `<div class="article-card">
         <div class="card-head">
@@ -2048,6 +2306,9 @@ function renderMainList(scoped, allGroups) {
     }).join('');
     listEl.querySelectorAll('.toggle-btn').forEach(btn => {
       btn.addEventListener('click', () => { const k = btn.dataset.key; state.openIssues[k] = !state.openIssues[k]; renderMainList(scoped, allGroups); });
+    });
+    listEl.querySelectorAll('.news-cart-inline-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCartItem(btn));
     });
   }
 
@@ -2406,8 +2667,13 @@ function renderBillList() {
       const summaryBox = b.summary
         ? `<a href="${summaryLink}" class="summary-box-blue bill-popup-link" data-url="${summaryLink}">${b.summary}</a>`
         : `<div class="info-box" style="opacity:0.6;font-size:0.85em;padding:8px 12px;">AI 요약 준비 중 (<a href="${summaryLink}" class="bill-popup-link" data-url="${summaryLink}">원문 보기</a>)</div>`;
+      const cartId = 'bill:' + b.id;
+      const cartInCart = cartHasId(cartId);
+      const cartTitle = billExportTitle(b).replace(/"/g,'&quot;');
       return `<div class="article-card bill-card">
         <div class="card-head bill-title-line">
+          <button type="button" class="cart-inline-btn bill-cart-inline-btn ${cartInCart?'in-cart':''}" data-cart-id="${cartId}"
+            data-type="bill" data-title="${cartTitle}" data-link="${summaryLink}" data-category="법안">${cartInCart?'담음':'담기'}</button>
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
@@ -2419,6 +2685,9 @@ function renderBillList() {
     }).join('');
     listEl.querySelectorAll('.star-btn').forEach(btn => {
       btn.addEventListener('click', () => { toggleStarredBill(btn.dataset.id); renderBillList(); });
+    });
+    listEl.querySelectorAll('.bill-cart-inline-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCartItem(btn));
     });
     listEl.querySelectorAll('.bill-popup-link').forEach(a => {
       a.addEventListener('click', (e) => {
