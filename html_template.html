@@ -210,6 +210,21 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
 .cart-preview-item a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* "내보내기" 모달 - 팝업 창을 막는 환경에서도 항상 동작하도록 같은 페이지
+   안에 오버레이로 띄운다. 안의 표는 엑셀에 그대로 붙여넣기 좋게 검정
+   테두리·흰 배경을 고정으로 쓴다(이 사이트의 다크모드와 무관하게). */
+.cart-export-modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.cart-export-modal.open { display: block; }
+.cart-export-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
+.cart-export-modal-content { position: relative; max-width: 760px; margin: 5vh auto; max-height: 88vh;
+  background: #fff; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+.cart-export-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; background: #f0f2f6; color: #31333f; font-size: 0.85em; font-weight: 700;
+  border-bottom: 1px solid rgba(49,51,63,0.14); flex-shrink: 0; }
+.cart-export-modal-close { background: none; border: none; color: inherit; font-size: 1em; cursor: pointer; padding: 2px 6px; }
+.cart-export-modal-body { padding: 16px; overflow: auto; }
+
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 /* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
    줄바꿈 - 모바일에서도 안 깨짐). 두 섹션의 아래 여백은 바깥 줄에서 대신 준다. */
@@ -1049,6 +1064,20 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   <div class="generated-note">생성 시각: __GENERATED_AT__ (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
+<!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
+     뜨는 오버레이라, 팝업을 막는 환경(Claude Code 앱 브라우저 패널 등)에서도
+     항상 동작한다. block-container 밖에 둬서 어느 탭에 있든 화면 전체를 덮는다. -->
+<div id="cartExportModal" class="cart-export-modal">
+  <div id="cartExportModalBackdrop" class="cart-export-modal-backdrop"></div>
+  <div class="cart-export-modal-content">
+    <div class="cart-export-modal-header">
+      <span>내보내기 - 표를 선택해 복사한 뒤 엑셀에 붙여넣으세요</span>
+      <button type="button" id="cartExportModalClose" class="cart-export-modal-close">✕</button>
+    </div>
+    <div id="cartExportModalBody" class="cart-export-modal-body"></div>
+  </div>
+</div>
+
 <script>
 // 데이터는 이 파일에 박혀 있지 않고 news.json / bills.json 에서 받아온다.
 // (전부 넣었더니 16MB가 됐고, 그 크기에선 GitHub Pages가 gzip을 안 해준다)
@@ -1189,9 +1218,11 @@ function formatExportDate(dateStr) {
 
 // 장바구니 "내보내기" - 화면의 항목별 표(한 행 = 한 항목)와 달리, 여기는
 // 분야별로 여러 건을 한 칸에 모아 엑셀에 그대로 붙여넣기 좋은 보고서 형태로
-// 새 팝업에 띄운다(사용자 요청, 2026-09-14). 팝업은 이 페이지의 CSS 변수에
-// 안 의존하도록 스타일을 인라인으로만 쓴다(별도 문서라 :root 변수가 없음).
-function buildCartExportHtml() {
+// 보여준다(사용자 요청, 2026-09-14). 처음엔 별도 팝업 창(window.open)으로
+// 띄웠는데, Claude Code 앱 안의 브라우저 패널처럼 팝업 자체를 막는 환경에서는
+// 실제 클릭인데도 항상 차단당한다는 걸 실측으로 확인했다 - 그래서 새 창 대신
+// 같은 페이지 안에 뜨는 모달로 바꿔서 팝업 차단과 무관하게 항상 동작하게 했다.
+function buildCartExportTableHtml() {
   const cart = getCart();
   const byCategory = {};
   cart.forEach(item => {
@@ -1203,9 +1234,7 @@ function buildCartExportHtml() {
     if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
   });
 
-  // font-family 값은 홑따옴표로 - 이 문자열이 이중따옴표 HTML 속성(style="...")
-  // 안에 그대로 들어가므로, 겹따옴표를 쓰면 속성이 중간에서 끊겨 버린다.
-  const cellStyle = "border:1px solid #000; padding:6px 10px; vertical-align:top; font-size:13px; font-family:'Malgun Gothic',sans-serif;";
+  const cellStyle = 'border:1px solid #000; padding:6px 10px; vertical-align:top; font-size:13px; color:#000; background:#fff;';
   const rowsHtml = orderedCats.map(cat => {
     const itemsHtml = byCategory[cat]
       .map(it => `<a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a>`)
@@ -1213,29 +1242,27 @@ function buildCartExportHtml() {
     return `<tr><td style="${cellStyle}font-weight:700;white-space:nowrap;">${cat}</td><td style="${cellStyle}">${itemsHtml}</td></tr>`;
   }).join('');
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>장바구니 내보내기</title></head>
-<body style="margin:16px;">
-<table style="border-collapse:collapse; width:100%;">
+  return `<table style="border-collapse:collapse; width:100%;">
   <tr>
     <td style="${cellStyle}font-weight:700;white-space:nowrap;">${formatExportDate(state.currentDate)}</td>
     <td style="${cellStyle}font-weight:700;">정책/법제정 관련 보도 등</td>
   </tr>
   ${rowsHtml}
-</table>
-</body></html>`;
+</table>`;
 }
 
-document.querySelectorAll('.cart-export-btn').forEach(btn => btn.addEventListener('click', () => {
+function openCartExportModal() {
   if (!getCart().length) { alert('담은 항목이 없습니다.'); return; }
-  // 주의: 'noopener'를 쓰면 반환값이 항상 null이 되어(spec) 빈 창에 내용을
-  // 써넣을 방법이 없어진다 - 그래서 여기만 noopener 없이 연다(팝업 내용은
-  // 우리가 직접 만든 정적 HTML이라 opener 접근 위험이 없음).
-  const popup = window.open('', 'cartExportPopup', 'width=760,height=640,scrollbars=yes,resizable=yes');
-  if (!popup) { alert('팝업이 차단됐습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해주세요.'); return; }
-  popup.document.open();
-  popup.document.write(buildCartExportHtml());
-  popup.document.close();
-}));
+  document.getElementById('cartExportModalBody').innerHTML = buildCartExportTableHtml();
+  document.getElementById('cartExportModal').classList.add('open');
+}
+function closeCartExportModal() {
+  document.getElementById('cartExportModal').classList.remove('open');
+}
+document.querySelectorAll('.cart-export-btn').forEach(btn => btn.addEventListener('click', openCartExportModal));
+document.getElementById('cartExportModalClose').addEventListener('click', closeCartExportModal);
+document.getElementById('cartExportModalBackdrop').addEventListener('click', closeCartExportModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCartExportModal(); });
 
 const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
 function newsCategoryRank(c) {
