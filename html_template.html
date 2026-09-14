@@ -197,6 +197,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
   cursor: pointer; font-size: 0.8em; padding: 0 2px; }
 .cart-remove-btn:hover { opacity: 0.9; }
+/* 뉴스 탭 사이드바 "담기 미리보기" - 제목 + 오른쪽 끝 ✕ */
+#cartPreviewList { display: flex; flex-direction: column; gap: 6px; }
+.cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
+.cart-preview-item a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .filter-section { border: 1px solid var(--app-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 /* 정당·법안 두 필터를 한 줄에 나눠 담아 정당 칩 좌우폭을 줄인다(좁아지면 자동으로
@@ -842,6 +846,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="panel-title" id="sidebarToggle">수집 현황<span class="toggle-caret">▼</span><span class="current-tag" id="sidebarCurrentTag"></span></div>
           <div id="sidebarBars"></div>
         </div>
+        <div class="sidebar-panel" id="cartPreviewPanel">
+          <div class="panel-title">담기 미리보기</div>
+          <div id="cartPreviewList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1153,6 +1161,31 @@ function renderCartView() {
       removeCartItem(btn.dataset.id);
       renderCartView();
       renderTabsAndDate(); // 탭 버튼의 담은 건수 표시도 갱신
+    });
+  });
+}
+
+// 뉴스 탭 사이드바("수집 현황" 밑)에 지금까지 담은 항목을 간단히 보여주고,
+// 여기서도 바로 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 장바구니 탭까지
+// 안 가도 뭘 담았는지 바로 확인하고 정리할 수 있도록).
+function renderCartPreview() {
+  const listEl = document.getElementById('cartPreviewList');
+  if (!listEl) return;
+  const cart = getCart();
+  if (!cart.length) {
+    listEl.innerHTML = "<div class='info-box' style='font-size:0.82em;padding:8px 10px;'>담은 항목이 없습니다.</div>";
+    return;
+  }
+  listEl.innerHTML = cart.map(it => `
+    <div class="cart-preview-item">
+      <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">${it.title}</a>
+      <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
+    </div>`).join('');
+  listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeCartItem(btn.dataset.id);
+      renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기도 다시 그림
+      if (state.activeTab === '장바구니') renderCartView();
     });
   });
 }
@@ -1476,6 +1509,7 @@ function renderTabsAndDate() {
   tabsRow.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', () => { state.activeTab = btn.dataset.value; saveActiveTab(state.activeTab); renderAll(); });
   });
+  renderCartPreview();
 }
 
 // ── 국회의원 검색 (제22대 현역) ────────────────────────────────────────────
