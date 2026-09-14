@@ -24,9 +24,11 @@ const ALLOWED_ORIGIN = "https://jshssysh.github.io";
 const LAW_DATA_URL = "https://jshssysh.github.io/news-dashboard/law_penalties.json";
 const MAX_TEXT_LENGTH = 8000;
 // @cf/meta/llama-3.1-8b-instruct는 2026-05-30 deprecated돼 실제로 호출 실패가
-// 났다(실측, developers.cloudflare.com/workers-ai/models/ 확인) - 그
-// 후속으로 안내되는 -fast 버전을 쓴다.
-const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+// 났고(실측), 후속 -fast 버전은 JSON Mode를 켜도 문법을 깨뜨리는 경우가
+// 실측됐다(8B급이라 스키마 준수력이 떨어지는 듯) - 70B 모델로 올려 안정성을
+// 높인다(developers.cloudflare.com/workers-ai/json-mode/에 JSON Mode 지원
+// 모델로 3.1/3.3 계열이 함께 명시돼 있음).
+const AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 function corsHeaders() {
   return {
@@ -145,7 +147,30 @@ async function callWorkersAI(clauseText, corpus, env) {
     response_format: { type: "json_schema", json_schema: MATCHES_SCHEMA },
   });
 
-  // env.AI.run이 이미 파싱된 객체를 줄 수도, 문자열을 줄 수도 있어 방어적으로 처리한다.
-  const parsed = typeof result.response === "string" ? JSON.parse(result.response) : result.response;
+  const parsed = parseModelJson(result.response);
   return Array.isArray(parsed?.matches) ? parsed.matches : [];
+}
+
+// JSON Mode를 켜도 모델이 이따금 문법을 깨뜨리는 걸 실측했다(예: 배열 원소
+// 사이 콤마 누락) - env.AI.run이 이미 파싱된 객체를 줄 수도 있고 문자열을
+// 줄 수도 있어 그 경우부터 처리하고, 문자열이 곧바로 안 읽히면 첫 '{'~
+// 마지막 '}'만 잘라 한 번 더 시도한다(완전히 실패하면 원문 일부를 에러에
+// 남겨 다음에 원인을 바로 볼 수 있게 한다).
+function parseModelJson(response) {
+  if (response && typeof response === "object") return response;
+  const raw = String(response || "").trim();
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start !== -1 && end !== -1) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (e2) {
+        // 아래에서 원본 오류와 함께 던진다.
+      }
+    }
+    throw new Error(`JSON 파싱 실패 (${e.message}): ${raw.slice(0, 200)}`);
+  }
 }
