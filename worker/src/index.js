@@ -13,10 +13,10 @@
  * 후보에 아예 없었다(실측: 명백한 부당특약 문구도 "저촉 조문 없음"으로
  * 오판). contract_law_corpus.json은 그 법령들의 조문 전체를 담고 있어
  * 이 문제가 없다 - 다만 693건이나 되므로, 매 요청마다 전부 프롬프트에
- * 넣지 않고 계약서 문구와 키워드가 겹치는 상위 후보만 추려 보낸다
- * (selectTopCandidates - 형태소 분석기 없이 2글자 이상 부분열 겹침으로
- * 근사한 것이라 완벽하진 않지만, 법률 용어는 대개 고유명사성 조각이라
- * 실용적으로 잘 걸린다).
+ * 넣지 않고 계약서 문구와 겹치는 상위 후보만 추려 보낸다 (selectTopCandidates
+ * - 형태소 분석기 없이 글자 2-gram + 코퍼스 전체 IDF 가중치로 근사한 것이라
+ * 완벽하진 않지만, 조사가 붙어 단어 형태가 달라져도 gram 단위로는 대부분
+ * 겹치고, 흔한 상용구보다 특이한 법률 용어에 가중치를 더 준다).
  *
  * 처음엔 Gemini API를 불렀는데, Cloudflare Worker는 요청마다 전 세계 아무
  * 데이터센터에서나 실행될 수 있어서 그중 Gemini가 막아둔 지역(예: 유럽)에서
@@ -33,8 +33,16 @@
 const ALLOWED_ORIGIN = "https://jshssysh.github.io";
 const LAW_DATA_URL = "https://jshssysh.github.io/news-dashboard/contract_law_corpus.json";
 const MAX_TEXT_LENGTH = 8000;
-const TOP_CANDIDATE_COUNT = 40;
-const ARTICLE_SNIPPET_LENGTH = 500;
+// 예전엔 40개 x 500자였는데, 아래 selectTopCandidates 교체와 함께 늘렸다 -
+// 실측(사내 실제 계약서 문구로 테스트) 상 정답 조문("하도급법 제3조의4
+// 부당한 특약의 금지" 같은 짧고 원론적인 금지조항)이 40위 안에 못 들고
+// 80~90위대까지 밀리는 경우가 있어서, 조문당 글자 수를 줄이는 대신 후보
+// 개수를 늘려 그 순위대까지 커버한다 (90개 x 300자 = 27,000자로, 이전
+// 20,000자보다는 늘었지만 모델의 24,000토큰 컨텍스트 안에는 여전히 여유가
+// 있다 - 한글은 토큰당 1자 미만인 경우가 흔해 다소 빡빡할 수 있으니 문구가
+// 길 땐 추후 실측하며 조정).
+const TOP_CANDIDATE_COUNT = 90;
+const ARTICLE_SNIPPET_LENGTH = 300;
 // @cf/meta/llama-3.1-8b-instruct는 2026-05-30 deprecated돼 실제로 호출 실패가
 // 났고(실측), 후속 -fast 버전은 JSON Mode를 켜도 문법을 깨뜨리는 경우가
 // 실측됐다(8B급이라 스키마 준수력이 떨어지는 듯) - 70B 모델로 올려 안정성을
@@ -99,24 +107,52 @@ export default {
   },
 };
 
-// 형태소 분석기 없이 한글 2글자 이상 부분열 + 영숫자 조각을 대충 토큰으로
-// 삼는다 - 법률 용어("하도급대금", "부당한특약" 등)는 대개 고유명사성이라
-// 이 정도 근사로도 실용적으로 겹침이 잘 걸린다.
-function tokenize(text) {
-  return (String(text || "").match(/[가-힣]{2,}|[a-zA-Z0-9]{2,}/g) || []);
+// 처음엔 한글 2글자 이상 "단어" 겹침 개수로 점수를 매겼는데(공백 기준
+// 아님, 정규식 부분열), 한국어는 조사가 어간에 그대로 붙어서("하도급대금을"
+// vs "하도급대금") 계약서 문구와 법조문에서 같은 말이어도 토큰이 어긋나는
+// 경우가 실측됐고, 단순 겹침 개수는 그냥 길고 같은 말을 여러 번 반복하는
+// 조문에 유리해서 - 정작 "부당한 특약의 금지"처럼 짧고 원론적인 금지조항이
+// 후보 40위 안에 못 들고 652위까지 밀리는 게 실측됐다(2026-09-14, 실제
+// 계약서 문구로 테스트).
+//
+// 조사 문제는 형태소 분석 없이 글자 2-gram(음절 슬라이딩 윈도우)로 비교하면
+// 어간이 같으면 대부분의 gram이 겹치므로 완화된다. 길이 편향은 단순 겹침
+// 개수 대신, 코퍼스 전체에서 자주 나오는 gram(조사·흔한 법률 상용구 등)의
+// 가중치를 낮추는 IDF(역문서빈도)로 완화한다 - 같은 실측 문구로
+// 비교했을 때 652위 -> 86위로 개선됨을 확인. (2-gram+IDF에 조문 길이로
+// 한 번 더 나누는 정규화도 같이 테스트했으나 이 실측 사례에선 오히려
+// 95위로 더 나빠져서 채택하지 않음 - 짧은 원론 조문이 길이 정규화로 더
+// 손해를 보는 역효과가 있었다.)
+function bigrams(text) {
+  const clean = String(text || "").replace(/[^가-힣a-zA-Z0-9]/g, "");
+  const grams = [];
+  for (let i = 0; i < clean.length - 1; i++) grams.push(clean.slice(i, i + 2));
+  return grams;
 }
 
 function selectTopCandidates(clauseText, corpus, topN) {
-  const clauseTokens = new Set(tokenize(clauseText));
-  const scored = corpus.map((c) => {
-    const articleTokens = tokenize(c.text);
+  const clauseGrams = new Set(bigrams(clauseText));
+  const articleGramSets = corpus.map((c) => new Set(bigrams(c.text)));
+
+  // 코퍼스 전체 기준 문서빈도(df) - 조사·흔한 상용구처럼 여기저기 다 나오는
+  // gram일수록 특정 조문을 가려내는 데 도움이 안 되므로 가중치를 낮춘다.
+  const df = new Map();
+  for (const gramSet of articleGramSets) {
+    for (const g of gramSet) df.set(g, (df.get(g) || 0) + 1);
+  }
+  const N = corpus.length;
+  const idf = (g) => Math.log(N / df.get(g));
+
+  const scored = corpus.map((c, i) => {
     let score = 0;
-    for (const t of articleTokens) if (clauseTokens.has(t)) score++;
+    for (const g of articleGramSets[i]) {
+      if (clauseGrams.has(g)) score += idf(g);
+    }
     return { ...c, score };
   });
   scored.sort((a, b) => b.score - a.score);
   const withHits = scored.filter((c) => c.score > 0);
-  // 겹치는 키워드가 하나도 없으면(전혀 다른 도메인의 문구 등) 그래도 뭔가는
+  // 겹치는 gram이 하나도 없으면(전혀 다른 도메인의 문구 등) 그래도 뭔가는
   // 보여주도록 상위 topN을 그냥 채워서 보낸다 - 빈 결과보다 낫다.
   return (withHits.length ? withHits : scored).slice(0, topN);
 }
