@@ -2,6 +2,8 @@ name = "news-dashboard-contract-checker"
 main = "src/index.js"
 compatibility_date = "2026-09-14"
 
-# GEMINI_API_KEY는 코드가 아니라 Cloudflare Worker Secret으로 넣는다
-# (.github/workflows/deploy-worker.yml이 배포 때마다 GitHub Secrets의
-# 같은 값을 그대로 주입한다 - wrangler secret put을 손으로 칠 필요 없음).
+# Cloudflare Workers AI - Gemini 대신 이걸 쓴다(별도 API 키/Secret 불필요,
+# Cloudflare 계정에 딸린 서비스라 이 binding만 있으면 바로 쓸 수 있다).
+# src/index.js 상단 주석에 Gemini에서 갈아탄 이유가 적혀 있다.
+[ai]
+binding = "AI"
