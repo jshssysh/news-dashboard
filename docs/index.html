@@ -424,6 +424,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .related-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--app-border); display: none; }
 .related-list.open { display: block; }
 .related-list div { margin-bottom: 5px; font-size: 0.88em; line-height: 1.5; }
+.related-row-item { display: flex; align-items: baseline; gap: 6px; flex-wrap: nowrap; }
+.related-row-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-row-meta { flex-shrink: 0; white-space: nowrap; }
 .related-list a { color: #1565c0; text-decoration: none; }
 .related-list a:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) { .related-list a { color: #7aa7e0; } }
@@ -1061,7 +1064,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-17 07:19 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-17 07:54 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2286,10 +2289,13 @@ function renderMainList(scoped, allGroups) {
         const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
         const rInCart = cartHasId(rCartId);
         const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
+        const rDt = fmtDt(r.pub_ts || r.ts);
+        const rDomain = extractDomain(r.link);
         return `<div class="related-row-item">
           <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
             data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
-          - [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a>
+          <span class="related-row-text">- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></span>
+          <span class="related-row-meta card-meta-inline">${rDt} · ${rDomain}</span>
         </div>`;
       }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
