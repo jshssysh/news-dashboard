@@ -424,6 +424,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .related-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--app-border); display: none; }
 .related-list.open { display: block; }
 .related-list div { margin-bottom: 5px; font-size: 0.88em; line-height: 1.5; }
+.related-row-item { display: flex; align-items: baseline; gap: 6px; flex-wrap: nowrap; }
+.related-row-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-row-meta { flex-shrink: 0; white-space: nowrap; }
 .related-list a { color: #1565c0; text-decoration: none; }
 .related-list a:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) { .related-list a { color: #7aa7e0; } }
@@ -2286,10 +2289,13 @@ function renderMainList(scoped, allGroups) {
         const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
         const rInCart = cartHasId(rCartId);
         const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
+        const rDt = fmtDt(r.pub_ts || r.ts);
+        const rDomain = extractDomain(r.link);
         return `<div class="related-row-item">
           <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
             data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
-          - [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a>
+          <span class="related-row-text">- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></span>
+          <span class="related-row-meta card-meta-inline">${rDt} · ${rDomain}</span>
         </div>`;
       }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
