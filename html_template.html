@@ -2290,12 +2290,11 @@ function renderMainList(scoped, allGroups) {
         const rInCart = cartHasId(rCartId);
         const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
         const rDt = fmtDt(r.pub_ts || r.ts);
-        const rDomain = extractDomain(r.link);
         return `<div class="related-row-item">
           <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
             data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
           <span class="related-row-text">- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></span>
-          <span class="related-row-meta card-meta-inline">${rDt} · ${rDomain}</span>
+          <span class="related-row-meta card-meta-inline">${rDt}</span>
         </div>`;
       }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
