@@ -123,7 +123,7 @@ a.badge-skipped:hover { text-decoration: underline; }
   .summary-box-blue:hover { background-color: rgba(255,255,255,0.09); }
 }
 .signal-box { background-color: #12203a; border: 1px solid #1b2e50; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
-.signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; }
+.signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; cursor: help; }
 .signal-box-head { display: flex; align-items: center; justify-content: space-between; }
 .signal-toggle-btn { background: none; border: none; color: #8ab4f8; opacity: 0.7; font-size: 0.8em; padding: 0; transition: transform .15s var(--ease); }
 .signal-box.collapsed #signalItems { display: none; }
@@ -792,11 +792,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
   <div id="view-news" class="view">
     <hr class="thin">
-    <!-- 오늘 주요 내용은 필터가 아니라 읽을거리라 스티키에서 제외한다.
-         (스티키에 넣으면 블록이 450px까지 커져서 사이드바를 덮어버림) -->
+    <!-- 주요 내용 박스는 필터 컨트롤 자체가 아니라 그 결과를 요약해 보여주는
+         읽을거리라 스티키에서 제외한다(스티키에 넣으면 블록이 450px까지
+         커져서 사이드바를 덮어버림) - 다만 내용 자체는 검색어·카테고리·
+         기간 필터를 반영해 바뀐다(2026-09-17). -->
     <div class="signal-box" id="signalBox">
       <div class="signal-box-head">
-        <span class="signal-tag">오늘 주요 내용</span>
+        <span class="signal-tag" title="검색어·카테고리 칩·기간(시간창) 조건에 맞는 기사 중 중요도 상위 3건을 보여줍니다. 논조 필터는 반영되지 않습니다.">주요 내용</span>
         <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
       </div>
       <div id="signalItems"></div>
