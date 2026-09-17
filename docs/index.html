@@ -133,6 +133,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: 800; width: 19px; height: 19px; border-radius: 50%; text-align: center; font-size: 0.74em; line-height: 19px; margin-right: 4px; flex-shrink: 0; }
 .signal-item-head { color: #fff; font-size: 0.95em; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.4; }
 .signal-item-body { color: #b9c6dc; font-size: 0.85em; margin-top: 5px; line-height: 1.5; }
+.signal-item-empty { color: #b9c6dc; font-size: 0.88em; }
 .chip-category-dark { background-color: #24406e; color: #8ab4f8; font-weight: 600; padding: 2px 7px; border-radius: 5px; font-size: 0.78em; margin: 0 2px; }
 .reason-chip-dark { display: inline-block; background-color: rgba(138,180,248,0.12); color: #8ab4f8; padding: 2px 8px; border-radius: 5px; font-size: 0.74em; font-weight: 600; margin-right: 4px; }
 
@@ -1064,7 +1065,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-17 12:28 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-17 15:21 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2131,19 +2132,30 @@ function warningTooltip(entries) {
 }
 
 function renderNewsView(dr, allGroups) {
-  const top3 = allGroups.slice(0,3);
-  document.getElementById('signalItems').innerHTML = top3.map((g,i) => {
-    const reasons = selectionReasons(g);
-    const chips = reasons.map(r => `<span class='reason-chip-dark'>${r}</span>`).join(' ');
-    return `<div class="signal-item">
-      <div class="signal-item-head"><span class="signal-num">${i+1}</span><span class="chip-category-dark">${g.category}</span>
-      <a href="${g.repLink}" target="_blank" style="color:inherit;text-decoration:none;"><b>${g.title}</b></a> ${chips}</div>
-      <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;display:block;"><div class="signal-item-body">${g.summary} (관련 보도 ${g.pressCount}건)</div></a>
-    </div>`;
-  }).join('');
-
   updateHoursBackControl();
   const scoped = scopedRows();
+
+  // "오늘 주요 내용"은 원래 필터와 무관한 읽을거리였는데(그래서 스티키에서도
+  // 뺐음), 사용자 요청으로 검색어·카테고리 칩·기간/시간창은 반영하도록 바꿈 -
+  // 다만 논조 필터는 그대로 안 탄다(부정 논조만 봐도 "오늘 주요 내용"이 항상
+  // 부정 일변도로 바뀌면 오히려 읽을거리로서의 가치가 떨어짐, 2026-09-17).
+  const renderSignalItems = () => {
+    const signalRows = scoped
+      .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
+      .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search));
+    const top3 = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상').slice(0,3);
+    document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
+      const reasons = selectionReasons(g);
+      const chips = reasons.map(r => `<span class='reason-chip-dark'>${r}</span>`).join(' ');
+      return `<div class="signal-item">
+        <div class="signal-item-head"><span class="signal-num">${i+1}</span><span class="chip-category-dark">${g.category}</span>
+        <a href="${g.repLink}" target="_blank" style="color:inherit;text-decoration:none;"><b>${g.title}</b></a> ${chips}</div>
+        <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;display:block;"><div class="signal-item-body">${g.summary} (관련 보도 ${g.pressCount}건)</div></a>
+      </div>`;
+    }).join('') : "<div class='signal-item-empty'>조건에 맞는 주요 내용이 없습니다.</div>";
+  };
+  renderSignalItems();
+
   const warnedCategories = warningsForDates(Array.from(new Set(scoped.map(r => r.date))));
   // 카테고리 칩 건수도 목록에 실제 보이는 것(대표기사로 묶인 이슈 그룹) 기준으로
   // 세야 "전체 40"인데 클릭하면 20개만 보이는 것처럼 안 맞는 일이 없다.
@@ -2181,6 +2193,7 @@ function renderNewsView(dr, allGroups) {
       state.page = 1;
       chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
       updateNewsCurrentTag();
+      renderSignalItems();
       renderMainList(scoped, allGroups);
     });
   });
