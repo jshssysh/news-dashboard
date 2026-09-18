@@ -134,6 +134,17 @@ a.badge-skipped:hover { text-decoration: underline; }
 .signal-item-head { color: #fff; font-size: 0.95em; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.4; }
 .signal-item-body { color: #b9c6dc; font-size: 0.85em; margin-top: 5px; line-height: 1.5; }
 .signal-item-empty { color: #b9c6dc; font-size: 0.88em; }
+.signal-related-toggle { background: none; border: none; padding: 0; font: inherit; font-size: 0.85em;
+  color: #8ab4f8; cursor: pointer; white-space: nowrap; }
+.signal-related-toggle:hover { text-decoration: underline; }
+/* signal-box는 라이트/다크 테마와 무관하게 항상 짙은 네이비 배경이라, 그 안의
+   related-list(원래 밝은 배경용 색)는 여기서만 밝은 텍스트로 다시 덮어쓴다. */
+.signal-related-list { border-top-color: rgba(255,255,255,0.12) !important; }
+.signal-related-list .related-row-text { color: #dbe4f5; }
+.signal-related-list .related-row-meta { color: #7c8aa3; }
+.signal-related-list a { color: #8ab4f8; }
+.signal-related-list .cart-inline-btn { border-color: rgba(255,255,255,0.28); color: #dbe4f5; }
+.signal-related-list .cart-inline-btn:hover { border-color: #8ab4f8; color: #8ab4f8; }
 .chip-category-dark { background-color: #24406e; color: #8ab4f8; font-weight: 600; padding: 2px 7px; border-radius: 5px; font-size: 0.78em; margin: 0 2px; }
 .reason-chip-dark { display: inline-block; background-color: rgba(138,180,248,0.12); color: #8ab4f8; padding: 2px 8px; border-radius: 5px; font-size: 0.74em; font-weight: 600; margin-right: 4px; }
 
@@ -1067,7 +1078,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-18 12:25 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-18 15:02 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2149,12 +2160,40 @@ function renderNewsView(dr, allGroups) {
     document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
       const reasons = selectionReasons(g);
       const chips = reasons.map(r => `<span class='reason-chip-dark'>${r}</span>`).join(' ');
+      // 유사 기사 목록(관련 보도 N건)을 메인 목록과 같은 issueKey/openIssues로
+      // 펼쳐 볼 수 있게 함(사용자 요청, 2026-09-18) - 같은 이슈면 메인 목록과
+      // 열림 상태도 같이 공유된다.
+      const issueKey = (g.title + "|" + g.repLink).replace(/"/g,'&quot;');
+      const isOpen = !!state.openIssues[issueKey];
+      const related = g.rows.map(r => {
+        const rCartId = 'news:' + r.link.replace(/"/g,'&quot;');
+        const rInCart = cartHasId(rCartId);
+        const rTitleAttr = (r.title||'').replace(/"/g,'&quot;');
+        const rDt = fmtDt(r.pub_ts || r.ts);
+        return `<div class="related-row-item">
+          <button type="button" class="cart-inline-btn news-cart-inline-btn ${rInCart?'in-cart':''}" data-cart-id="${rCartId}"
+            data-type="news" data-title="${rTitleAttr}" data-link="${r.link}" data-category="${r.category||g.category}">${rInCart?'담음':'담기'}</button>
+          <span class="related-row-text">- [${r.press}] <a href="${r.link}" target="_blank">${r.title}</a></span>
+          <span class="related-row-meta">${rDt}</span>
+        </div>`;
+      }).join('');
       return `<div class="signal-item">
         <div class="signal-item-head"><span class="signal-num">${i+1}</span><span class="chip-category-dark">${g.category}</span>
         <a href="${g.repLink}" target="_blank" style="color:inherit;text-decoration:none;"><b>${g.title}</b></a> ${chips}</div>
-        <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;display:block;"><div class="signal-item-body">${g.summary} (관련 보도 ${g.pressCount}건)</div></a>
+        <div class="signal-item-body">
+          <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;">${g.summary}</a>
+          <button type="button" class="signal-related-toggle" data-key="${issueKey}">(관련 보도 ${g.pressCount}건) ${isOpen?'▲':'▼'}</button>
+        </div>
+        <div class="related-list signal-related-list ${isOpen?'open':''}">${related}</div>
       </div>`;
     }).join('') : "<div class='signal-item-empty'>조건에 맞는 주요 내용이 없습니다.</div>";
+
+    document.querySelectorAll('#signalItems .signal-related-toggle').forEach(btn => {
+      btn.addEventListener('click', () => { state.openIssues[btn.dataset.key] = !state.openIssues[btn.dataset.key]; renderSignalItems(); });
+    });
+    document.querySelectorAll('#signalItems .news-cart-inline-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCartItem(btn));
+    });
   };
   renderSignalItems();
 
