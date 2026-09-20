@@ -545,6 +545,28 @@ CASE_TYPE_GENERIC_WORDS = {
     "의원", "법안", "발의", "대표발의", "개정안", "법률안", "제정",
 }
 
+# 사건을 특정하지 못하는 조사/연결어 - 이슈명 토큰에 그대로 남아 "겹치는 구체
+# 단어"로 잘못 계산된다(실측 2026-09-18: "HD현대 파업 및 투자 지연"이 "및"+"투자"
+# 두 개만 겹친 SKC 유리기판 투자 기사를 흡수. 전체 코퍼스에서 "및"과 "투자"를
+# 동시에 가진 이슈명이 이것 하나뿐이라 고유 흡수점이 돼 있었음).
+ISSUE_FILLER_WORDS = {
+    "및", "등", "첫", "관련", "위해", "통해", "이후", "이번", "올해", "내년", "연내",
+}
+
+# 특정 기업/사건을 지목하지 못하는 포괄 토픽어. 사건유형어와 같은 이유로 제외한다.
+# 실측 2026-09-18: "지배구조" 하나 겹친다는 이유로 세아제강지주·롯데지주·BNK금융·
+# 더코디·한미약품 기사가 전부 "고려아연 지배구조"로 재사용돼 241건 중 173건(72%)이
+# 고려아연과 무관한 기사인 오염 바구니가 됐다.
+TOPIC_GENERIC_WORDS = {
+    "지배구조", "투자", "실적", "사업", "정책", "시장", "기업", "대기업", "중소기업",
+    "글로벌", "개편", "개선", "강화", "확대", "축소", "추진", "도입", "전환", "통합",
+    "지원", "협력", "상생", "상생협력", "대응", "점검", "공개", "출시", "선정",
+    "진출", "경쟁", "계획", "전망",
+}
+
+# 두 이슈명이 "같은 사건"인지 판정할 때 근거로 쓰면 안 되는 단어 전체.
+NON_SPECIFIC_ISSUE_WORDS = CASE_TYPE_GENERIC_WORDS | ISSUE_FILLER_WORDS | TOPIC_GENERIC_WORDS
+
 
 def _validate_master_mapping(mapping, existing_titles):
     """merged가 existing_titles(기존 이슈) 중 하나를 재사용한 경우, 사건 유형
@@ -556,9 +578,22 @@ def _validate_master_mapping(mapping, existing_titles):
         if merged == original or merged not in existing_set:
             validated[original] = merged
             continue
-        orig_core = set(_issue_tokens(original)) - CASE_TYPE_GENERIC_WORDS
-        merged_core = set(_issue_tokens(merged)) - CASE_TYPE_GENERIC_WORDS
-        if orig_core & merged_core:
+        orig_tokens, merged_tokens = _issue_tokens(original), _issue_tokens(merged)
+        # 이슈명은 "당사자명 + 사건" 순서라 첫 토큰이 당사자다. 당사자가 같으면
+        # 사건 단계가 달라도(쿠팡 조사 -> 쿠팡 조사 거부) 같은 사건으로 본다.
+        same_actor = (
+            bool(orig_tokens) and bool(merged_tokens)
+            and (orig_tokens[0] == merged_tokens[0]
+                 or orig_tokens[0] in set(merged_tokens)
+                 or merged_tokens[0] in set(orig_tokens))
+            and orig_tokens[0] not in GENERIC_ISSUE_ROOTS
+            and orig_tokens[0] not in NON_SPECIFIC_ISSUE_WORDS
+        )
+        # 당사자가 다르면 사건을 구체적으로 지목하는 단어가 2개 이상 겹칠 때만
+        # 재사용을 허용한다 - 뿌리가 다른 병합과 같은 문턱("제지사"/"제지 6사" 사례).
+        orig_core = set(orig_tokens) - NON_SPECIFIC_ISSUE_WORDS
+        merged_core = set(merged_tokens) - NON_SPECIFIC_ISSUE_WORDS
+        if same_actor or len(orig_core & merged_core) >= CROSS_ROOT_MIN_SHARED_SPECIFIC:
             validated[original] = merged
         else:
             print(f"[이슈 재사용 거부] '{original}' -> '{merged}' 재사용 취소 "
@@ -635,7 +670,7 @@ CROSS_ROOT_MIN_SHARED_SPECIFIC = 2
 
 
 def _should_merge_issue_cross_root(tokens_a, tokens_b):
-    shared_specific = (set(tokens_a) & set(tokens_b)) - CASE_TYPE_GENERIC_WORDS
+    shared_specific = (set(tokens_a) & set(tokens_b)) - NON_SPECIFIC_ISSUE_WORDS
     return len(shared_specific) >= CROSS_ROOT_MIN_SHARED_SPECIFIC
 
 
