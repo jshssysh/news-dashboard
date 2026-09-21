@@ -1,0 +1,25 @@
+# 위원회안·대안(nxtkyptyaolzcbfwl) API가 실제로 어떤 필드를 주는지 확인하기 위한
+# 일회성 진단 워크플로우. 자동 트리거 없음(workflow_dispatch만) - 확인 끝나면 삭제할 것.
+name: test-alt-bill-api
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 위원회안·대안 API 호출
+        env:
+          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+        run: |
+          curl -s "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5" -o response.json
+          echo "--- status/size ---"
+          ls -la response.json
+          echo "--- content ---"
+          cat response.json
+      - name: 응답을 아티팩트로도 저장
+        uses: actions/upload-artifact@v4
+        with:
+          name: alt-bill-api-response
+          path: response.json
