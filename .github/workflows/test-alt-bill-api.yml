@@ -34,6 +34,32 @@ jobs:
           echo "--- response2 (AGE만 넣고 위원회안,대안 API 재시도) ---"
           curl -s "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22" -o response2.json
           cat response2.json
+      - name: Python(requests)으로 동일 요청 재현 - curl과 비교
+        env:
+          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+        run: |
+          pip install requests --quiet
+          python3 - <<'PYEOF'
+          import os, requests
+          key = os.environ["KEY"]
+          base = "https://open.assembly.go.kr/portal/openapi"
+
+          def call(service, extra=None):
+              params = {"KEY": key, "Type": "json", "pIndex": 1, "pSize": 1}
+              if extra:
+                  params.update(extra)
+              try:
+                  r = requests.get(f"{base}/{service}", params=params, timeout=15)
+                  print(f"--- {service} status={r.status_code} ---")
+                  print(r.text[:800])
+              except Exception as e:
+                  print(f"--- {service} exception: {e} ---")
+              print()
+
+          call("nwbqublzajtcqpdae")  # 기존에 매일 정상 작동 중인 계류의안
+          call("nxtkyptyaolzcbfwl")  # 위원회안,대안 (AGE 빼고 - 필수 아님)
+          call("TVBPMBILL11", {"AGE": "22", "BILL_ID": "PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5"})
+          PYEOF
       - name: 응답을 아티팩트로도 저장
         uses: actions/upload-artifact@v4
         with:
