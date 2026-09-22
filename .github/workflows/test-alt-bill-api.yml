@@ -12,6 +12,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: 키 자체가 넘어오는지부터 확인 (길이만 - 값은 안 찍음)
+        env:
+          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+        run: |
+          echo "KEY length: ${#KEY}"
+      - name: 이미 매일 정상 작동 중인 계류의안 API로 대조 확인
+        env:
+          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+        run: |
+          curl -s "https://open.assembly.go.kr/portal/openapi/nwbqublzajtcqpdae?KEY=$KEY&Type=json&pIndex=1&pSize=1" -o known.json
+          cat known.json
       - name: 대안반영폐기 실제 사례로 의안검색 API 호출 (국민연금법, BILL_ID_REF 확인)
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
@@ -28,5 +39,6 @@ jobs:
         with:
           name: alt-bill-api-response
           path: |
+            known.json
             response1.json
             response2.json
