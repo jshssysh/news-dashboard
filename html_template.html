@@ -176,10 +176,12 @@ a.badge-skipped:hover { text-decoration: underline; }
    있다. will-change로 별도 합성 레이어를 만들어두면 스크롤 중 재배치가
    본문 리플로우와 분리되어 훨씬 덜 튄다. */
 .bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; will-change: transform; }
-.news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.news-filter-row select, #billStageSelect, #billPeriodSelect { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .news-filter-row select.sel-sentiment { width: 110px; }
-.news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
-.news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
+.news-filter-row select:hover, .news-filter-row input[type=text]:hover,
+#billStageSelect:hover, #billPeriodSelect:hover { border-color: var(--app-border-strong); }
+.news-filter-row select:focus, .news-filter-row input[type=text]:focus,
+#billStageSelect:focus, #billPeriodSelect:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
 .custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
