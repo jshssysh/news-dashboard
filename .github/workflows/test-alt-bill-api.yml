@@ -1,5 +1,8 @@
-# 위원회안·대안(nxtkyptyaolzcbfwl) API가 실제로 어떤 필드를 주는지 확인하기 위한
+# 원안->대안 매핑 필드(BILL_ID_REF)가 실제로 채워지는지 확인하기 위한
 # 일회성 진단 워크플로우. 자동 트리거 없음(workflow_dispatch만) - 확인 끝나면 삭제할 것.
+# TVBPMBILL11(법률안 심사 및 처리 - 의안검색)은 AGE가 필수 파라미터라 그것부터
+# 채워서 재시도 - 아까 "위원회안,대안"(nxtkyptyaolzcbfwl) 호출이 Bad Request였던
+# 것도 활용신청 문제가 아니라 이 필수 파라미터 누락 때문일 가능성이 있음.
 name: test-alt-bill-api
 
 on:
@@ -9,17 +12,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: 위원회안·대안 API 호출
+      - name: 대안반영폐기 실제 사례로 의안검색 API 호출 (국민연금법, BILL_ID_REF 확인)
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
-          curl -s "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5" -o response.json
-          echo "--- status/size ---"
-          ls -la response.json
-          echo "--- content ---"
-          cat response.json
+          curl -s "https://open.assembly.go.kr/portal/openapi/TVBPMBILL11?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22&BILL_ID=PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5" -o response1.json
+          echo "--- response1 (BILL_ID 지정 조회) ---"
+          cat response1.json
+          echo ""
+          echo "--- response2 (AGE만 넣고 위원회안,대안 API 재시도) ---"
+          curl -s "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22" -o response2.json
+          cat response2.json
       - name: 응답을 아티팩트로도 저장
         uses: actions/upload-artifact@v4
         with:
           name: alt-bill-api-response
-          path: response.json
+          path: |
+            response1.json
+            response2.json
