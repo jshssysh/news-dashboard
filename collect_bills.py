@@ -477,6 +477,49 @@ def normalize_result(code):
     return code
 
 
+# 열린국회정보 Open API에는 "원안이 어느 대안에 흡수됐는지" 알려주는 필드가
+# 없다(실측 확인, 2026-09-22 - "법률안 심사 및 처리(위원회안,대안)"·"의안검색"
+# API 응답을 직접 떠서 BILL_ID_REF 같은 연결 필드가 실제로는 비어있음을 확인함).
+# 대신 같은 소관위 + 같은 상임위처리일 + 법안명이 "(대안)" 접미사를 뺀 원안명과
+# 정확히 일치하면 사실상 유일하게 특정된다는 걸 실측으로 확인했다(같은 날 같은
+# 위원회에서 나온 여러 대안 중 이름이 겹치는 경우가 없었음) - 그 방식으로 간접
+# 매칭한다. 여러 법을 하나로 묶어 완전히 다른 이름을 붙이는 경우는 못 잡지만,
+# 이름이 그대로 이어지는(가장 흔한) 경우는 잡힌다.
+ALT_BILL_SUFFIX = "(대안)"
+
+
+def find_alt_bill_links(bills):
+    """bills(딕트 리스트, in-place)에서 대안반영가결/폐기된 원안에는
+    대안의안ID/대안법안명/대안상세링크를, 그 대안 자신에는 반영된원안목록
+    (JSON 문자열)을 채운다."""
+    alt_index = {}
+    for b in bills:
+        name = b["법안명"]
+        if name.endswith(ALT_BILL_SUFFIX):
+            core = name[:-len(ALT_BILL_SUFFIX)].strip()
+            alt_index[(b["소관위원회"], b["상임위처리일"], core)] = b
+
+    alt_children = {}
+    for b in bills:
+        if "대안반영" not in b["처리결과"]:
+            continue
+        alt = alt_index.get((b["소관위원회"], b["상임위처리일"], b["법안명"]))
+        if not alt or alt["의안ID"] == b["의안ID"]:
+            continue
+        b["대안의안ID"] = alt["의안ID"]
+        b["대안법안명"] = alt["법안명"]
+        b["대안상세링크"] = alt["상세링크"]
+        alt_children.setdefault(alt["의안ID"], []).append({
+            "의안ID": b["의안ID"], "법안명": b["법안명"],
+            "제안자": b["제안자"], "상세링크": b["상세링크"],
+        })
+
+    for b in bills:
+        children = alt_children.get(b["의안ID"])
+        if children:
+            b["반영된원안목록"] = json.dumps(children, ensure_ascii=False)
+
+
 # 법사위 결과가 이 값이면 법사위에서 끝나는 게 아니라 본회의 표결 대기로 넘어간 것이다.
 # (대안반영가결/대안반영폐기는 원래 법안 대신 별도 대안이 가결되는 것이라 이 법안
 # 자체는 법사위에서 끝난다 - 그래서 포함하지 않음)
@@ -685,7 +728,15 @@ def main():
             "상세링크": row.get("LINK_URL", ""),
             "AI요약": prev_summaries.get(bill_id, ""),
             "최종수집일": now_str,
+            # 대안반영가결/폐기 원안 -> 이를 흡수한 대안 (find_alt_bill_links가 채움)
+            "대안의안ID": "",
+            "대안법안명": "",
+            "대안상세링크": "",
+            # 위원회 대안 자신 -> 이 대안에 반영된 원안 목록(JSON, find_alt_bill_links가 채움)
+            "반영된원안목록": "",
         })
+
+    find_alt_bill_links(bills)
 
     # 전체 법안이 수만 건이라 전부 요약하면 무료 한도를 넘기므로, 최근 발의된 것 중
     # 아직 요약이 없는 법안만 대상으로 한다. 오래된 대기 법안은 요약 없이 남는다.

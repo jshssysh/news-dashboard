@@ -269,8 +269,25 @@ def load_bills():
             "changed": None if pd.isna(row.get("상태변경")) or not str(row.get("상태변경")).strip() else str(row.get("상태변경")),
             "link": nz(row.get("상세링크"), ""),
             "summary": None if pd.isna(row.get("AI요약")) else str(row.get("AI요약")),
+            # 대안반영가결/폐기 원안 -> 이를 흡수한 대안(있을 때만 채워짐, collect_bills.py의
+            # find_alt_bill_links 참고 - 국회 Open API엔 직접 연결 필드가 없어 소관위+
+            # 처리일+법안명 매칭으로 간접 추정한 결과라 항상 다 잡히지는 않음).
+            "altBillId": nz(row.get("대안의안ID"), ""),
+            "altBillName": nz(row.get("대안법안명"), ""),
+            "altBillLink": nz(row.get("대안상세링크"), ""),
+            # 위원회 대안 자신 -> 이 대안에 반영된 원안 목록
+            "absorbedBills": _parse_absorbed_bills(row.get("반영된원안목록")),
         })
     return records
+
+
+def _parse_absorbed_bills(raw):
+    if pd.isna(raw) or not str(raw).strip():
+        return []
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return []
 
 
 def row_to_dict(row):
