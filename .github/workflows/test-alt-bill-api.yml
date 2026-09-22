@@ -18,23 +18,26 @@ jobs:
         run: |
           echo "KEY length: ${#KEY}"
       - name: 이미 매일 정상 작동 중인 계류의안 API로 대조 확인
+        continue-on-error: true
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
-          curl -s "https://open.assembly.go.kr/portal/openapi/nwbqublzajtcqpdae?KEY=$KEY&Type=json&pIndex=1&pSize=1" -o known.json
-          cat known.json
+          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/nwbqublzajtcqpdae?KEY=$KEY&Type=json&pIndex=1&pSize=1" -o known.json
+          cat known.json || true
       - name: 대안반영폐기 실제 사례로 의안검색 API 호출 (국민연금법, BILL_ID_REF 확인)
+        continue-on-error: true
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
-          curl -s "https://open.assembly.go.kr/portal/openapi/TVBPMBILL11?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22&BILL_ID=PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5" -o response1.json
+          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/TVBPMBILL11?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22&BILL_ID=PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5" -o response1.json
           echo "--- response1 (BILL_ID 지정 조회) ---"
-          cat response1.json
+          cat response1.json || true
           echo ""
           echo "--- response2 (AGE만 넣고 위원회안,대안 API 재시도) ---"
-          curl -s "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22" -o response2.json
-          cat response2.json
+          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22" -o response2.json
+          cat response2.json || true
       - name: Python(requests)으로 동일 요청 재현 - curl과 비교
+        continue-on-error: true
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
@@ -61,9 +64,11 @@ jobs:
           call("TVBPMBILL11", {"AGE": "22", "BILL_ID": "PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5"})
           PYEOF
       - name: 응답을 아티팩트로도 저장
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: alt-bill-api-response
+          if-no-files-found: warn
           path: |
             known.json
             response1.json
