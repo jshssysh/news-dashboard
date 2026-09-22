@@ -176,14 +176,14 @@ a.badge-skipped:hover { text-decoration: underline; }
    있다. will-change로 별도 합성 레이어를 만들어두면 스크롤 중 재배치가
    본문 리플로우와 분리되어 훨씬 덜 튄다. */
 .bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; will-change: transform; }
-.news-filter-row select { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.news-filter-row select, #billStageSelect, #billPeriodSelect { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .news-filter-row select.sel-sentiment { width: 110px; }
-.news-filter-row select:hover, .news-filter-row input[type=text]:hover { border-color: var(--app-border-strong); }
-.news-filter-row select:focus, .news-filter-row input[type=text]:focus { outline: none; border-color: var(--app-primary); }
+.news-filter-row select:hover, .news-filter-row input[type=text]:hover,
+#billStageSelect:hover, #billPeriodSelect:hover { border-color: var(--app-border-strong); }
+.news-filter-row select:focus, .news-filter-row input[type=text]:focus,
+#billStageSelect:focus, #billPeriodSelect:focus { outline: none; border-color: var(--app-primary); }
 .news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
-.bill-date-filter-row { margin-top: -4px; margin-bottom: 12px; }
-.bill-date-filter-label { font-size: 0.85em; font-weight: 700; opacity: 0.7; width: 230px; flex: 0 0 auto; }
 .custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
 .custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
@@ -907,15 +907,27 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="bill-filter-sticky">
       <div class="news-filter-row" id="billMainFilterRow">
         <h5 id="billSearchToggle">검색<span class="toggle-caret">▼</span></h5>
+        <div class="filter-selects" id="billFilterSelects">
+          <select id="billStageSelect">
+            <option value="전체">전체</option>
+            <option value="입안 및 발의">입안</option>
+            <option value="상임위 심사">상임위</option>
+            <option value="법사위 심사">법사위</option>
+            <option value="본회의 의결">본회의</option>
+          </select>
+          <select id="billPeriodSelect">
+            <option value="0">오늘만</option>
+            <option value="6">최근 7일</option>
+            <option value="29">최근 30일</option>
+            <option value="custom">날짜 지정</option>
+          </select>
+          <span id="billCustomRangeInputs" class="custom-range-inputs" style="display:none;">
+            <input type="date" id="billFromInput"> ~ <input type="date" id="billToInput">
+            <button type="button" id="billDateResetBtn" class="archive-toggle-link">초기화</button>
+          </span>
+        </div>
         <button id="billStarredToggle" class="star-filter-btn">☆</button>
         <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
-      </div>
-      <div class="news-filter-row bill-date-filter-row">
-        <span class="bill-date-filter-label">제안일</span>
-        <span class="custom-range-inputs">
-          <input type="date" id="billFromInput"> ~ <input type="date" id="billToInput">
-          <button type="button" id="billDateResetBtn" class="archive-toggle-link">초기화</button>
-        </span>
       </div>
       <div class="filter-section" id="committeeFilterSection">
         <div class="filter-section-header">
@@ -1084,7 +1096,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-22 16:16 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-22 18:31 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1407,6 +1419,7 @@ const state = {
   billOutcomeBucket: '', // 의원 탭에서 "가결"/"대안반영" 등을 눌러 들어왔을 때만 채워진다
   billDateFrom: '',   // 입법 탭 전용 날짜 필터(제안일 기준) - 뉴스 탭 날짜와는 독립적으로 동작
   billDateTo: '',
+  billPeriod: 0,   // billPeriodSelect: 0="오늘만", 6="최근 7일", 29="최근 30일", 'custom'=직접 지정
   memberParty: '전체',
   memberBillBucket: '전체',
   memberCommittee: '전체',
@@ -2636,6 +2649,10 @@ function renderStageFlowRow() {
   const stageCounts = {};
   source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
   if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
+  // 검색 줄의 단계 드롭다운(billStageSelect)도 같은 state.billStage를 보므로,
+  // 흐름도 칩을 클릭해 바뀐 경우에도 드롭다운 표시값을 매번 맞춰준다.
+  const stageSelectEl = document.getElementById('billStageSelect');
+  if (stageSelectEl) stageSelectEl.value = state.billStage;
 
   const RESULT_STAGE_SET = RESULT_STAGES;
   const allBtn = document.getElementById('billStageAllBtn');
@@ -3300,6 +3317,44 @@ document.getElementById('memberPageSizeSel').addEventListener('change', e => {
   state.memberPage = 1;
   renderMembers();
 });
+// 입법 탭 검색 줄의 기간 셀렉트(billPeriodSelect) - 뉴스 탭 periodSelect와 같은
+// 보기(오늘만/최근 7일/최근 30일/날짜지정)를 쓰지만, 뉴스처럼 날짜별로 쌓인
+// 스냅샷이 아니라 제안일(proposeDate) 하나만 있으므로 "오늘"(실제 오늘 날짜)
+// 기준으로 N일 전까지를 billDateFrom~billDateTo로 그냥 계산해 넣는다.
+function billTodayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function billPeriodRange(days) {
+  const to = billTodayIso();
+  const d = new Date(to + 'T00:00:00');
+  d.setDate(d.getDate() - days);
+  const from = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return { from, to };
+}
+function applyBillPeriod(raw) {
+  state.billPeriod = raw === 'custom' ? 'custom' : parseInt(raw, 10);
+  document.getElementById('billCustomRangeInputs').style.display = raw === 'custom' ? '' : 'none';
+  if (raw !== 'custom') {
+    const { from, to } = billPeriodRange(state.billPeriod);
+    state.billDateFrom = from;
+    state.billDateTo = to;
+    document.getElementById('billFromInput').value = from;
+    document.getElementById('billToInput').value = to;
+  }
+}
+document.getElementById('billStageSelect').addEventListener('change', e => {
+  state.billStage = e.target.value;
+  state.billResult = '전체';
+  state.billPage = 1;
+  renderBills();
+});
+document.getElementById('billPeriodSelect').addEventListener('change', e => {
+  applyBillPeriod(e.target.value);
+  state.billPage = 1;
+  renderBills(); // 위원회/처리단계 칩 건수도 날짜 범위 기준으로 다시 계산
+});
+applyBillPeriod('0'); // 기본값("오늘만")을 페이지 로드 시 바로 반영
 document.getElementById('billFromInput').addEventListener('change', e => {
   state.billDateFrom = e.target.value || '';
   state.billPage = 1;
@@ -3420,18 +3475,15 @@ if (IS_NARROW) {
   }
 }
 
-// 입법 탭: "검색"▶ 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 모바일에서만 한
-// 줄로 합쳐서 같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"
-// 줄과 "제안일" 줄이 따로였다. 데스크톱은 원래처럼 각자 자리에 그대로 둔다).
+// 입법 탭: "검색"▶ 하나로 단계·기간 셀렉트·☆ 즐겨찾기·검색창까지 모바일에서만
+// 한 줄로 합쳐서 같이 접었다 펼친다(사용자 요청, 2026-09-14 최초 / 2026-09-22
+// 단계·기간 셀렉트로 확장 - 뉴스 탭처럼 처리단계[전체/입안/상임위/법사위/
+// 본회의]와 제안일 기간[오늘만/최근7일/최근30일/날짜지정]을 검색 줄에 통합).
 // "소관위"는 이 줄에 넣지 않고 원래 있던 필터-섹션에 그대로 남겨둔다.
 const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
 const billMainFilterRow = document.getElementById('billMainFilterRow');
 const billSearchToggleEl = document.getElementById('billSearchToggle');
-const billDateFilterRow = document.querySelector('.bill-date-filter-row');
-// 주의: 뉴스 탭에도 같은 클래스(.custom-range-inputs)를 쓰는 날짜 범위 입력이
-// 있어(id="customRangeInputs", 평소엔 style="display:none") 문서 전체에서
-// querySelector로 찾으면 그쪽이 먼저 걸린다 - billDateFilterRow 안에서만 찾는다.
-const billDateRangeEl = billDateFilterRow ? billDateFilterRow.querySelector('.custom-range-inputs') : null;
+const billFilterSelectsEl = document.getElementById('billFilterSelects');
 if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
   const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
     ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
@@ -3442,14 +3494,12 @@ if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
     const billCombinedRow = document.createElement('div');
     billCombinedRow.id = 'mobileBillSearchRow';
     billCombinedRow.appendChild(billSearchToggleEl);
-    if (billDateRangeEl) billCombinedRow.appendChild(billDateRangeEl);
+    if (billFilterSelectsEl) billCombinedRow.appendChild(billFilterSelectsEl);
     billCombinedRow.appendChild(billStarredToggleEl);
     billCombinedRow.appendChild(billSearchInputEl);
     billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
-    // 검색토글/☆/입력창이 다 옮겨져 비었으니(billMainFilterRow), "제안일" 라벨만
-    // 남아 빈 껍데기가 되는 billDateFilterRow와 함께 통째로 숨긴다.
+    // 검색토글/단계·기간 셀렉트/☆/입력창이 다 옮겨져 비었으니 원래 자리는 숨긴다.
     billMainFilterRow.style.display = 'none';
-    if (billDateFilterRow) billDateFilterRow.style.display = 'none';
 
     billCombinedRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
     billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
