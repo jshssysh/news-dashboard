@@ -1,8 +1,16 @@
-# 원안->대안 매핑 필드(BILL_ID_REF)가 실제로 채워지는지 확인하기 위한
-# 일회성 진단 워크플로우. 자동 트리거 없음(workflow_dispatch만) - 확인 끝나면 삭제할 것.
-# TVBPMBILL11(법률안 심사 및 처리 - 의안검색)은 AGE가 필수 파라미터라 그것부터
-# 채워서 재시도 - 아까 "위원회안,대안"(nxtkyptyaolzcbfwl) 호출이 Bad Request였던
-# 것도 활용신청 문제가 아니라 이 필수 파라미터 누락 때문일 가능성이 있음.
+# 원안->대안 매핑 필드가 실제로 존재/채워지는지 확인하기 위한 일회성 진단
+# 워크플로우. 자동 트리거 없음(workflow_dispatch만) - 확인 끝나면 삭제할 것.
+#
+# 실측 결론(2026-09-22): curl로 호출하면 이 API들(기존 정상 작동 중인
+# 계류의안 포함)이 전부 "Bad Request."/타임아웃으로 막혔는데, 동일한 요청을
+# Python(requests)로 하면 정상(200) 응답이 왔다 - curl 클라이언트 자체를
+# 게이트웨이가 걸러내는 것으로 보임. 그래서 이 진단은 Python으로만 한다.
+#
+# 실제 대안반영폐기 사례(국민연금법, BILL_ID=PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5)를
+# TVBPMBILL11(의안검색)로 조회했을 때 BILL_ID_REF 필드가 응답에 아예 없었다
+# (null도 아니고 필드 자체가 없음) - 이번엔 위원회안,대안 API(nxtkyptyaolzcbfwl)
+# 쪽 레코드를 여러 건 받아서 "REF"가 들어간 필드가 어디에도 있는지, 그리고
+# 최근 대안반영폐기된 다른 법안들도 같은지 확인한다.
 name: test-alt-bill-api
 
 on:
@@ -12,64 +20,40 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: 키 자체가 넘어오는지부터 확인 (길이만 - 값은 안 찍음)
-        env:
-          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
-        run: |
-          echo "KEY length: ${#KEY}"
-      - name: 이미 매일 정상 작동 중인 계류의안 API로 대조 확인
-        continue-on-error: true
-        env:
-          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
-        run: |
-          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/nwbqublzajtcqpdae?KEY=$KEY&Type=json&pIndex=1&pSize=1" -o known.json
-          cat known.json || true
-      - name: 대안반영폐기 실제 사례로 의안검색 API 호출 (국민연금법, BILL_ID_REF 확인)
-        continue-on-error: true
-        env:
-          KEY: ${{ secrets.ASSEMBLY_API_KEY }}
-        run: |
-          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/TVBPMBILL11?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22&BILL_ID=PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5" -o response1.json
-          echo "--- response1 (BILL_ID 지정 조회) ---"
-          cat response1.json || true
-          echo ""
-          echo "--- response2 (AGE만 넣고 위원회안,대안 API 재시도) ---"
-          curl -s --max-time 20 "https://open.assembly.go.kr/portal/openapi/nxtkyptyaolzcbfwl?KEY=$KEY&Type=json&pIndex=1&pSize=5&AGE=22" -o response2.json
-          cat response2.json || true
-      - name: Python(requests)으로 동일 요청 재현 - curl과 비교
-        continue-on-error: true
+      - name: Python(requests)으로 원안<->대안 연결 필드 탐색
         env:
           KEY: ${{ secrets.ASSEMBLY_API_KEY }}
         run: |
           pip install requests --quiet
           python3 - <<'PYEOF'
-          import os, requests
+          import os, json, requests
+
           key = os.environ["KEY"]
           base = "https://open.assembly.go.kr/portal/openapi"
 
-          def call(service, extra=None):
-              params = {"KEY": key, "Type": "json", "pIndex": 1, "pSize": 1}
+          def call(service, extra=None, psize=10):
+              params = {"KEY": key, "Type": "json", "pIndex": 1, "pSize": psize}
               if extra:
                   params.update(extra)
-              try:
-                  r = requests.get(f"{base}/{service}", params=params, timeout=15)
-                  print(f"--- {service} status={r.status_code} ---")
-                  print(r.text[:800])
-              except Exception as e:
-                  print(f"--- {service} exception: {e} ---")
-              print()
+              r = requests.get(f"{base}/{service}", params=params, timeout=15)
+              print(f"--- {service} status={r.status_code} ---")
+              return r.text
 
-          call("nwbqublzajtcqpdae")  # 기존에 매일 정상 작동 중인 계류의안
-          call("nxtkyptyaolzcbfwl")  # 위원회안,대안 (AGE 빼고 - 필수 아님)
-          call("TVBPMBILL11", {"AGE": "22", "BILL_ID": "PRC_P2O6M0M9I0I7H1I6G2G2F4N5N8L6M5"})
+          # 1) 위원회안,대안 레코드 30건 받아서 "REF"가 들어간 필드가 있는지 원문 검색
+          text = call("nxtkyptyaolzcbfwl", psize=30)
+          print(f"'REF' 포함 여부: {'REF' in text}")
+          data = json.loads(text)
+          rows = data["nxtkyptyaolzcbfwl"][1]["row"]
+          print(f"받은 행 수: {len(rows)}")
+          print("첫 행 필드 목록:", list(rows[0].keys()))
+          print()
+
+          # 2) 최근 대안반영폐기된 법안을 몇 건 더 찾아서 필드 목록 재확인
+          text2 = call("TVBPMBILL11", {"AGE": "22"}, psize=100)
+          data2 = json.loads(text2)
+          rows2 = data2["TVBPMBILL11"][1]["row"]
+          found = [r for r in rows2 if r.get("CMT_PROC_RESULT_CD") == "대안반영폐기"]
+          print(f"이번 100건 중 대안반영폐기: {len(found)}건")
+          for r in found[:3]:
+              print(json.dumps(r, ensure_ascii=False))
           PYEOF
-      - name: 응답을 아티팩트로도 저장
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: alt-bill-api-response
-          if-no-files-found: warn
-          path: |
-            known.json
-            response1.json
-            response2.json
