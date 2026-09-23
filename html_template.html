@@ -1163,7 +1163,7 @@ function toggleStarredBill(id) {
 const CART_KEY = 'reportCart';
 // 화면에는 이 순서대로 보여준다(사용자가 요청한 보도 요약표 형식과 동일) -
 // 목록에 없는 카테고리(뉴스 분야가 늘어나는 경우 등)는 "기타" 바로 앞에 끼운다.
-const CART_CATEGORY_ORDER = ['공정거래', '내부거래', '지배구조', '상생', '하도급', '상법', '시민단체', '노동', 'ESG', '법안', '기타'];
+const CART_CATEGORY_ORDER = ['공정거래', '내부거래', '지배구조', '상생', '하도급', '상법', '시민단체', '노동', 'ESG', '법안', '기타', '인사'];
 
 function getCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); }
@@ -1340,7 +1340,7 @@ document.getElementById('cartExportModalClose').addEventListener('click', closeC
 document.getElementById('cartExportModalBackdrop').addEventListener('click', closeCartExportModal);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCartExportModal(); });
 
-const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타"];
+const NEWS_CATEGORY_ORDER = ["공정거래","내부거래","지배구조","상생","하도급","상법","시민단체","노동","ESG","기타","인사"];
 function newsCategoryRank(c) {
   const idx = NEWS_CATEGORY_ORDER.indexOf(c);
   return idx === -1 ? NEWS_CATEGORY_ORDER.length : idx;
