@@ -223,7 +223,8 @@ a.badge-skipped:hover { text-decoration: underline; }
    여기서도 아이디를 같이 걸어 우선순위를 맞춘다. */
 .cart-preview-panel.collapsed #cartPreviewList,
 .cart-preview-panel.collapsed #billCartPreviewList { display: none; }
-.cart-export-btn { flex-shrink: 0; font-size: 0.78em !important; }
+.cart-preview-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.cart-export-btn, .cart-clear-btn { flex-shrink: 0; font-size: 0.78em !important; }
 #cartPreviewList, #billCartPreviewList { display: flex; flex-direction: column; gap: 6px; }
 .cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
 .cart-preview-item a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -240,6 +241,11 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-export-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 12px 16px; background: #f0f2f6; color: #31333f; font-size: 0.85em; font-weight: 700;
   border-bottom: 1px solid rgba(49,51,63,0.14); flex-shrink: 0; }
+.cart-export-modal-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.cart-export-copy-btn { background: var(--app-primary); border: none; color: #fff; font-size: 0.82em; font-weight: 700;
+  padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.cart-export-copy-btn:hover { opacity: 0.9; }
+.cart-export-copy-btn.copied { background: #2e7d32; }
 .cart-export-modal-close { background: none; border: none; color: inherit; font-size: 1em; cursor: pointer; padding: 2px 6px; }
 .cart-export-modal-body { padding: 16px; overflow: auto; }
 
@@ -894,7 +900,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="sidebar-panel cart-preview-panel" id="cartPreviewPanel">
           <div class="panel-title-row">
             <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
-            <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+            <span class="cart-preview-actions">
+              <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+              <button type="button" class="archive-toggle-link cart-clear-btn">비우기</button>
+            </span>
           </div>
           <div id="cartPreviewList" class="cart-preview-list"></div>
         </div>
@@ -951,7 +960,10 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <div class="sidebar-panel cart-preview-panel" id="billCartPreviewPanel">
         <div class="panel-title-row">
           <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
-          <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+          <span class="cart-preview-actions">
+            <button type="button" class="archive-toggle-link cart-export-btn">내보내기</button>
+            <button type="button" class="archive-toggle-link cart-clear-btn">비우기</button>
+          </span>
         </div>
         <div id="billCartPreviewList" class="cart-preview-list"></div>
       </div>
@@ -1097,7 +1109,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-09-28 12:22 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-09-28 18:28 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1107,8 +1119,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   <div id="cartExportModalBackdrop" class="cart-export-modal-backdrop"></div>
   <div class="cart-export-modal-content">
     <div class="cart-export-modal-header">
-      <span>내보내기 - 표를 선택해 복사한 뒤 엑셀에 붙여넣으세요</span>
-      <button type="button" id="cartExportModalClose" class="cart-export-modal-close">✕</button>
+      <span>내보내기 - 표를 선택해 복사하거나, 복사 버튼을 눌러 엑셀에 붙여넣으세요</span>
+      <span class="cart-export-modal-actions">
+        <button type="button" id="cartExportCopyBtn" class="cart-export-copy-btn" title="표 복사">📋 복사</button>
+        <button type="button" id="cartExportModalClose" class="cart-export-modal-close">✕</button>
+      </span>
     </div>
     <div id="cartExportModalBody" class="cart-export-modal-body"></div>
   </div>
@@ -1192,13 +1207,20 @@ function toggleCartItem(btn) {
     cart.push({ id, type: btn.dataset.type, category: btn.dataset.category, title: btn.dataset.title, link: btn.dataset.link });
     saveCart(cart);
   }
-  updateCartInlineBtn(btn);
+  syncCartButtonsFor(id);
   renderTabsAndDate(); // 탭의 담은 건수 + 사이드바 미리보기도 같이 갱신
 }
 function updateCartInlineBtn(btn) {
   const inCart = cartHasId(btn.dataset.cartId);
   btn.textContent = inCart ? '담음' : '담기';
   btn.classList.toggle('in-cart', inCart);
+}
+// 같은 항목의 "담기" 버튼이 화면에 두 곳(예: "오늘 주요 내용"과 본문 목록)에
+// 동시에 떠 있을 수 있고, "담기 미리보기"의 ✕로 뺄 때도 원래 카드의 버튼
+// 색깔이 그대로 안 꺼지는 문제가 있었다(사용자 지적, 2026-09-28) - 클릭된
+// 버튼 하나만 갱신하는 대신, 같은 data-cart-id를 가진 버튼을 전부 찾아 갱신한다.
+function syncCartButtonsFor(id) {
+  document.querySelectorAll(`.cart-inline-btn[data-cart-id="${CSS.escape(id)}"]`).forEach(updateCartInlineBtn);
 }
 
 // 뉴스 탭 사이드바("수집 현황" 밑)·입법 탭("전체▶입안▶상임위..." 흐름과
@@ -1222,11 +1244,24 @@ function renderCartPreview() {
     listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         removeCartItem(btn.dataset.id);
+        syncCartButtonsFor(btn.dataset.id); // 본문/신호박스에 남아있는 같은 항목의 "담음" 표시도 해제
         renderTabsAndDate(); // 탭의 담은 건수 갱신 + 이 미리보기들도 다시 그림
       });
     });
   });
 }
+
+// "담기 미리보기" 옆 "비우기" - 담은 항목 전체를 한 번에 뺀다(사용자 요청,
+// 2026-09-28). 실수로 누르면 되돌리기 번거로우니(다시 하나씩 담아야 함)
+// confirm으로 한 번 확인한다.
+function clearCart() {
+  if (!getCart().length) return;
+  if (!confirm('담은 항목을 전부 비울까요?')) return;
+  saveCart([]);
+  document.querySelectorAll('.cart-inline-btn').forEach(updateCartInlineBtn);
+  renderTabsAndDate();
+}
+document.querySelectorAll('.cart-clear-btn').forEach(btn => btn.addEventListener('click', clearCart));
 
 // 법안을 장바구니/내보내기에 담을 때 쓰는 표시 문구 - "법안명(제안일/대표
 // 발의자 의원/정당 첫 글자)" 형식(사용자가 지정한 엑셀 표 작성 기준,
@@ -1335,6 +1370,47 @@ function openCartExportModal() {
 function closeCartExportModal() {
   document.getElementById('cartExportModal').classList.remove('open');
 }
+
+// 표를 마우스로 드래그해 선택하는 대신 버튼 한 번으로 클립보드에 담는다(사용자
+// 요청, 2026-09-28). text/html로 넣어야 엑셀에 붙여넣었을 때 표 형태(셀 구분)가
+// 그대로 유지된다 - text/plain만 넣으면 표 전체가 한 칸에 텍스트로 들어간다.
+// Clipboard API(navigator.clipboard.write)는 HTTPS/localhost 등 보안 컨텍스트에서만
+// 되므로, 안 될 때는 표를 실제로 선택 영역으로 만들어 execCommand('copy')로 대신한다.
+async function copyCartExportTable() {
+  const table = document.querySelector('#cartExportModalBody table');
+  if (!table) return;
+  const plain = Array.from(table.querySelectorAll('tr'))
+    .map(tr => Array.from(tr.children).map(td => td.textContent.trim()).join('\t'))
+    .join('\n');
+  let ok = false;
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([table.outerHTML], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      })]);
+      ok = true;
+    }
+  } catch (e) { /* 아래 폴백으로 넘어감 */ }
+  if (!ok) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(table);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      ok = document.execCommand('copy');
+      sel.removeAllRanges();
+    } catch (e) { ok = false; }
+  }
+  const btn = document.getElementById('cartExportCopyBtn');
+  const original = '📋 복사';
+  btn.textContent = ok ? '복사됨!' : '복사 실패 - 직접 드래그해주세요';
+  btn.classList.toggle('copied', ok);
+  setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+}
+document.getElementById('cartExportCopyBtn').addEventListener('click', copyCartExportTable);
+
 document.querySelectorAll('.cart-export-btn').forEach(btn => btn.addEventListener('click', openCartExportModal));
 document.getElementById('cartExportModalClose').addEventListener('click', closeCartExportModal);
 document.getElementById('cartExportModalBackdrop').addEventListener('click', closeCartExportModal);
