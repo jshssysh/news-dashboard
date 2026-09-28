@@ -649,6 +649,28 @@ GENERIC_ISSUE_ROOTS = {
 GENERIC_ROOT_SIM_THRESHOLD = 0.85
 GENERIC_ROOT_MIN_TOKENS = 3
 
+# 정책을 발표하는 "주체"가 당정(정부·여당 합동)/공정위처럼 문맥에 따라 다르게 대표되는
+# 경우가 있다 - 특히 공정위와 여당이 공동으로 정책을 발표하면 기사마다 앞세우는 주체가
+# 달라 이슈명 뿌리(첫 토큰) 자체가 갈린다(실측 2026-09-29: "당정 담합 제재 강화"와
+# "공정위 담합 제재강화"가 같은 공동 발표 건인데 뿌리가 달라 서로 다른 이슈로 쪼개짐 -
+# 교차 뿌리 검사(_should_merge_issue_cross_root)도 겹치는 단어가 "담합" 하나뿐이고
+# 그 단어가 CASE_TYPE_GENERIC_WORDS라 구체 증거로 안 잡혀 병합이 막혔다).
+# 아주 좁게, 실제로 확인된 정책 발표 주체 쌍만 넣는다 - 일반적인 유의어 처리로
+# 확장하지 말 것(과거 사고 재발 위험). dry-run으로 "정부"까지 넣어봤더니 날짜/맥락이
+# 다른 모호한 병합 후보("정부 담합 제재" -> "공정위 민생 담합 제재")가 하나 나와서
+# 이번엔 제외했다 - 필요해지면 그때 별도로 실측 검증 후 추가한다.
+POLICY_ACTOR_ROOT_SYNONYMS = {
+    "당정": "공정위",
+}
+
+
+def _canonical_root(root):
+    """이슈명 뿌리(첫 토큰)를 병합 판정용 대표 표기로 정규화한다. 위 동의어 집합에
+    없는 뿌리는 그대로 반환한다. 이 함수는 "같은 뿌리 취급 로직과 GENERIC_ISSUE_ROOTS의
+    엄격한 문턱"을 동의어 뿌리 쌍에도 그대로 적용하기 위한 것뿐이다 - 병합을 쉽게 만드는
+    새 경로가 아니라, 기존 경로에 태우기 위한 열쇠 변환이다."""
+    return POLICY_ACTOR_ROOT_SYNONYMS.get(root, root)
+
 
 def _issue_tokens(title):
     return [t for t in re.split(r"\s+", str(title).strip()) if t]
@@ -666,12 +688,16 @@ def _should_merge_issue(tokens_a, tokens_b):
     (2) 포함관계가 아니어도 문자열이 매우 비슷하고 뿌리 외 토큰이 겹치면 병합한다.
     뿌리(첫 토큰)만 같은 경우는 병합하지 않는다 - 같은 기업의 별개 사건일 수 있음
     (예: "쿠팡 공정위 조사" vs "쿠팡 배송비 인상").
-    뿌리가 일반 토픽어면(GENERIC_ISSUE_ROOTS) 기준을 더 높인다."""
+    뿌리가 일반 토픽어면(GENERIC_ISSUE_ROOTS) 기준을 더 높인다.
+    뿌리가 문자 그대로 다르지만 POLICY_ACTOR_ROOT_SYNONYMS 상 동의어면(예: 당정/공정위),
+    같은 뿌리인 것처럼 취급해서 이 함수를 그대로 통과시킨다 - 엄격도는 그대로 유지된다
+    (공정위는 이미 GENERIC_ISSUE_ROOTS라 어차피 더 높은 문턱이 적용된다)."""
     set_a, set_b = set(tokens_a), set(tokens_b)
-    shared_beyond_root = (set_a & set_b) - {tokens_a[0]}
+    root_a, root_b = _canonical_root(tokens_a[0]), _canonical_root(tokens_b[0])
+    shared_beyond_root = (set_a & set_b) - {tokens_a[0], tokens_b[0]}
     if not shared_beyond_root:
         return False
-    is_generic = tokens_a[0] in GENERIC_ISSUE_ROOTS
+    is_generic = root_a in GENERIC_ISSUE_ROOTS or root_b in GENERIC_ISSUE_ROOTS
     if not is_generic:
         diff_a, diff_b = set_a - set_b, set_b - set_a
         # 뿌리(공통) 포함 전체 겹치는 토큰 수 기준 - 뿌리 하나만 같고 나머지가 다 다르면
@@ -684,7 +710,12 @@ def _should_merge_issue(tokens_a, tokens_b):
     larger = set_b if smaller is set_a else set_a
     if len(smaller) >= min_tokens and smaller <= larger:
         return True
-    return difflib.SequenceMatcher(None, " ".join(tokens_a), " ".join(tokens_b)).ratio() >= threshold
+    # 문자열 유사도 비교는 뿌리를 대표 표기로 맞춰서 비교한다 - 안 그러면 "당정"과
+    # "공정위"처럼 뿌리 표기 자체가 다른 글자수 차이 때문에 나머지 내용이 사실상
+    # 같아도 비율이 근소하게 문턱 밑으로 빠진다(실측: 0.818 -> 대표 표기로 맞추면 0.957).
+    joined_a = " ".join([root_a] + tokens_a[1:])
+    joined_b = " ".join([root_b] + tokens_b[1:])
+    return difflib.SequenceMatcher(None, joined_a, joined_b).ratio() >= threshold
 
 
 
@@ -708,7 +739,7 @@ def build_issue_merge_mapping(titles_oldest_first):
     Gemini 호출 없이 파이썬만으로 처리하므로 무료 등급 호출 한도에 영향이 없다.
     통합 이름은 "가장 먼저 등장한 이름"으로 고정해서, 같은 사건 이름이 날마다
     바뀌지 않게 한다."""
-    canonical = {}  # 뿌리 -> [(대표이름, 토큰)]
+    canonical = {}  # 뿌리(동의어는 대표 표기로 정규화) -> [(대표이름, 토큰)]
     all_canonical = []  # 뿌리 무관 전체 목록 (교차 뿌리 검사용)
     mapping = {}
     for title in titles_oldest_first:
@@ -716,7 +747,9 @@ def build_issue_merge_mapping(titles_oldest_first):
         if not tokens:
             mapping[title] = title
             continue
-        root = tokens[0]
+        # POLICY_ACTOR_ROOT_SYNONYMS에 있는 뿌리(예: "당정")는 대표 표기("공정위")로
+        # 묶어서, 뿌리 표기만 다른 같은 사건도 같은 뿌리 버킷 안에서 비교되게 한다.
+        root = _canonical_root(tokens[0])
         merged_into = None
         for existing_title, existing_tokens in canonical.get(root, []):
             if _should_merge_issue(existing_tokens, tokens):
