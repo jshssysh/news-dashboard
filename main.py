@@ -950,24 +950,41 @@ ARCHIVE_AFTER_DAYS = 35
 NEWS_ARCHIVE_DIR = os.path.join("docs", "archive")
 
 
-def _write_gz(gz_path, payload):
-    # mtime=0으로 고정해 같은 내용이면 같은 바이트가 되게 한다(불필요한 git diff 방지)
-    with open(gz_path, "wb") as f:
-        f.write(gzip.compress(payload, compresslevel=9, mtime=0))
+ARCHIVE_EXT = ".json.gz"
 
 
-def _write_archive_month(path, rows):
-    """월별 아카이브를 .json(원본, 다음 실행 때 합쳐 쓰는 기준)과 .json.gz(화면이 받는 용도,
-    약 5분의 1 크기)로 같이 저장한다. 화면은 .gz를 못 풀면 .json으로 대신 받는다."""
+def _archive_path(month):
+    return os.path.join(NEWS_ARCHIVE_DIR, f"{month}{ARCHIVE_EXT}")
+
+
+def _read_archive_month(month):
+    """월 파일을 읽는다. .json.gz가 기준이고, 예전 방식의 .json만 남아 있으면 그걸 읽는다.
+    읽다가 실패하면 빈 목록으로 덮어써 버리지 않도록 예외를 그대로 올린다."""
+    gz_path = _archive_path(month)
+    legacy = os.path.join(NEWS_ARCHIVE_DIR, f"{month}.json")
+    if os.path.exists(gz_path):
+        with gzip.open(gz_path, "rb") as f:
+            return json.loads(f.read().decode("utf-8"))
+    if os.path.exists(legacy):
+        with open(legacy, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def _write_archive_month(month, rows):
+    """월별 아카이브를 .json.gz 하나로만 저장한다(화면도 이걸 그대로 받아 브라우저에서 푼다).
+    mtime=0으로 고정해 같은 내용이면 같은 바이트가 되게 한다(불필요한 git diff 방지)."""
     payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    with open(path, "wb") as f:
-        f.write(payload)
-    _write_gz(path + ".gz", payload)
+    with open(_archive_path(month), "wb") as f:
+        f.write(gzip.compress(payload, compresslevel=9, mtime=0))
+    legacy = os.path.join(NEWS_ARCHIVE_DIR, f"{month}.json")
+    if os.path.exists(legacy):
+        os.remove(legacy)
 
 
 def archive_expiring_news(expiring_df):
     """ARCHIVE_AFTER_DAYS보다 오래된 행들을 월별
-    docs/archive/YYYY-MM.json에 합쳐 저장한다(기사링크 기준 중복 제거).
+    docs/archive/YYYY-MM.json.gz에 합쳐 저장한다(기사링크 기준 중복 제거).
     여러 번 실행해도 안전하도록(멱등) 기존 파일과 항상 합쳐쓴다."""
     if expiring_df.empty:
         return
@@ -983,15 +1000,10 @@ def archive_expiring_news(expiring_df):
     for month, group in df.groupby("_month"):
         if not month or month == "NaT":
             continue
-        path = os.path.join(NEWS_ARCHIVE_DIR, f"{month}.json")
-        existing = []
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-            except Exception:
-                existing = []
+        existing = _read_archive_month(month)
         existing_links = {item.get("link") for item in existing}
+        # 이미 아카이브된 행은 미리 걸러 낸다(매 실행 35~90일치 전체를 다시 훑지 않도록)
+        group = group[~group["기사링크"].fillna("").isin(existing_links)]
         added = 0
         for _, row in group.iterrows():
             link = row.get("기사링크", "") or ""
@@ -1015,19 +1027,19 @@ def archive_expiring_news(expiring_df):
         if added == 0:
             continue
         existing.sort(key=lambda x: x.get("ts") or "")
-        _write_archive_month(path, existing)
-        print(f"[뉴스 아카이브] {month}.json에 {added}건 추가 (누적 {len(existing)}건)")
+        _write_archive_month(month, existing)
+        print(f"[뉴스 아카이브] {month}{ARCHIVE_EXT}에 {added}건 추가 (누적 {len(existing)}건)")
 
-    # .json만 있고 .json.gz가 없거나 더 오래된 달(이 기능이 들어오기 전에 만든 파일 등)도 채워 둔다
+    # 예전 방식(.json)으로만 남은 달은 .json.gz로 옮기고 .json은 지운다
     for fname in os.listdir(NEWS_ARCHIVE_DIR):
         if fname.endswith(".json") and fname != "index.json":
-            jpath = os.path.join(NEWS_ARCHIVE_DIR, fname)
-            gpath = jpath + ".gz"
-            if not os.path.exists(gpath) or os.path.getmtime(gpath) < os.path.getmtime(jpath):
-                with open(jpath, "rb") as f:
-                    _write_gz(gpath, f.read())
+            month = fname[:-5]
+            if os.path.exists(_archive_path(month)):
+                os.remove(os.path.join(NEWS_ARCHIVE_DIR, fname))
+            else:
+                _write_archive_month(month, _read_archive_month(month))
 
-    months = sorted(f[:-5] for f in os.listdir(NEWS_ARCHIVE_DIR) if f.endswith(".json") and f != "index.json")
+    months = sorted(f[:-len(ARCHIVE_EXT)] for f in os.listdir(NEWS_ARCHIVE_DIR) if f.endswith(ARCHIVE_EXT))
     with open(os.path.join(NEWS_ARCHIVE_DIR, "index.json"), "w", encoding="utf-8") as f:
         json.dump(months, f)
 
@@ -1116,7 +1128,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
         # 기다리지 않고 35일이 지나는 즉시 아카이브에 옮겨 담는다(링크 기준 멱등이라 매번 해도 안전).
         # 수집일자는 KST 문자열이라, generate_html과 같은 기준이 되도록 KST 현재 시각으로 자른다.
         now_kst = pd.Timestamp(datetime.now(KST).strftime("%Y-%m-%d %H:%M"), tz="UTC")
-        archive_cutoff = now_kst - pd.Timedelta(days=ARCHIVE_AFTER_DAYS)
+        # 하루(ARCHIVE_AFTER_DAYS-1) 겹치게 잡는다 - 07:12/07:47처럼 이 스크립트 없이 화면만 새로
+        # 만드는 실행 사이에 news.json 창에서 빠진 기사가 아카이브에 아직 없는 공백을 막는다
+        archive_cutoff = now_kst - pd.Timedelta(days=ARCHIVE_AFTER_DAYS - 1)
         to_archive = combined_df[(combined_df["dt"] < archive_cutoff) & (combined_df["논조"] != "미분석")]
         archive_ok = True
         if not to_archive.empty:
@@ -1129,7 +1143,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
         if archive_ok:
             combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
-    except Exception: pass
+    except Exception as e:
+        print(f"[보관 기간 정리 예외 - 이번엔 건너뜀] {e}")
+        combined_df = combined_df.drop(columns=["dt"], errors="ignore")
 
     combined_df = apply_issue_merge(combined_df)
 

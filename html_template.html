@@ -1138,7 +1138,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 (function installInnerHtmlSanitizer() {
   const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
   if (!desc || !desc.set) return;
-  const BAD_TAGS = 'script,iframe,object,embed,link,meta,base,style,frame,frameset,applet';
+  const BAD_TAGS = 'script,iframe,object,embed,link,meta,base,style,frame,frameset,applet,svg,math,template,form';
   const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'poster', 'background'];
   const BAD_SCHEME = /^(javascript|vbscript|data(?!:image\/(png|jpe?g|gif|webp);)):/i;
   function sanitizeFragment(html) {
@@ -3815,18 +3815,13 @@ loadJson('news.json').then(rows => {
 // 받아온다 - 한 번 받은 달은 archiveCache에 남겨 다시 검색해도 재요청하지 않는다.
 const archiveCache = {};
 let archiveMonthsPromise = null;
-// 월 파일은 15MB 안팎이라 압축 없이 받으면 오래 걸린다. .json.gz(약 5분의 1)를 받아
-// 브라우저에서 직접 풀고, 못 풀거나 파일이 없으면 예전처럼 .json을 받는다.
+// 월 파일은 .json.gz로만 보관한다(압축 없이는 15MB 안팎이라 오래 걸린다). 받아서
+// 브라우저(DecompressionStream)에서 직접 푼다. 이 기능이 없는 오래된 브라우저는 못 읽는다.
 async function loadArchiveMonth(m) {
-  if (typeof DecompressionStream === 'function') {
-    try {
-      const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
-      if (res.ok && res.body) {
-        return await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
-      }
-    } catch (e) { /* .json으로 대체 */ }
-  }
-  return loadJson('archive/' + m + '.json');
+  if (typeof DecompressionStream !== 'function') throw new Error('unsupported');
+  const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
+  if (!res.ok || !res.body) throw new Error('archive/' + m + '.json.gz → HTTP ' + res.status);
+  return await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
 }
 function ensureArchiveMonths() {
   if (!archiveMonthsPromise) {
@@ -3883,10 +3878,11 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
     const availSet = new Set(available);
     const toFetch = months.filter(m => availSet.has(m) && !archiveCache[m]);
     let fetched = 0;
+    const failedMonths = [];
     if (toFetch.length) statusEl.textContent = `불러오는 중… (0/${toFetch.length}개월)`;
     return Promise.all(toFetch.map(m =>
       loadArchiveMonth(m).then(rows => { archiveCache[m] = rows; })
-        .catch(() => { archiveCache[m] = []; })
+        .catch(err => { console.error(err); failedMonths.push(m); })
         .finally(() => { statusEl.textContent = `불러오는 중… (${++fetched}/${toFetch.length}개월)`; })
     )).then(() => {
       // 다음 단계(한 번에 오래 걸리는 거르기)로 넘어가기 전에 안내 문구가 화면에 먼저 그려지게 한다
@@ -3909,6 +3905,10 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
       statusEl.textContent = searched.length === 0
         ? '해당 기간에는 보관된 자료가 없습니다 (35일 이전부터 아카이브가 쌓입니다).'
         : `총 ${combined.length}건${combined.length > CAP ? ' 중 최근 '+CAP+'건 표시' : ''}`;
+      if (failedMonths.length) {
+        // 못 받은 달이 있는데 "총 0건"처럼만 보이면 자료가 없는 것으로 오해하므로 따로 알린다
+        statusEl.textContent += ` — ${failedMonths.join(', ')} 자료를 불러오지 못했습니다(브라우저가 압축 해제를 지원하지 않거나 네트워크 오류). 다시 검색하면 재시도합니다.`;
+      }
       resultsEl.innerHTML = shown.map(archiveResultCardHtml).join('');
     });
   }).finally(() => { btn.disabled = false; });

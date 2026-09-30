@@ -84,7 +84,7 @@ jobs:
           python main.py
 
       - name: 법안 + 의원 정보 수집 (국회 열린국회정보 Open API)
-        if: github.event.inputs.skip_bills != 'true'
+        if: ${{ !cancelled() && github.event.inputs.skip_bills != 'true' }}
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -96,7 +96,7 @@ jobs:
         # 예전 것이 그대로 있으므로, 이 스텝은 skip_member_news로 따로 켜고 끈다.
         # 07:12 / 07:47 "법안만 재확인" 실행(skip_news=true)에서는 같이 건너뛴다 - 같은
         # 네이버 검색+Gemini 분류를 하루 5번 전부 돌릴 필요가 없다.
-        if: github.event.inputs.skip_member_news != 'true' && github.event.inputs.skip_news != 'true'
+        if: ${{ !cancelled() && github.event.inputs.skip_member_news != 'true' && github.event.inputs.skip_news != 'true' }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -108,7 +108,7 @@ jobs:
         # 이 스텝 자체는 다른 스텝들처럼 매번(하루 5번) 실행되지만, 의결서/판례는
         # 주 1회만 확인해도 충분해서 collect_decisions.py 안에서 "토요일 06시대가
         # 아니면 바로 종료"하도록 자체적으로 걸러낸다 - 여기 조건문은 그대로 둔다.
-        if: github.event.inputs.skip_decisions != 'true'
+        if: ${{ !cancelled() && github.event.inputs.skip_decisions != 'true' }}
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -122,7 +122,7 @@ jobs:
         # 심·판결처럼 일주일에 몇 건 안 돼서 collect_law_penalties.py 안에서
         # "토요일 06시대가 아니면 바로 종료"하도록 자체적으로 걸러낸다 - 여기
         # 조건문은 그대로 둔다.
-        if: github.event.inputs.skip_law_penalties != 'true'
+        if: ${{ !cancelled() && github.event.inputs.skip_law_penalties != 'true' }}
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           LAW_PENALTIES_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
@@ -130,10 +130,14 @@ jobs:
           python collect_law_penalties.py
 
       - name: 정적 대시보드(docs/) 생성
+        # 앞 수집 스텝 하나가 실패해도(예: 뉴스 CSV를 못 읽어 저장을 중단) 나머지 스텝의
+        # 결과는 커밋되게 한다. 실패한 스텝이 있으면 잡은 끝에 실패로 표시된다.
+        if: ${{ !cancelled() }}
         run: |
           python generate_html.py
 
       - name: 결과 CSV + 정적 대시보드 깃허브에 커밋 및 푸시
+        if: ${{ !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
