@@ -29,7 +29,7 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     last_exc = None
     for attempt in range(retries + 1):
         try:
-            res = requests.post(url, json=payload, timeout=timeout)
+            res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
             if res.status_code == 503 and attempt < retries:
                 time.sleep(retry_wait)
                 continue
@@ -203,7 +203,7 @@ def extract_personnel_appointments(candidates):
     실제 과장급 이상 인사 발령 기사가 아니면 결과에서 제외된다."""
     if not GEMINI_API_KEY or not candidates:
         return []
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
     input_data = [{"idx": i, "title": c["title"], "description": c["description"]} for i, c in enumerate(candidates)]
     prompt = f"""당신은 공정거래위원회 인사 발령 기사를 정리하는 담당자입니다.
 입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
@@ -321,7 +321,7 @@ def analyze_batch_with_gemini(batch_items):
     if not GEMINI_API_KEY:
         return [(item["idx"], 0, "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
     input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "original_category": item["category"]} for item in batch_items]
 
     # '기자의 서술 태도'가 아닌 '기업 호재/악재' 기준으로 논조를 강제 평가하도록 지시
@@ -481,7 +481,7 @@ def master_cluster_with_gemini(new_titles, existing_titles=None, title_samples=N
     existing_titles = existing_titles or []
     title_samples = title_samples or {}
     if not GEMINI_API_KEY or not new_titles: return {title: title for title in new_titles}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
     # 이슈명만 10자 안팎으로 압축돼 있으면 "인쇄용지 제조사 담합"과 "제지 6사 농민신문
     # 입찰 담합"처럼 같은 사건인데 겹치는 단어가 하나도 없어 보일 수 있다(실측:
     # 2026-09-09, 같은 배치 안에서 이 둘을 서로 다른 사건으로 오인해 안 합침). 실제
@@ -1068,7 +1068,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
             if "발행일시" not in old_df.columns:
                 old_df["발행일시"] = ""  # 구버전 데이터: 발행 시각 미보존
             combined_df = pd.concat([old_df, new_df], ignore_index=True)
-        except Exception: combined_df = new_df
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, KeyError, OSError) as e:
+            # 기존 누적 CSV를 못 읽었는데 new_df만으로 덮어쓰면 과거 이력이 통째로 사라진다 - 저장하지 않고 중단
+            raise RuntimeError(f"[저장 중단] 기존 {file_name}을 읽지 못해 덮어쓰지 않습니다: {e}") from e
     else: combined_df = new_df
 
     combined_df["중요도"] = pd.to_numeric(combined_df["중요도"], errors="coerce").fillna(5).astype(int)

@@ -111,7 +111,7 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     last_exc = None
     for attempt in range(retries + 1):
         try:
-            res = requests.post(url, json=payload, timeout=timeout)
+            res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
             if res.status_code == 503 and attempt < retries:
                 time.sleep(retry_wait)
                 continue
@@ -137,7 +137,7 @@ def classify_and_summarize_with_gemini(items):
     법안 요약과 같은 배치(20건)+서킷브레이커(연속 3회 실패 시 포기) 방식."""
     if not GEMINI_API_KEY or not items:
         return {}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
     results = {}
     consecutive_failures = 0
     batches = [items[i:i + 20] for i in range(0, len(items), 20)]
