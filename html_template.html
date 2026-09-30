@@ -1339,7 +1339,8 @@ function buildCartExportTableHtml() {
   orderedCats.forEach(cat => {
     const items = byCategory[cat];
     items.forEach((it, idx) => {
-      const linkCell = `<td style="${borderedStyle}"><a href="${it.link}" target="_blank" style="color:#1565c0;text-decoration:none;">${it.title}</a></td>`;
+      const idAttr = String(it.id||'').replace(/"/g,'&quot;');
+      const linkCell = `<td style="${borderedStyle}"><a href="${it.link}" target="_blank" data-cart-id="${idAttr}" style="color:#1565c0;text-decoration:none;">${it.title}</a></td>`;
       if (idx === 0) {
         // 병합된 분야 칸은 가로 왼쪽 정렬 + 세로 가운데 정렬(사용자 지정) -
         // 세로는 위에서 이미 깔린 vertical-align:top을 여기서 middle로 덮는다.
@@ -1362,10 +1363,41 @@ function buildCartExportTableHtml() {
 </table>`;
 }
 
+// 네이버 뉴스검색 API가 긴 제목을 "..."로 잘라서 주는 경우가 있어(사용자 실측,
+// 2026-09-30 - "무너진 정의 다시 세울 것..."처럼 끝이 잘림), 내보내기 표를 연
+// 직후 곧바로 Cloudflare Worker(/titles)에 담긴 항목들의 실제 기사 링크를
+// 넘겨 원문 페이지의 진짜 제목을 받아온다. 표는 먼저 잘린 제목으로 바로
+// 뜨고, 이 응답이 돌아오면 해당 셀만 조용히 바꿔치기한다(실패해도 원래
+// 표시가 그대로 남으니 에러 처리를 따로 안 함).
+async function fetchRealTitles(cart) {
+  try {
+    const res = await fetch(`${CONTRACT_CHECKER_URL}/titles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.map(it => ({ id: it.id, url: it.link })) }),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.titles || {};
+  } catch (e) {
+    return {};
+  }
+}
+
 function openCartExportModal() {
-  if (!getCart().length) { alert('담은 항목이 없습니다.'); return; }
+  const cart = getCart();
+  if (!cart.length) { alert('담은 항목이 없습니다.'); return; }
   document.getElementById('cartExportModalBody').innerHTML = buildCartExportTableHtml();
   document.getElementById('cartExportModal').classList.add('open');
+  fetchRealTitles(cart).then(titles => {
+    if (!Object.keys(titles).length) return;
+    // 그 사이 모달을 닫았으면(또는 다시 열어 표가 새로 그려졌으면) 덮어쓰지 않는다.
+    if (!document.getElementById('cartExportModal').classList.contains('open')) return;
+    Object.entries(titles).forEach(([id, title]) => {
+      const a = document.querySelector(`#cartExportModalBody a[data-cart-id="${CSS.escape(id)}"]`);
+      if (a) a.textContent = title;
+    });
+  });
 }
 function closeCartExportModal() {
   document.getElementById('cartExportModal').classList.remove('open');

@@ -74,6 +74,11 @@ export default {
       return jsonResponse({ error: "POST만 지원합니다" }, 405);
     }
 
+    const { pathname } = new URL(request.url);
+    if (pathname === "/titles") {
+      return handleTitles(request);
+    }
+
     let body;
     try {
       body = await request.json();
@@ -237,4 +242,122 @@ function parseModelJson(response) {
     }
     throw new Error(`JSON 파싱 실패 (${e.message}): ${raw.slice(0, 200)}`);
   }
+}
+
+/**
+ * "내보내기" 표에 담긴 기사 제목이 네이버 뉴스검색 API 응답 자체에서 이미
+ * "..."로 잘려서 오는 문제(2026-09-30, 사용자 실측 - 예: 한 기사는 news_list.csv에
+ * 이미 "...무너진 정의 다시 세울 것..." 처럼 끝이 잘려 저장돼 있는데, 같은
+ * 발언을 다룬 다른 언론사 기사 제목들은 "...무너진 정의 다시 세울 것""처럼
+ * 안 잘려 있어 원제목이 있다는 게 확인됨)을 고치기 위한 엔드포인트.
+ *
+ * 담긴 항목(보통 수~수십 건)에 한해서만, 실제 기사 원문 페이지를 가져와
+ * <title> 또는 og:title에서 안 잘린 원제목을 뽑아 돌려준다. 정적 사이트
+ * (GitHub Pages)에서 브라우저가 언론사 도메인에 직접 요청하면 대부분
+ * CORS에 막히므로, 이 Worker가 서버 쪽에서 대신 요청한다.
+ */
+const TITLE_FETCH_TIMEOUT_MS = 6000;
+const TITLE_FETCH_MAX_ITEMS = 60; // 담기 항목이 아무리 많아도 한 번의 남용성 요청으로 폭주하지 않게 상한선을 둔다.
+
+async function handleTitles(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return jsonResponse({ error: "요청 본문이 JSON이 아닙니다" }, 400);
+  }
+  const items = Array.isArray(body.items) ? body.items.slice(0, TITLE_FETCH_MAX_ITEMS) : [];
+  if (!items.length) return jsonResponse({ titles: {} });
+
+  const results = await Promise.allSettled(
+    items.map(async (item) => {
+      const title = await fetchRealTitle(item.url);
+      return { id: item.id, title };
+    })
+  );
+
+  const titles = {};
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value.title) titles[r.value.id] = r.value.title;
+    // 실패한 항목은 그냥 응답에서 빠진다 - 화면 쪽이 원래 있던(네이버가 잘라준)
+    // 제목을 그대로 쓰면 되므로, 실패를 에러로 취급할 필요가 없다.
+  }
+  return jsonResponse({ titles });
+}
+
+async function fetchRealTitle(url) {
+  if (!url) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TITLE_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      // 일부 언론사 서버가 User-Agent 없는 요청(봇으로 의심)을 차단해서 실측 확인됨 -
+      // 일반 브라우저처럼 보이는 값을 붙인다.
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const html = decodeHtmlBytes(bytes, res.headers.get("content-type"));
+    return extractTitle(html);
+  } catch (e) {
+    return null; // 타임아웃/네트워크 오류 - 이 기사 하나만 실패, 나머지에 영향 없음
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 일부(특히 오래된/영세) 언론사 사이트가 아직 EUC-KR을 쓴다 - Content-Type
+// 헤더나 <meta charset>에서 인코딩을 알아내 그에 맞게 디코딩한다. 못 찾으면
+// UTF-8로 가정(대부분의 현대 사이트가 이쪽).
+function decodeHtmlBytes(bytes, contentTypeHeader) {
+  let charset = null;
+  const headerMatch = /charset=([\w-]+)/i.exec(contentTypeHeader || "");
+  if (headerMatch) charset = headerMatch[1].toLowerCase();
+  if (!charset) {
+    const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, 2048));
+    const metaMatch = /<meta[^>]+charset=["']?([\w-]+)/i.exec(head);
+    if (metaMatch) charset = metaMatch[1].toLowerCase();
+  }
+  if (charset && charset !== "utf-8" && charset !== "utf8") {
+    try {
+      return new TextDecoder(charset, { fatal: false }).decode(bytes);
+    } catch (e) {
+      // TextDecoder가 모르는 이름(오타 등)이면 UTF-8로 폴백
+    }
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+// og:title이 있으면 그걸 우선한다(대부분 언론사가 SNS 공유용으로 이미 안 잘린
+// 깔끔한 헤드라인을 넣어둠). 없으면 <title> 태그로 대신하되, 그 경우엔 흔히
+// 끝에 붙는 "- 언론사명"/"| 언론사명" 꼬리표를 제거한다(og:title엔 이 꼬리표가
+// 거의 없어서 <title> 폴백에서만 처리).
+function extractTitle(html) {
+  const ogMatch =
+    /<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']*)["']/i.exec(html) ||
+    /<meta[^>]+content=["']([^"']*)["'][^>]*property=["']og:title["']/i.exec(html);
+  if (ogMatch && ogMatch[1].trim()) return decodeHtmlEntities(ogMatch[1]).trim();
+
+  const titleMatch = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
+  if (titleMatch && titleMatch[1].trim()) {
+    const raw = decodeHtmlEntities(titleMatch[1]).trim();
+    return raw.replace(/\s*[-|]\s*[^-|]{1,30}$/, "").trim() || raw;
+  }
+  return null;
+}
+
+const HTML_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", middot: "·",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’", hellip: "…", mdash: "—", ndash: "–",
+};
+function decodeHtmlEntities(s) {
+  return String(s || "").replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (m, ent) => {
+    if (ent[0] === "#") {
+      const code = ent[1] === "x" || ent[1] === "X" ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+    }
+    return HTML_ENTITIES[ent] ?? m;
+  });
 }
