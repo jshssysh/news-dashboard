@@ -142,10 +142,21 @@ jobs:
           # 파일마다 존재 여부를 확인하고 add 한다. 한 번에 나열해서 add 하면 그 중
           # 하나라도 없을 때(예: member_list.csv 생성이 실패한 실행) "did not match
           # any files"로 스크립트 전체가 죽어, 뉴스/법안까지 커밋되지 않은 적이 있었다.
+          # GitHub는 파일 하나가 100MB를 넘으면 push를 거부한다(그러면 이번 실행 결과가 통째로
+          # 사라진다). 한도에 닿기 전에 미리 알리고, 95MB를 넘으면 원인이 보이도록 먼저 실패시킨다.
+          big=$(find . -path ./.git -prune -o -type f -size +80M -print)
+          if [ -n "$big" ]; then
+            echo "::warning::80MB를 넘은 파일이 있습니다(GitHub 한도 100MB) - 보관 기간/수집 범위를 줄이세요: $big"
+          fi
+          huge=$(find . -path ./.git -prune -o -type f -size +95M -print)
+          if [ -n "$huge" ]; then
+            echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
+            exit 1
+          fi
           for f in news_list.csv bill_list.csv member_list.csv member_news.csv cluster_warnings.csv decision_list.csv law_penalty_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/contract_law_corpus.json; do
             [ -f "$f" ] && git add "$f"
           done
-          # 183일이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다
+          # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다
           # ("옛 기사 검색"이 읽는 파일). 커밋 대상에 없으면 러너와 함께 사라지므로 같이 add 한다.
           if [ -d docs/archive ]; then git add docs/archive; fi
           if ! git diff --quiet || ! git diff --staged --quiet; then
