@@ -1,4 +1,5 @@
 import os
+import gzip
 import json
 import time
 import re
@@ -949,6 +950,21 @@ ARCHIVE_AFTER_DAYS = 35
 NEWS_ARCHIVE_DIR = os.path.join("docs", "archive")
 
 
+def _write_gz(gz_path, payload):
+    # mtime=0으로 고정해 같은 내용이면 같은 바이트가 되게 한다(불필요한 git diff 방지)
+    with open(gz_path, "wb") as f:
+        f.write(gzip.compress(payload, compresslevel=9, mtime=0))
+
+
+def _write_archive_month(path, rows):
+    """월별 아카이브를 .json(원본, 다음 실행 때 합쳐 쓰는 기준)과 .json.gz(화면이 받는 용도,
+    약 5분의 1 크기)로 같이 저장한다. 화면은 .gz를 못 풀면 .json으로 대신 받는다."""
+    payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with open(path, "wb") as f:
+        f.write(payload)
+    _write_gz(path + ".gz", payload)
+
+
 def archive_expiring_news(expiring_df):
     """ARCHIVE_AFTER_DAYS보다 오래된 행들을 월별
     docs/archive/YYYY-MM.json에 합쳐 저장한다(기사링크 기준 중복 제거).
@@ -999,9 +1015,17 @@ def archive_expiring_news(expiring_df):
         if added == 0:
             continue
         existing.sort(key=lambda x: x.get("ts") or "")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(existing, f, ensure_ascii=False, separators=(",", ":"))
+        _write_archive_month(path, existing)
         print(f"[뉴스 아카이브] {month}.json에 {added}건 추가 (누적 {len(existing)}건)")
+
+    # .json만 있고 .json.gz가 없거나 더 오래된 달(이 기능이 들어오기 전에 만든 파일 등)도 채워 둔다
+    for fname in os.listdir(NEWS_ARCHIVE_DIR):
+        if fname.endswith(".json") and fname != "index.json":
+            jpath = os.path.join(NEWS_ARCHIVE_DIR, fname)
+            gpath = jpath + ".gz"
+            if not os.path.exists(gpath) or os.path.getmtime(gpath) < os.path.getmtime(jpath):
+                with open(jpath, "rb") as f:
+                    _write_gz(gpath, f.read())
 
     months = sorted(f[:-5] for f in os.listdir(NEWS_ARCHIVE_DIR) if f.endswith(".json") and f != "index.json")
     with open(os.path.join(NEWS_ARCHIVE_DIR, "index.json"), "w", encoding="utf-8") as f:

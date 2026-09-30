@@ -3815,6 +3815,19 @@ loadJson('news.json').then(rows => {
 // 받아온다 - 한 번 받은 달은 archiveCache에 남겨 다시 검색해도 재요청하지 않는다.
 const archiveCache = {};
 let archiveMonthsPromise = null;
+// 월 파일은 15MB 안팎이라 압축 없이 받으면 오래 걸린다. .json.gz(약 5분의 1)를 받아
+// 브라우저에서 직접 풀고, 못 풀거나 파일이 없으면 예전처럼 .json을 받는다.
+async function loadArchiveMonth(m) {
+  if (typeof DecompressionStream === 'function') {
+    try {
+      const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
+      if (res.ok && res.body) {
+        return await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
+      }
+    } catch (e) { /* .json으로 대체 */ }
+  }
+  return loadJson('archive/' + m + '.json');
+}
 function ensureArchiveMonths() {
   if (!archiveMonthsPromise) {
     archiveMonthsPromise = loadJson('archive/index.json').catch(() => []);
@@ -3869,10 +3882,17 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
   ensureArchiveMonths().then(available => {
     const availSet = new Set(available);
     const toFetch = months.filter(m => availSet.has(m) && !archiveCache[m]);
+    let fetched = 0;
+    if (toFetch.length) statusEl.textContent = `불러오는 중… (0/${toFetch.length}개월)`;
     return Promise.all(toFetch.map(m =>
-      loadJson('archive/' + m + '.json').then(rows => { archiveCache[m] = rows; })
+      loadArchiveMonth(m).then(rows => { archiveCache[m] = rows; })
         .catch(() => { archiveCache[m] = []; })
+        .finally(() => { statusEl.textContent = `불러오는 중… (${++fetched}/${toFetch.length}개월)`; })
     )).then(() => {
+      // 다음 단계(한 번에 오래 걸리는 거르기)로 넘어가기 전에 안내 문구가 화면에 먼저 그려지게 한다
+      statusEl.textContent = '검색 중…';
+      return new Promise(r => setTimeout(r, 0));
+    }).then(() => {
       const searched = months.filter(m => availSet.has(m));
       let combined = [];
       searched.forEach(m => { combined = combined.concat(archiveCache[m] || []); });
