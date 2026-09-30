@@ -937,6 +937,9 @@ PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리�
 # 그래서 90일(약 52MB)로 줄였다 - 하루 분량이 1.5배로 늘어도 약 78MB라 여유가 있다.
 # 이보다 오래된 기사는 아래 월별 아카이브로 넘어가 사라지지 않는다.
 NEWS_LIST_RETENTION_DAYS = 90
+# 화면 news.json의 최근 창(generate_html.py의 RECENT_DAYS_WINDOW)과 같아야 한다.
+# 이 일수가 지난 기사는 보관 기간과 상관없이 바로 월별 아카이브에도 담는다.
+ARCHIVE_AFTER_DAYS = 35
 
 # news_list.csv에서 보관 기간(NEWS_LIST_RETENTION_DAYS)이 지나 빠지는 기사를 그냥 버리지 않고, 옛 기사 검색 기능이
 # 쓸 수 있게 월별 JSON으로 영구 보관한다. 파일을 월 단위로 쪼개서 GitHub의 파일당
@@ -947,7 +950,7 @@ NEWS_ARCHIVE_DIR = os.path.join("docs", "archive")
 
 
 def archive_expiring_news(expiring_df):
-    """cutoff보다 오래돼 news_list.csv에서 빠지는 행들을 월별
+    """ARCHIVE_AFTER_DAYS보다 오래된 행들을 월별
     docs/archive/YYYY-MM.json에 합쳐 저장한다(기사링크 기준 중복 제거).
     여러 번 실행해도 안전하도록(멱등) 기존 파일과 항상 합쳐쓴다."""
     if expiring_df.empty:
@@ -1084,13 +1087,23 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     try:
         combined_df["dt"] = pd.to_datetime(combined_df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce", utc=True)
         cutoff_date = pd.Timestamp.utcnow() - pd.Timedelta(days=NEWS_LIST_RETENTION_DAYS)
-        expiring = combined_df[combined_df["dt"] < cutoff_date]
-        if not expiring.empty:
+        # 화면(generate_html.py)은 최근 ARCHIVE_AFTER_DAYS일만 news.json에 담으므로, 그보다 오래된
+        # 기사는 CSV에 남아 있어도 화면에도 아카이브에도 없으면 검색이 안 된다. 그래서 보관 기간을
+        # 기다리지 않고 35일이 지나는 즉시 아카이브에 옮겨 담는다(링크 기준 멱등이라 매번 해도 안전).
+        # 수집일자는 KST 문자열이라, generate_html과 같은 기준이 되도록 KST 현재 시각으로 자른다.
+        now_kst = pd.Timestamp(datetime.now(KST).strftime("%Y-%m-%d %H:%M"), tz="UTC")
+        archive_cutoff = now_kst - pd.Timedelta(days=ARCHIVE_AFTER_DAYS)
+        to_archive = combined_df[(combined_df["dt"] < archive_cutoff) & (combined_df["논조"] != "미분석")]
+        archive_ok = True
+        if not to_archive.empty:
             try:
-                archive_expiring_news(expiring.drop(columns=["dt"]))
+                archive_expiring_news(to_archive.drop(columns=["dt"]))
             except Exception as e:
-                print(f"[뉴스 아카이브 예외 - 이번엔 건너뜀] {e}")
-        combined_df = combined_df[combined_df["dt"] >= cutoff_date]
+                archive_ok = False
+                print(f"[뉴스 아카이브 예외 - 이번엔 건너뜀, 보관 기간 지난 기사도 지우지 않음] {e}")
+        # 아카이브에 못 옮겼는데 CSV에서 지우면 기사가 영구 손실되므로, 실패한 실행에선 지우지 않는다
+        if archive_ok:
+            combined_df = combined_df[combined_df["dt"] >= cutoff_date]
         combined_df = combined_df.drop(columns=["dt"])
     except Exception: pass
 
