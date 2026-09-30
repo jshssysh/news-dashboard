@@ -1109,7 +1109,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-01 07:20 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-01 07:54 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1130,6 +1130,44 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 </div>
 
 <script>
+// ── innerHTML 공통 필터 (XSS 방어) ─────────────────────────────────────────
+// 기사 제목·요약 등 외부에서 수집한 글이 템플릿 문자열 안에 그대로 들어가므로,
+// 화면에 넣기 직전에 스크립트 실행 경로만 걷어낸다: 위험한 태그, on* 속성,
+// javascript:/vbscript:/data:(이미지 제외) 링크. 일반 서식 태그와 데이터는 그대로 둔다.
+// template 요소는 비활성 문서라서, 걸러내기 전에 이미지 로드나 핸들러가 돌지 않는다.
+(function installInnerHtmlSanitizer() {
+  const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+  if (!desc || !desc.set) return;
+  const BAD_TAGS = 'script,iframe,object,embed,link,meta,base,style,frame,frameset,applet';
+  const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'poster', 'background'];
+  const BAD_SCHEME = /^(javascript|vbscript|data(?!:image\/(png|jpe?g|gif|webp);)):/i;
+  function sanitizeFragment(html) {
+    const tpl = document.createElement('template');
+    desc.set.call(tpl, html);  // 교체한 setter가 아니라 원본을 써야 재귀하지 않는다
+    tpl.content.querySelectorAll(BAD_TAGS).forEach(n => n.remove());
+    tpl.content.querySelectorAll('*').forEach(el => {
+      Array.from(el.attributes).forEach(a => {
+        const name = a.name.toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc') { el.removeAttribute(a.name); return; }
+        if (URL_ATTRS.includes(name) && BAD_SCHEME.test(a.value.replace(/[\u0000- ]/g, ''))) {
+          el.removeAttribute(a.name);
+        }
+      });
+    });
+    return tpl.content;
+  }
+  Object.defineProperty(Element.prototype, 'innerHTML', {
+    configurable: true,
+    enumerable: desc.enumerable,
+    get: desc.get,
+    set(value) {
+      if (value === '' || value == null) { this.replaceChildren(); return; }
+      this.replaceChildren(sanitizeFragment(String(value)));
+    },
+  });
+  window.__sanitizeHtmlFragment = sanitizeFragment;  // 동작 점검용
+})();
+
 // 데이터는 이 파일에 박혀 있지 않고 news.json / bills.json 에서 받아온다.
 // (전부 넣었더니 16MB가 됐고, 그 크기에선 GitHub Pages가 gzip을 안 해준다)
 // 그래서 처음엔 비어 있고, 아래 맨 끝 부트스트랩에서 채운다.
@@ -2031,7 +2069,7 @@ function memberCardHtml(m) {
   // 이메일·홈페이지는 웬만해선 안 써서 그 줄을 펼쳐야만 나온다.
   const contactLine = [m.office, m.tel].filter(Boolean).join(' ');
   const contactLineHtml = m.tel
-    ? contactLine.replace(m.tel, `<a href="tel:${m.tel}" onclick="event.stopPropagation()">${m.tel}</a>`)
+    ? contactLine.replace(m.tel, `<a href="tel:${m.tel}" data-stop-click>${m.tel}</a>`)
     : contactLine;
   const moreContact = [
     m.email ? `<div><a href="mailto:${m.email}">${m.email}</a></div>` : '',
@@ -2054,7 +2092,7 @@ function memberCardHtml(m) {
   ].filter(Boolean).join('');
   // 사진은 국회 서버에서 받아오는데, 없거나 막히면 이름 첫 글자로 대체한다.
   const photoInner = m.photo
-    ? `<img class="member-photo" src="${m.photo}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'member-photo member-photo-blank',textContent:'${(m.name || '?').slice(0, 1)}'}))">`
+    ? `<img class="member-photo" src="${m.photo}" alt="" loading="lazy" data-initial="${(m.name || '?').slice(0, 1).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}">`
     : `<div class="member-photo member-photo-blank">${(m.name || '?').slice(0, 1)}</div>`;
   // 사진·이름을 누르면 국회 홈페이지 프로필로 - 영문명이 없는 사람은 못 만드니 그냥 둔다.
   const photo = m.profileUrl
@@ -2138,6 +2176,23 @@ function renderMembers() {
     ? pageMembers.map(memberCardHtml).join('')
     : "<div class='info-box'>조건에 맞는 의원이 없습니다.</div>";
   renderMemberPagination(totalPages);
+
+  // 인라인 onclick/onerror는 innerHTML 공통 필터가 제거하므로 여기서 직접 붙인다
+  // 전화 링크: 클릭이 <summary> 토글로 안 새게 막는다
+  listEl.querySelectorAll('[data-stop-click]').forEach(a => {
+    a.addEventListener('click', e => e.stopPropagation());
+  });
+  // 사진: 못 받으면 이름 첫 글자로 대체
+  listEl.querySelectorAll('img.member-photo[data-initial]').forEach(img => {
+    const fallback = () => {
+      if (!img.isConnected) return;
+      const div = document.createElement('div');
+      div.className = 'member-photo member-photo-blank';
+      div.textContent = img.dataset.initial;
+      img.replaceWith(div);
+    };
+    img.addEventListener('error', fallback, { once: true });
+  });
 
   // 카드 안 위원회 칩으로도 필터가 걸리게
   listEl.querySelectorAll('.member-cmit-chip').forEach(b => {
