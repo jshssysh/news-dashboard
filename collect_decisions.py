@@ -46,6 +46,12 @@ KST = timezone(timedelta(hours=9))
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
 DECISION_LIST_PATH = "decision_list.csv"
 LAW_API_BASE = "https://www.law.go.kr/DRF"
+# "상세링크"에 OC를 직접 박으면 그 값이 그대로 decision_list.csv/docs/decisions.json에
+# 실려서 공개 저장소에 실제 인증키가 노출된다(2026-10-01 보안 리뷰로 발견·확인 -
+# 실제 발급키가 484건 전부에 노출돼 있었음, "test" 데모키가 아니었음). 이제
+# OC 없이 "target/id"만 저장하고, Worker의 GET /link가 자신의 시크릿으로 실제
+# 링크를 만들어 리디렉션한다(worker/src/index.js의 handleLink 참고).
+WORKER_LINK_BASE = "https://news-dashboard-contract-checker.jshssysh.workers.dev/link"
 
 # 의결서/판례는 뉴스보다 훨씬 적게 나오므로(일주일에 많아야 수십 건), news_list.csv와
 # 달리 보관기간 제한을 두지 않는다 - member_news.csv처럼 무기한 누적해도 GitHub의
@@ -450,7 +456,7 @@ def main():
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": "공정거래위원회",
             "사건종류": "", "AI요약": analysis["summary"], "과징금": analysis["penalty"],
             "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
-            "상세링크": f"https://www.law.go.kr/DRF/lawService.do?OC={LAW_API_OC}&target=ftc&ID={row['id']}&type=HTML",
+            "상세링크": f"{WORKER_LINK_BASE}?target=ftc&id={row['id']}",
         })
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
 
@@ -473,7 +479,7 @@ def main():
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": row["법원명"],
             "사건종류": row["사건종류명"], "AI요약": analysis["summary"],
             "과징금": "", "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
-            "상세링크": f"https://www.law.go.kr/DRF/lawService.do?OC={LAW_API_OC}&target=prec&ID={row['id']}&type=HTML",
+            "상세링크": f"{WORKER_LINK_BASE}?target=prec&id={row['id']}",
         })
         time.sleep(4.5)
 

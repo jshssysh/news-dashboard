@@ -1407,16 +1407,48 @@ function buildCartExportTableHtml() {
 // 넘겨 원문 페이지의 진짜 제목을 받아온다. 표는 먼저 잘린 제목으로 바로
 // 뜨고, 이 응답이 돌아오면 해당 셀만 조용히 바꿔치기한다(실패해도 원래
 // 표시가 그대로 남으니 에러 처리를 따로 안 함).
+//
+// 코드 리뷰로 발견된 두 문제(2026-10-01)를 여기서 막는다:
+// 1. 법안(type==='bill') 항목까지 보내면, likms 상세페이지의 <title>이 "법안명
+//    (제안일/의원/정당)" 형식으로 공들여 만든 표시 문구를 덮어써버린다 - 애초에
+//    법안 항목은 네이버 API를 거치지 않아 "..."로 잘릴 일이 없으므로 보낼 필요가
+//    없다(cartItemNeedsRealTitle이 type과 말줄임표 둘 다 확인).
+// 2. 동의창/유료화 안내 페이지로 리다이렉트되거나 인코딩이 깨진 응답도 그 자체로는
+//    "성공"이라 원래 있던(그나마 맞는) 제목을 엉뚱한 내용으로 덮어쓸 수 있다 -
+//    돌아온 제목이 원래 제목의 말줄임표 뗀 부분으로 시작하고 깨진 문자(U+FFFD)가
+//    없을 때만 받아들인다(looksLikeBetterTitle).
+function cartItemNeedsRealTitle(it) {
+  return it.type === 'news' && /(\.\.\.|…)\s*$/.test(it.title || '');
+}
+function titlePrefixForMatch(title) {
+  return (title || '').replace(/(\.\.\.|…)\s*$/, '').trim();
+}
+function looksLikeBetterTitle(candidateTitle, originalTitle) {
+  if (!candidateTitle) return false;
+  if (candidateTitle.includes('�')) return false; // 인코딩 깨짐(모지바케) 방지
+  const prefix = titlePrefixForMatch(originalTitle);
+  return !prefix || candidateTitle.startsWith(prefix);
+}
 async function fetchRealTitles(cart) {
+  const targets = cart.filter(cartItemNeedsRealTitle);
+  if (!targets.length) return {};
   try {
     const res = await fetch(`${CONTRACT_CHECKER_URL}/titles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: cart.map(it => ({ id: it.id, url: it.link })) }),
+      body: JSON.stringify({ items: targets.map(it => ({ id: it.id, url: it.link })) }),
     });
     if (!res.ok) return {};
     const data = await res.json();
-    return data.titles || {};
+    const raw = data.titles || {};
+    const byId = {};
+    targets.forEach(it => { byId[it.id] = it; });
+    const accepted = {};
+    Object.entries(raw).forEach(([id, title]) => {
+      const orig = byId[id];
+      if (orig && looksLikeBetterTitle(title, orig.title)) accepted[id] = title;
+    });
+    return accepted;
   } catch (e) {
     return {};
   }

@@ -19,9 +19,16 @@ jobs:
 
       - name: Cloudflare Workers 배포
         # Gemini 대신 Cloudflare Workers AI(wrangler.toml의 [ai] binding)를
-        # 쓰므로 별도 API 키 Secret을 안 넣어도 된다.
+        # 쓰므로 별도 API 키 Secret을 안 넣어도 된다. LAW_GO_KR_OC만 예외 -
+        # GET /link(법제처 링크 리디렉션) 라우트가 OC를 커밋 데이터에 노출하지
+        # 않고 서버 쪽에서만 쓰기 위해 Worker 시크릿으로 등록한다(collect_*.py가
+        # 쓰는 것과 같은 GitHub repo secret을 재사용 - 2026-10-01, 키 노출 사고 대응).
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
+          secrets: |
+            LAW_GO_KR_OC
+        env:
+          LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
