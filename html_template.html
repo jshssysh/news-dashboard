@@ -2325,13 +2325,20 @@ function scopedRows() {
   if (state.period === 'custom') {
     // 시작/끝 날짜를 둘 다 고르기 전에는(달력 하나만 찍은 상태) 아무것도 안 보여준다.
     if (!state.customFrom || !state.customTo) return [];
-    // <input type="date">는 "YYYY-MM-DD"만 주는데 r.date는 "YYYY/MM/DD"라 그대로
-    // 비교하면 구분자 문자 코드값 때문에 늘 어긋난다 - 구분자를 맞춰서 비교한다.
-    const a = state.customFrom.replace(/-/g, '/');
-    const b = state.customTo.replace(/-/g, '/');
-    const from = a <= b ? a : b;
-    const to = a <= b ? b : a;
-    return NEWS_DATA.filter(r => r.date >= from && r.date <= to);
+    const from = state.customFrom <= state.customTo ? state.customFrom : state.customTo;
+    const to = state.customFrom <= state.customTo ? state.customTo : state.customFrom;
+    // r.date(수집일 - 그 기사를 어느 수집 배치가 처음 담았는지)가 아니라 r.pub_ts
+    // (실제 발행일시)로 거른다. 수집은 하루 5번, 매번 "최근 24시간"을 훑어서
+    // 중복 없이 처음 본 기사만 담으므로, 자정 근처에 발행된 기사는 다음날 이른
+    // 수집 배치에 처음 잡혀 수집일이 하루 밀린다 - "날짜 지정"은 "이 기간에
+    // 수집된 것"이 아니라 "이 기간에 발행된 것"을 보려는 의도라, 발행일 기준으로
+    // 걸러야 "10/2~10/5 지정했는데 10/1 발행 기사가 나온다" 같은 혼선이 없다
+    // (사용자 지적, 2026-10-06). 발행일시를 못 읽은(파싱 실패) 극소수 기사는
+    // 날짜를 모르니 날짜 지정 검색에서는 그냥 빠진다(추측 안 함).
+    return NEWS_DATA.filter(r => {
+      const pubDate = (r.pub_ts || '').slice(0, 10);
+      return pubDate && pubDate >= from && pubDate <= to;
+    });
   }
   if (state.period === 0) return isViewingLatestDate() ? todayRollingWindowRows() : dailyRows();
   const idx = allDates.indexOf(state.currentDate);
@@ -3881,12 +3888,15 @@ function monthsBetween(fromStr, toStr) {
 }
 
 function archiveResultCardHtml(r) {
-  const dt = fmtDt(r.pub_ts || r.ts);
+  // 검색 자체를 발행일(r.pub_ts) 기준으로 거르므로, 메타줄도 수집일(r.date) 대신
+  // 발행일시만 보여준다 - 둘 다 보여주면 수집일이 검색 범위 밖일 수 있어
+  // ("10/2~10/5 지정했는데 10/1이라고 찍혀있다" 같은) 혼선을 그대로 재현한다.
+  const dt = fmtDt(r.pub_ts || r.ts) || r.date;
   const domain = extractDomain(r.link);
   const titleAttr = (r.title||'').replace(/"/g, '&quot;');
   return `<div class="archive-result-card">
     <a class="article-title" href="${r.link}" target="_blank" title="${titleAttr}">${r.title}</a>
-    <div class="archive-result-meta">${r.date} ${dt ? '· '+dt : ''} · [${r.press}] ${domain} <span class="chip-category">${r.category||''}</span></div>
+    <div class="archive-result-meta">${dt} · [${r.press}] ${domain} <span class="chip-category">${r.category||''}</span></div>
     ${r.summary ? `<div class="summary-box-blue" style="margin-top:6px;">${r.summary}</div>` : ''}
   </div>`;
 }
@@ -3926,7 +3936,10 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
       searched.forEach(m => { combined = combined.concat(archiveCache[m] || []); });
       const fromISO = fromV, toISO = toV;
       combined = combined.filter(r => {
-        const d = (r.date || '').replace(/\//g, '-');
+        // scopedRows()의 날짜 지정 필터와 같은 이유로 수집일(r.date) 대신
+        // 발행일(r.pub_ts)로 거른다 - 아카이브 행도 archive_expiring_news가
+        // pub_ts를 같이 저장해둔다(main.py 참고).
+        const d = (r.pub_ts || '').slice(0, 10);
         if (!d || d < fromISO || d > toISO) return false;
         if (kw && !matchesSearchTokens([r.title, r.summary, r.press], kw)) return false;
         return true;
