@@ -1109,7 +1109,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-08 12:29 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-08 16:28 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2756,6 +2756,44 @@ function resultRank(v) {
   return idx === -1 ? RESULT_ORDER.length : idx;
 }
 
+// 기간(제안일 범위)이 걸려 있을 때, 단계 칩은 "지금 그 단계에 머물러 있는 것"이
+// 아니라 "그 기간 중 그 단계를 실제로 거쳐간 것"을 보여준다(사용자 요청,
+// 2026-10-08 - "최근 30일 + 입안"으로 걸었는데 최근 발의된 500건 중 아직
+// 상임위로 안 넘어간 12건만 보여서 "발의 자체가 적다"는 오해를 줌 - 발의는
+// 500건 다 됐고, 그중 488건이 이미 상임위 이상으로 넘어갔을 뿐이었음).
+// 그래서 각 단계마다 "그 단계 이벤트가 실제로 찍힌 날"을 하나씩 정의해 그 날이
+// 기간 안에 있는지로 판단한다 - 그 법안이 지금 더 뒤 단계로 넘어갔어도 포함된다.
+// 끝난 단계면 처리(완료)일, 아직 진행 중이면 회부(시작)일을 쓴다. 본회의는 국회
+// API 자체에 회부 날짜가 없는 단계라(법사위 결과로 간접 추론 - billStepperHtml
+// 주석 참고) 법사위처리일로 대신한다.
+function billStageEventDate(b, stage) {
+  if (stage === '입안 및 발의') return b.proposeDate || null;
+  if (stage === '상임위 심사') return b.committeeDoneDt || b.committeeDt || null;
+  if (stage === '법사위 심사') return b.lawDoneDt || b.lawDt || null;
+  if (stage === '본회의 의결') return b.lawDoneDt || null;
+  return null;
+}
+function billStageMatchesInPeriod(b, stage, from, to) {
+  const d = billStageEventDate(b, stage);
+  if (!d) return false;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+// 세부결과(가결/폐기 등) 그리드·필터도 기간 모드에선 "지금 전체 처리결과"(b.result -
+// 더 뒤 단계로 넘어갔으면 그 단계 결과로 바뀌어 있음) 대신, 그 단계 "자신"의
+// 결과 필드를 써야 한다 - 안 그러면 상임위에서 "원안가결"로 끝난 법안이 법사위로
+// 넘어가 지금 "심사중"이면, 상임위 세부결과 그리드에 "심사중"으로 잘못 집계된다.
+function billStageResult(b, stage) {
+  // 그 단계 결과 필드가 비어있으면 아직 심사가 안 끝난 것(committeeDt는 있는데
+  // committeeResult가 없는 경우 등) - "심사중"이라는 구체적 문구로 채워야
+  // RESULT_ORDER("심사중"이 첫 항목)에도 맞고, 그리드에 null이 그대로 찍히지 않는다.
+  if (stage === '상임위 심사') return b.committeeResult || '심사중';
+  if (stage === '법사위 심사') return b.lawResult || '심사중';
+  if (stage === '본회의 의결') return b.result || '심사중'; // 본회의 전용 결과 필드가 따로 없어 전체 결과를 그대로 씀
+  return null;
+}
+
 // 의원 카드의 "가결"/"대안반영" 요약과 같은 기준(generate_html.py의
 // bill_outcome_bucket과 동일한 규칙) - 세부 결과를 4갈래로 묶어서, 카드에서
 // 누른 요약과 여기서 걸리는 법안이 정확히 같은 기준이 되게 한다.
@@ -2830,6 +2868,17 @@ function billMatchesGlobalFilters(b, starred) {
   if (state.billDateTo && (!b.proposeDate || b.proposeDate > state.billDateTo)) return false;
   return true;
 }
+// billMatchesGlobalFilters와 같지만 제안일 필터만 뺀 버전 - 처리단계 4칩을
+// "그 기간에 그 단계를 거쳐간 것"(billStageMatchesInPeriod)으로 셀 때 쓴다.
+// 제안일로 먼저 걸러두면 "제안은 기간 밖인데 그 단계 처리는 기간 안"인 법안이
+// 아예 후보에서 빠지므로, 날짜 없이 추린 뒤 단계별 날짜를 각자 적용해야 한다.
+function billMatchesNonDateFilters(b, starred) {
+  if (state.billStarredOnly && !starred.has(b.id)) return false;
+  if (state.billProposer && b.repProposer !== state.billProposer) return false;
+  if (state.billOutcomeBucket && billOutcomeBucket(b.result) !== state.billOutcomeBucket) return false;
+  if (state.billSearch && !matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch)) return false;
+  return true;
+}
 
 // 위원회(맨 위) -> 처리단계 흐름(화살표로 연결) -> 세부결과, 3단 연계 필터.
 // 위 단계 선택이 아래 단계의 칩 건수를 다시 계산하게 만든다.
@@ -2849,8 +2898,25 @@ function renderStageFlowRow() {
   const source = BILL_DATA.filter(b =>
     (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesGlobalFilters(b, starred)
   );
+  // 기간(제안일 범위)이 걸려 있으면 "그 기간에 그 단계를 거쳐간 것"(중복 집계
+  // 가능 - 한 법안이 기간 내에 상임위·법사위를 둘 다 거쳤으면 양쪽에 다 잡힘),
+  // 없으면 기존처럼 "지금 그 단계에 머물러 있는 것"(법안당 한 단계에만 집계)을 센다.
+  const hasPeriod = !!(state.billDateFrom || state.billDateTo);
+  // source는 제안일 기준으로 이미 걸러져 있어("전체" 칩 숫자용으로는 맞지만),
+  // "제안은 기간 밖인데 그 단계 처리가 기간 안"인 법안을 놓친다 - 날짜 제약이
+  // 없는 기준으로 다시 추린 걸 단계별 날짜 판정(아래 stageCounts·세부결과 그리드
+  // 둘 다)에 공통으로 쓴다.
+  const noDateSource = hasPeriod ? BILL_DATA.filter(b =>
+    (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesNonDateFilters(b, starred)
+  ) : null;
   const stageCounts = {};
-  source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
+  if (hasPeriod) {
+    BILL_STEP_STAGES.forEach(stage => {
+      stageCounts[stage] = noDateSource.filter(b => billStageMatchesInPeriod(b, stage, state.billDateFrom, state.billDateTo)).length;
+    });
+  } else {
+    source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
+  }
   if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
   // 검색 줄의 단계 드롭다운(billStageSelect)도 같은 state.billStage를 보므로,
   // 흐름도 칩을 클릭해 바뀐 경우에도 드롭다운 표시값을 매번 맞춰준다.
@@ -2904,9 +2970,16 @@ function renderStageFlowRow() {
   if (!RESULT_STAGE_SET.includes(state.billStage)) {
     gridArea.innerHTML = '';
   } else {
-    const stageSource = source.filter(b => b.stage === state.billStage);
+    const stageSource = hasPeriod
+      ? noDateSource.filter(b => billStageMatchesInPeriod(b, state.billStage, state.billDateFrom, state.billDateTo))
+      : source.filter(b => b.stage === state.billStage);
     const resultCounts = {};
-    stageSource.forEach(b => { resultCounts[b.result] = (resultCounts[b.result] || 0) + 1; });
+    stageSource.forEach(b => {
+      // 기간 모드에선 그 단계 "자신"의 결과를 써야 한다 - 더 뒤 단계로 넘어간
+      // 법안은 전체 결과(b.result)가 이미 다음 단계 값으로 바뀌어 있다.
+      const r = hasPeriod ? billStageResult(b, state.billStage) : b.result;
+      resultCounts[r] = (resultCounts[r] || 0) + 1;
+    });
     const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
     const grid = results.map(r => {
       const isActiveResult = state.billResult === r;
@@ -2930,16 +3003,29 @@ function renderBills() {
 function renderBillList() {
   const starred = getStarredBills();
   let filtered = state.billCommittee === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => (b.committee || '(미정)') === state.billCommittee);
-  if (state.billStage !== '전체') filtered = filtered.filter(b => b.stage === state.billStage);
-  if (RESULT_STAGES.includes(state.billStage) && state.billResult !== '전체') filtered = filtered.filter(b => b.result === state.billResult);
+  // 기간(제안일 범위)이 걸려 있으면 단계 필터는 "지금 그 단계에 머물러 있는 것"
+  // 대신 "그 기간에 그 단계를 거쳐간 것"으로 본다(billStageMatchesInPeriod 주석
+  // 참고) - 이 경우 날짜 제약이 이미 그 안에 포함되므로, 아래의 일반 제안일
+  // 필터(proposeDate 기준)는 "전체" 단계일 때만 따로 적용한다. 안 그러면 두
+  // 날짜 조건이 서로 다른 기준(제안일 vs 그 단계 처리일)으로 충돌한다.
+  const hasPeriod = !!(state.billDateFrom || state.billDateTo);
+  if (state.billStage !== '전체') {
+    filtered = hasPeriod
+      ? filtered.filter(b => billStageMatchesInPeriod(b, state.billStage, state.billDateFrom, state.billDateTo))
+      : filtered.filter(b => b.stage === state.billStage);
+  } else if (hasPeriod) {
+    if (state.billDateFrom) filtered = filtered.filter(b => b.proposeDate && b.proposeDate >= state.billDateFrom);
+    if (state.billDateTo) filtered = filtered.filter(b => b.proposeDate && b.proposeDate <= state.billDateTo);
+  }
+  if (RESULT_STAGES.includes(state.billStage) && state.billResult !== '전체') {
+    filtered = filtered.filter(b => (hasPeriod ? billStageResult(b, state.billStage) : b.result) === state.billResult);
+  }
   if (state.billStarredOnly) filtered = filtered.filter(b => starred.has(b.id));
   if (state.billProposer) filtered = filtered.filter(b => b.repProposer === state.billProposer);
   if (state.billOutcomeBucket) filtered = filtered.filter(b => billOutcomeBucket(b.result) === state.billOutcomeBucket);
   if (state.billSearch) {
     filtered = filtered.filter(b => matchesSearchTokens([b.name, b.proposer, b.summary], state.billSearch));
   }
-  if (state.billDateFrom) filtered = filtered.filter(b => b.proposeDate && b.proposeDate >= state.billDateFrom);
-  if (state.billDateTo) filtered = filtered.filter(b => b.proposeDate && b.proposeDate <= state.billDateTo);
   filtered.sort((a,b) => ((b.changed?1:0) - (a.changed?1:0)) || (b.proposeDate||'').localeCompare(a.proposeDate||''));
 
   const totalCount = filtered.length;
