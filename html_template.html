@@ -2756,6 +2756,50 @@ function resultRank(v) {
   return idx === -1 ? RESULT_ORDER.length : idx;
 }
 
+// 상단 날짜(◀ ▶)로 과거 날짜를 보면 입법 탭도 "그 날짜 시점" 상태를 보여준다
+// (사용자 지적, 2026-10-14 - 날짜를 10/14·10/13·10/02로 바꿔도 목록·칩이 그대로였음).
+// 국회 API가 단계 이력을 따로 주진 않지만 단계 판정이 전부 날짜 필드로 이뤄지므로,
+// 그 날짜 이후에 찍힌 날짜·결과를 "아직 없던 것"으로 가리고 같은 규칙을 다시 적용하면
+// 그 시점 단계가 나온다(실측: 먼 미래 날짜로 돌리면 현재 단계·결과와 14,943건 전부
+// 일치). 규칙은 generate_html.py의 bill_stage_as_of와 반드시 같아야 한다 - 상단
+// "입법 현황" 타일이 그쪽 결과라 다르면 타일과 목록 숫자가 어긋난다.
+const LAW_FORWARD_RESULTS = new Set(['원안가결', '수정가결']);
+function billAsOf(b, d) {
+  if (!b.proposeDate || b.proposeDate > d) return null;
+  const on = v => (v && v <= d) ? v : null;
+  const committeeDt = on(b.committeeDt), committeeDoneDt = on(b.committeeDoneDt);
+  const lawDt = on(b.lawDt), lawDoneDt = on(b.lawDoneDt);
+  const committeeResult = committeeDoneDt ? (b.committeeResult || null) : null;
+  const lawResult = lawDoneDt ? (b.lawResult || null) : null;
+  let stage, result;
+  if (lawResult) {
+    if (LAW_FORWARD_RESULTS.has(lawResult)) { stage = '본회의 의결'; result = '심사중'; }
+    else { stage = '법사위 심사'; result = lawResult; }
+  } else if (lawDt) { stage = '법사위 심사'; result = '심사중'; }
+  else if (committeeResult) { stage = '상임위 심사'; result = committeeResult; }
+  else if (committeeDoneDt || committeeDt) { stage = '상임위 심사'; result = '심사중'; }
+  else { stage = '입안 및 발의'; result = '심사중'; }
+  if (stage === b.stage && result === b.result && committeeDt === (b.committeeDt || null)
+      && committeeDoneDt === (b.committeeDoneDt || null) && lawDt === (b.lawDt || null)
+      && lawDoneDt === (b.lawDoneDt || null)) return b; // 그 날짜 이후 바뀐 게 없으면 원본 그대로
+  return { ...b, stage, result, committeeDt, committeeDoneDt, committeeResult, lawDt, lawDoneDt, lawResult };
+}
+// 보고 있는 날짜("YYYY-MM-DD") - 뉴스 탭과 같은 state.currentDate를 쓴다.
+function billViewDate() {
+  return state.currentDate ? state.currentDate.replace(/\//g, '-') : null;
+}
+let billViewCache = { src: null, d: null, rows: [] };
+function billView() {
+  const d = billViewDate();
+  if (!d) return BILL_DATA;
+  if (billViewCache.src !== BILL_DATA || billViewCache.d !== d) {
+    const rows = [];
+    for (const b of BILL_DATA) { const v = billAsOf(b, d); if (v) rows.push(v); }
+    billViewCache = { src: BILL_DATA, d, rows };
+  }
+  return billViewCache.rows;
+}
+
 // 기간(제안일 범위)이 걸려 있을 때, 단계 칩은 "지금 그 단계에 머물러 있는 것"이
 // 아니라 "그 기간 중 그 단계를 실제로 거쳐간 것"을 보여준다(사용자 요청,
 // 2026-10-08 - "최근 30일 + 입안"으로 걸었는데 최근 발의된 500건 중 아직
@@ -2808,7 +2852,8 @@ function billOutcomeBucket(result) {
 
 function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect, allBtnId, currentTagId) {
   displayFn = displayFn || (v => v);
-  const source = filterFn ? BILL_DATA.filter(filterFn) : BILL_DATA;
+  const bills = billView();
+  const source = filterFn ? bills.filter(filterFn) : bills;
   const counts = {};
   source.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
   if (filterFn && state[stateKey] !== '전체' && !(state[stateKey] in counts)) state[stateKey] = '전체';
@@ -2895,7 +2940,7 @@ function renderCommitteeChipRow() {
 // 않아서 한 줄 흐름이 계속 짧게 유지된다.
 function renderStageFlowRow() {
   const starred = getStarredBills();
-  const source = BILL_DATA.filter(b =>
+  const source = billView().filter(b =>
     (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesGlobalFilters(b, starred)
   );
   // 기간(제안일 범위)이 걸려 있으면 "그 기간에 그 단계를 거쳐간 것"(중복 집계
@@ -2906,7 +2951,7 @@ function renderStageFlowRow() {
   // "제안은 기간 밖인데 그 단계 처리가 기간 안"인 법안을 놓친다 - 날짜 제약이
   // 없는 기준으로 다시 추린 걸 단계별 날짜 판정(아래 stageCounts·세부결과 그리드
   // 둘 다)에 공통으로 쓴다.
-  const noDateSource = hasPeriod ? BILL_DATA.filter(b =>
+  const noDateSource = hasPeriod ? billView().filter(b =>
     (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesNonDateFilters(b, starred)
   ) : null;
   const stageCounts = {};
@@ -2995,6 +3040,8 @@ function renderStageFlowRow() {
 }
 
 function renderBills() {
+  // 어제/최근 N일은 "보고 있는 날짜" 기준이라, 상단 날짜를 옮겼으면 범위를 다시 계산한다.
+  if (state.billPeriod !== 'custom' && state.billPeriod !== 'all') applyBillPeriod(String(state.billPeriod));
   renderCommitteeChipRow();
   renderStageFlowRow();
   renderBillList();
@@ -3002,7 +3049,8 @@ function renderBills() {
 
 function renderBillList() {
   const starred = getStarredBills();
-  let filtered = state.billCommittee === '전체' ? BILL_DATA.slice() : BILL_DATA.filter(b => (b.committee || '(미정)') === state.billCommittee);
+  const bills = billView();
+  let filtered = state.billCommittee === '전체' ? bills.slice() : bills.filter(b => (b.committee || '(미정)') === state.billCommittee);
   // 기간(제안일 범위)이 걸려 있으면 단계 필터는 "지금 그 단계에 머물러 있는 것"
   // 대신 "그 기간에 그 단계를 거쳐간 것"으로 본다(billStageMatchesInPeriod 주석
   // 참고) - 이 경우 날짜 제약이 이미 그 안에 포함되므로, 아래의 일반 제안일
@@ -3614,7 +3662,12 @@ document.getElementById('memberPageSizeSel').addEventListener('change', e => {
 // 이른 시각에 여러 번 도는데, 그 시점엔 그날 발의될 법안이 아직 다 안 올라와
 // 있어 "오늘만"은 매번 텅 비거나 건수가 들쭉날쭉해서 의미가 없었다 - "어제"는
 // 하루치가 이미 다 확정된 뒤라 항상 온전한 하루 분량을 보여준다.
+// "오늘"은 실제 시계가 아니라 상단 날짜(◀ ▶)로 보고 있는 날이다 - 10/02를 보면서
+// "어제"를 고르면 10/01이 나와야 billView()의 "그 날짜 시점" 상태와 맞는다
+// (2026-10-14). 뉴스를 아직 못 받아 보는 날짜가 없을 때만 실제 시계로 대신한다.
 function billTodayIso() {
+  const viewed = billViewDate();
+  if (viewed) return viewed;
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }

@@ -467,38 +467,85 @@ def bill_stats(bills):
     }
 
 
+LAW_FORWARD_RESULTS = {"원안가결", "수정가결"}
+
+
+def bill_stage_as_of(bill, d):
+    """날짜 d 시점의 (처리단계, 처리결과)를 재구성한다. 그날 아직 발의 전이면 None.
+
+    국회 API는 단계 전환 이력을 따로 주지 않지만, collect_bills.py의
+    derive_stage_and_result가 전부 날짜 필드(상임위회부일·처리일, 법사위회부일·
+    처리일)와 그 결과로 단계를 정하므로, "d 이후에 찍힌 날짜·결과는 아직 없던
+    것"으로 가리고 같은 규칙을 다시 적용하면 그 시점 단계가 나온다 - 실측
+    (2026-10-14): 먼 미래 날짜로 재구성하면 현재 단계와 14,943건 전부 일치.
+    html_template.html의 billAsOf와 규칙이 반드시 같아야 한다(타일 숫자와
+    목록 숫자가 어긋나지 않도록)."""
+    propose = bill.get("proposeDate")
+    if not propose or propose > d:
+        return None
+
+    def on(key):
+        v = bill.get(key)
+        return v if v and v <= d else None
+
+    law_done = on("lawDoneDt")
+    law_result = bill.get("lawResult") if law_done else None
+    if law_result:
+        if law_result in LAW_FORWARD_RESULTS:
+            return "본회의 의결", "심사중"
+        return "법사위 심사", law_result
+    if on("lawDt"):
+        return "법사위 심사", "심사중"
+    cmt_done = on("committeeDoneDt")
+    cmt_result = bill.get("committeeResult") if cmt_done else None
+    if cmt_result:
+        return "상임위 심사", cmt_result
+    if cmt_done or on("committeeDt"):
+        return "상임위 심사", "심사중"
+    return "입안 및 발의", "심사중"
+
+
 def bill_stats_by_date(bills):
     """뉴스 탭의 날짜 이동(state.currentDate)에 맞춰 '입법 현황' 타일도 그 날짜를
-    반영하고 싶다는 요청(2026-09-14)에 따라, 제안일별 누적 스냅샷 배열을 만든다.
+    반영하고 싶다는 요청(2026-09-14)에 따라, 날짜별 누적 스냅샷 배열을 만든다.
     화면은 이 배열을 날짜로 찾아(그 날짜 이하 중 가장 최근 것) 타일에 쓴다.
 
-    법안의 처리단계(상임위/법사위/본회의)는 그 날짜 시점의 실제 이력이 아니라
-    지금 저장된 현재값을 그대로 센다 - 단계 전환 이력을 따로 안 쌓으므로 과거
-    시점 재구성은 불가능하다(2026-09-14 확인된 요청사항: 이 정도로 충분하다는
-    사용자 확인 하에, "그 날짜까지 발의된 법안 수를 지금 단계 기준으로 집계"만
-    구현). 제안일이 없는 법안(위원장 발의 등 극소수)은 집계에서 제외한다.
+    예전엔 "그 날짜까지 발의된 법안"을 지금 단계 기준으로 셌는데, 그러면 과거
+    날짜에서 입안 건수가 거의 늘 0이 됐다(실측: 10/02에 발의 41건이 있었는데 타일은
+    "입안 0건" - 그 41건은 지금 다 상임위로 넘어가 있어서). 이제 bill_stage_as_of로
+    그 날짜 시점 단계를 재구성해 센다. 단계는 제안일뿐 아니라 회부·처리일에도
+    바뀌므로, 법안별 "단계가 바뀐 날"마다 증감을 기록해 누적한다(법안 수 x 날짜
+    수를 다 도는 대신 법안당 날짜 몇 개만 보므로 빠르다). 제안일이 없는 법안
+    (위원장 발의 등 극소수)은 집계에서 제외한다.
 
     bill_stats()의 전체 총계(BILL_STATS)와 별개로 두는 이유: 페이지 첫 로딩
     직후(아직 날짜를 하나도 안 옮겼을 때)는 이 배열 없이도 곧바로 보여줄 값이
     필요해서다."""
-    by_date = {}
-    for bill in bills:
-        date = bill.get("proposeDate")
-        if not date:
-            continue
-        by_date.setdefault(date, []).append(bill.get("stage", ""))
-
-    running = {"draft": 0, "committee": 0, "law": 0, "plenary": 0}
     stage_key = {
         "입안 및 발의": "draft", "상임위 심사": "committee",
         "법사위 심사": "law", "본회의 의결": "plenary",
     }
-    snapshots = []
-    for date in sorted(by_date.keys()):
-        for stage in by_date[date]:
-            key = stage_key.get(stage)
+    deltas = {}  # 날짜 -> {draft/committee/law/plenary: 증감}
+    for bill in bills:
+        dates = sorted({bill.get(k) for k in ("proposeDate", "committeeDt", "committeeDoneDt", "lawDt", "lawDoneDt") if bill.get(k)})
+        prev = None
+        for d in dates:
+            st = bill_stage_as_of(bill, d)
+            key = stage_key.get(st[0]) if st else None
+            if key == prev:
+                continue
+            day = deltas.setdefault(d, {})
+            if prev:
+                day[prev] = day.get(prev, 0) - 1
             if key:
-                running[key] += 1
+                day[key] = day.get(key, 0) + 1
+            prev = key
+
+    running = {"draft": 0, "committee": 0, "law": 0, "plenary": 0}
+    snapshots = []
+    for date in sorted(deltas.keys()):
+        for key, v in deltas[date].items():
+            running[key] += v
         snapshots.append({"date": date, "total": sum(running.values()), **running})
     return snapshots
 
