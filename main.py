@@ -573,6 +573,9 @@ CASE_TYPE_GENERIC_WORDS = {
     # 사건유형어처럼 이런 입법 절차 boilerplate 단어도 "구체적으로 겹치는 단어"로
     # 치면 안 된다.
     "의원", "법안", "발의", "대표발의", "개정안", "법률안", "제정",
+    # "조사"의 한 형태일 뿐 어떤 사건인지 지목하지 못한다(실측 2026-10-14, 아래
+    # REGULATOR_AGENCY_WORDS 주석 참고).
+    "현장조사",
 }
 
 # 사건을 특정하지 못하는 조사/연결어 - 이슈명 토큰에 그대로 남아 "겹치는 구체
@@ -594,8 +597,19 @@ TOPIC_GENERIC_WORDS = {
     "진출", "경쟁", "계획", "전망",
 }
 
+# 조사·제재를 하는 쪽의 기관명. 이 대시보드 기사 대부분에 등장하므로 사건을 지목하는
+# 단어가 아니다. 실측 2026-10-14: 중점조사기획단의 식품업계(대상·오뚜기·CJ) 담합 조사
+# 기사 99건에 Gemini가 "공정위 식품업계 현장조사"라고 붙였는데, "공정위"+"현장조사"
+# 두 단어가 겹친다는 이유로 8월 쿠팡 사건 이슈 "공정위 현장조사 거부 파장"에 통째로
+# 병합됐다. GENERIC_ISSUE_ROOTS는 뿌리(첫 토큰) 판정용이라 여기에 쓰이지 않았다.
+REGULATOR_AGENCY_WORDS = {
+    "공정위", "공정거래위원회", "공정거래위", "당정", "정부", "국회", "대법원", "법원",
+    "검찰", "금융위", "금감원", "국세청", "중기부", "산업부",
+}
+
 # 두 이슈명이 "같은 사건"인지 판정할 때 근거로 쓰면 안 되는 단어 전체.
-NON_SPECIFIC_ISSUE_WORDS = CASE_TYPE_GENERIC_WORDS | ISSUE_FILLER_WORDS | TOPIC_GENERIC_WORDS
+NON_SPECIFIC_ISSUE_WORDS = (CASE_TYPE_GENERIC_WORDS | ISSUE_FILLER_WORDS
+                            | TOPIC_GENERIC_WORDS | REGULATOR_AGENCY_WORDS)
 
 
 def _validate_master_mapping(mapping, existing_titles):
