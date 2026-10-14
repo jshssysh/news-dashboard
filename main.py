@@ -156,6 +156,14 @@ def get_naver_news_24h(keyword):
         except Exception: break
     return valid_items
 
+# 연합뉴스 포토(PYH)는 현장 사진 한 장마다 별도 기사 ID로 올라오고 제목(캡션)을 거의
+# 그대로 재사용한다 - 기사링크로만 중복을 거르므로 같은 제목이 10건씩 쌓였다(실측
+# 2026-10-14: 중점조사기획단 1호 사건 사진 11건). 같은 소식은 본기사(AKR)로 들어오므로 뺀다.
+EXCLUDED_LINK_PATTERN = re.compile(r"yna\.co\.kr/view/PYH")
+
+def is_excluded_link(link):
+    return bool(EXCLUDED_LINK_PATTERN.search(link or ""))
+
 def clean_text(text):
     return text.replace("<b>", "").replace("</b>", "").replace("&quot;", '"').replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
@@ -165,6 +173,8 @@ def normalize_title(text):
 
 # 완전히 같은 제목이 아니어도(같은 사건, 다른 표현) 겹치는 기사는 대표 1건만 Gemini에 보내 비용을 아낀다
 TITLE_SIMILARITY_THRESHOLD = 0.55  # 완화: 비용 절감 우선 (서로 다른 사건이 묶일 위험은 소폭 증가)
+# 이 크기 이상인 묶음은 대표 외에 표본 1건을 더 보내 교차 확인한다(main()의 묶음 처리 주석 참고)
+CLUSTER_SECOND_SAMPLE_MIN_SIZE = 3
 
 def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_THRESHOLD):
     """분야별로, 제목이 비슷한 기사들을 그룹으로 묶는다. (다른 분야끼리는 비교하지 않음)
@@ -331,7 +341,13 @@ def analyze_batch_with_gemini(batch_items):
 
 분석 지침:
 1. idx: 번호 유지
-2. relevance_score: '대기업 동향, 공정위 규제, 지배구조, 상생협력' 관련 핵심 뉴스인지 1~10점 평가.
+2. relevance_score: '공정위 규제·제재, 지배구조, 상생협력·하도급, 대기업의 거래·출자·M&A 등
+   감시 대상 사안'을 다루는 핵심 뉴스인지 1~10점 평가. 대기업이 등장한다는 것만으로 높게 주지 말 것.
+   다음은 기사 일부에 상생·동반성장·협력사 같은 말이 섞여 있어도 4점 이하로 줄 것:
+   전시회·박람회·세미나·포럼·행사 참가/개최 홍보, 신제품·신기술·서비스 출시 소개.
+   (동반성장지수 평가 결과, 협력사 지원 프로그램처럼 상생 자체가 주제인 기사는 해당 없음) (예: "삼성전자, 반도체대전서 HBM4E 공개…상생협력 비전"은
+   기술 전시 홍보라 4점 이하) 단, category가 삼성그룹/삼성물산인 기사는 내부 추적용이라
+   이 홍보성 규칙을 적용하지 말고 그 기업 동향으로서의 중요도로 평가할 것.
 3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형).
    반드시 그 기사의 실제 당사자인 구체적 기업/기관/인물명이 들어가야 함 - "설탕 담합"처럼
    제품/업종명만 넣지 말 것(예: 삼양사가 당사자면 "설탕 담합"이 아니라 "삼양사 담합"류로 지을 것).
@@ -1058,6 +1074,63 @@ def archive_expiring_news(expiring_df):
         json.dump(months, f)
 
 
+# 사람이 확인한 기사별 정정(이슈명 변경·삭제). 회사 PC에서는 보안 정책상 40KB 넘는
+# 업로드가 막혀 news_list.csv·아카이브를 직접 고쳐 올릴 수 없으므로, 정정 내역만 이 작은
+# 파일에 적어 두고 GitHub Actions가 매 실행마다 반영한다. 한 번 반영돼도 지우지 않는다 -
+# 지운 기사가 네이버 24시간 창에서 다시 수집되거나, 정정한 기사가 다시 분석돼도 계속 적용된다.
+#   기사링크: 대상 기사 / 조치: "이슈변경" 또는 "삭제" / 새이슈: 이슈변경일 때 바꿀 이슈명
+NEWS_OVERRIDES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "news_overrides.csv")
+
+
+def load_news_overrides():
+    """{기사링크: 새이슈} (이슈변경)와 {삭제할 기사링크} 집합을 돌려준다."""
+    if not os.path.exists(NEWS_OVERRIDES_PATH):
+        return {}, set()
+    try:
+        odf = pd.read_csv(NEWS_OVERRIDES_PATH, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception as e:
+        print(f"[기사 정정 목록 읽기 예외 - 이번엔 건너뜀] {e}")
+        return {}, set()
+    relabel = {r["기사링크"]: r["새이슈"] for _, r in odf.iterrows() if r["조치"] == "이슈변경" and r["새이슈"]}
+    delete = {r["기사링크"] for _, r in odf.iterrows() if r["조치"] == "삭제"}
+    return relabel, delete
+
+
+def apply_news_overrides(df):
+    relabel, delete = load_news_overrides()
+    if not relabel and not delete:
+        return df
+    links = df["기사링크"].fillna("")
+    removed = links.isin(delete)
+    df = df[~removed].copy()
+    hit = df["기사링크"].isin(relabel)
+    changed = hit & (df["대표이슈"] != df["기사링크"].map(relabel))
+    df.loc[hit, "대표이슈"] = df.loc[hit, "기사링크"].map(relabel)
+    if removed.any() or changed.any():
+        print(f"[기사 정정] 삭제 {removed.sum()}건, 이슈명 변경 {changed.sum()}건 반영")
+    return df
+
+
+def prune_archives():
+    """이미 아카이브(docs/archive)로 옮겨진 기사 중 제외 대상(연합뉴스 포토 등)과 정정 목록의
+    삭제 대상을 지운다. 바뀐 게 없는 달은 다시 쓰지 않는다(불필요한 git diff 방지)."""
+    if not os.path.isdir(NEWS_ARCHIVE_DIR):
+        return
+    _, delete = load_news_overrides()
+    for fname in sorted(os.listdir(NEWS_ARCHIVE_DIR)):
+        if not fname.endswith(ARCHIVE_EXT):
+            continue
+        month = fname[:-len(ARCHIVE_EXT)]
+        try:
+            rows = _read_archive_month(month)
+            kept = [r for r in rows if not is_excluded_link(r.get("link")) and r.get("link") not in delete]
+            if len(kept) != len(rows):
+                _write_archive_month(month, kept)
+                print(f"[뉴스 아카이브 정리] {month}{ARCHIVE_EXT}에서 {len(rows) - len(kept)}건 삭제")
+        except Exception as e:
+            print(f"[뉴스 아카이브 정리 예외 - {month} 건너뜀] {e}")
+
+
 def find_cluster_warnings(new_df):
     """이번 실행에서 비정상적으로 커진 이슈(대표이슈)를 찾아
     [{"issue": 이슈명, "category": 대표 분야, "count": 건수}] 로 반환한다."""
@@ -1074,18 +1147,64 @@ def find_cluster_warnings(new_df):
             mode = group["분야"].mode()
             category = mode.iloc[0] if not mode.empty else "기타"
             warnings.append({"issue": issue, "category": category, "count": len(group)})
+        warnings.extend(find_summary_mismatch_warnings(analyzed))
         return warnings
     except Exception as e:
         print(f"[클러스터링 점검 예외 - 검사 건너뜀] {e}")
         return []
 
 
+# 비슷한 제목 묶음은 대표 기사 1건의 요약을 나눠 쓰므로, 대표 기사가 엉뚱하게 분석되면
+# 묶음 전체가 제목과 상관없는 요약을 달고 저장된다(실측 2026-10-14: 반도체대전 홍보 기사
+# 15건이 전부 "동반성장지수 14년 연속 최우수 등급 획득" 요약). 같은 요약을 쓰는 기사들의
+# 제목에 요약과 겹치는 단어가 거의 없으면 경고로 남긴다.
+SUMMARY_MISMATCH_MIN_ROWS = 5       # 이만큼 이상 같은 요약을 나눠 쓸 때만 검사(작은 묶음은 피해도 작음)
+SUMMARY_MISMATCH_MAX_MATCH_RATIO = 0.3  # 요약과 단어가 겹치는 제목이 이 비율 미만이면 경고
+_TITLE_WORD = re.compile(r"[가-힣A-Za-z0-9]{2,}")
+
+
+def _title_matches_summary(title, summary, ignore_words):
+    summary = summary.replace(" ", "")  # "정년연장"(제목) vs "정년 연장"(요약) 같은 띄어쓰기 차이 무시
+    for word in _TITLE_WORD.findall(str(title)):
+        if word in ignore_words:
+            continue
+        # "SEDEX서"·"HBM4E도"처럼 조사가 붙은 단어도 잡기 위해 끝 글자를 뗀 형태도 본다
+        if word in summary or (len(word) >= 3 and word[:-1] in summary):
+            return True
+    return False
+
+
+def find_summary_mismatch_warnings(analyzed):
+    warnings = []
+    for summary, group in analyzed.groupby("AI요약"):
+        if not isinstance(summary, str) or not summary.strip() or len(group) < SUMMARY_MISMATCH_MIN_ROWS:
+            continue
+        mode = group["분야"].mode()
+        category = mode.iloc[0] if not mode.empty else "기타"
+        if category == "인사":
+            continue  # "[인사] 공정거래위원회"처럼 제목에 내용이 없는 게 정상인 분야
+        issue = group["대표이슈"].mode().iloc[0]
+        # 당사자(이슈명 첫 단어)나 기관명처럼 묶음 어디에나 나오는 단어는 근거로 치지 않는다
+        # (반도체대전 사례: "삼성전자"만 겹치고 요약 내용은 제목과 무관했다)
+        issue_tokens = _issue_tokens(issue)
+        ignore_words = set(issue_tokens[:1]) | NON_SPECIFIC_ISSUE_WORDS
+        matched = sum(_title_matches_summary(t, summary, ignore_words) for t in group["제목"])
+        if matched / len(group) >= SUMMARY_MISMATCH_MAX_MATCH_RATIO:
+            continue
+        warnings.append({
+            "issue": issue, "category": category,
+            "count": len(group), "reason": "요약불일치",
+        })
+    return warnings
+
+
 def save_cluster_warnings(warnings, today_str):
     """플래그된 이슈를 cluster_warnings.csv에 남긴다 - generate_html.py가 읽어서
     화면의 카테고리 칩 옆에 '!' 표시 + 마우스 오버 설명으로 노출한다."""
     date_str = today_str.split(" ")[0]
-    rows = [{"날짜": date_str, "카테고리": w["category"], "이슈명": w["issue"], "건수": w["count"]} for w in warnings]
-    new_wdf = pd.DataFrame(rows, columns=["날짜", "카테고리", "이슈명", "건수"])
+    rows = [{"날짜": date_str, "카테고리": w["category"], "이슈명": w["issue"], "건수": w["count"],
+             "사유": w.get("reason", "몰림")} for w in warnings]
+    new_wdf = pd.DataFrame(rows, columns=["날짜", "카테고리", "이슈명", "건수", "사유"])
     if os.path.exists(CLUSTER_WARNINGS_PATH) and os.path.getsize(CLUSTER_WARNINGS_PATH) > 0:
         try:
             old_wdf = pd.read_csv(CLUSTER_WARNINGS_PATH)
@@ -1109,6 +1228,10 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
     cluster_warnings = find_cluster_warnings(new_df)
     if cluster_warnings:
         for w in cluster_warnings:
+            if w.get("reason") == "요약불일치":
+                print(f"[경고] 이슈 '{w['issue']}'({w['category']})의 기사 {w['count']}건이 제목과 맞지 않는 같은 "
+                      f"요약을 나눠 쓰고 있습니다 - 묶음 대표 기사가 잘못 분석됐을 수 있으니 화면에서 확인하세요.")
+                continue
             print(f"[경고] 이슈 '{w['issue']}'({w['category']})에 {w['count']}건이 몰려 클러스터링 이상이 "
                   f"의심됩니다 - 기사는 정상 저장하고, 화면엔 '!' 표시만 남깁니다. 실제 포괄 바구니로 "
                   f"확인되면 GENERIC_ISSUE_TITLES_BLOCKLIST에 이름을 추가하세요.")
@@ -1127,6 +1250,11 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
             # 기존 누적 CSV를 못 읽었는데 new_df만으로 덮어쓰면 과거 이력이 통째로 사라진다 - 저장하지 않고 중단
             raise RuntimeError(f"[저장 중단] 기존 {file_name}을 읽지 못해 덮어쓰지 않습니다: {e}") from e
     else: combined_df = new_df
+
+    # 수집 단계에서 이미 빼지만, 예전에 저장된 행이 남아 있으면 여기서 함께 정리한다
+    combined_df = combined_df[~combined_df["기사링크"].fillna("").map(is_excluded_link)]
+    combined_df = apply_news_overrides(combined_df)
+    prune_archives()
 
     combined_df["중요도"] = pd.to_numeric(combined_df["중요도"], errors="coerce").fillna(5).astype(int)
     # 같은 기사링크가 여러 번 저장된 경우, 실제 AI 분석된 행이 "미분석"(개발 모드 플레이스홀더) 행에 덮어써지지 않도록
@@ -1180,7 +1308,7 @@ def main():
         articles = get_naver_news_24h(keyword)
         for item in articles:
             link = item["originallink"] if item["originallink"] else item["link"]
-            if link in seen_links: continue
+            if link in seen_links or is_excluded_link(link): continue
             seen_links.add(link)
 
             # 기존 분석 결과가 그대로 남아 있으므로(저장 시 병합됨) 여기서 빠져도 유실되지 않는다
@@ -1233,34 +1361,65 @@ def main():
         for nt, item in unique_for_api.items():
             norm_titles_by_category.setdefault(item["category"], []).append(nt)
         title_cluster_map = cluster_similar_titles(norm_titles_by_category)
-        leader_norm_ts = list(dict.fromkeys(title_cluster_map.values()))
+        cluster_members = {}
+        for nt, leader_nt in title_cluster_map.items():
+            cluster_members.setdefault(leader_nt, []).append(nt)
 
-        api_items = []
-        for i, nt in enumerate(leader_norm_ts):
-            item = unique_for_api[nt].copy()
-            item["idx"] = i
-            api_items.append(item)
-        api_items_by_idx = {item["idx"]: item for item in api_items}
-        # 배치가 클수록 배치마다 반복되는 프롬프트 지시문 비용이 줄어든다 (너무 크면 응답 파싱 실패 위험)
-        batches = [api_items[i:i + 20] for i in range(0, len(api_items), 20)]
-
-        print(f"[비용 절감] 고유 제목 {len(unique_for_api)}건 → 유사 제목 클러스터링 후 {len(api_items)}건만 Gemini 분석")
+        # 대표 1건의 결과를 묶음 전체에 복사하면, 대표 기사에만 섞인 단어 때문에 묶음 전체가
+        # 엉뚱하게 분류된다(실측 2026-10-14: 삼성전자 반도체대전 홍보 기사 16건이 대표 기사의
+        # "상생협력" 한 줄 때문에 전부 "삼성전자 동반성장" 9점 기사로 저장됨). 그래서 큰 묶음은
+        # 대표와 가장 덜 비슷한 기사 1건을 함께 보내 교차 확인하고, 둘의 판정이 갈리면
+        # (노출 여부나 이슈 분야가 다르면) 묶음 기사를 전부 개별 분석한다.
+        second_samples = {}
+        for leader_nt, members in cluster_members.items():
+            if len(members) >= CLUSTER_SECOND_SAMPLE_MIN_SIZE:
+                second_samples[leader_nt] = min(
+                    (m for m in members if m != leader_nt),
+                    key=lambda m: difflib.SequenceMatcher(None, leader_nt, m).ratio(),
+                )
 
         analyzed_results = {}
 
-        for batch in batches:
-            for r_idx, score, g_title, summary, sentiment, category in analyze_batch_with_gemini(batch):
-                original_item = api_items_by_idx.get(r_idx)
-                if not original_item:
-                    continue
-                g_title = force_merge_by_keywords(original_item["title"], g_title)
-                final_category = category or original_item["category"]
-                analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
-            time.sleep(4.5)  # 무료 등급은 분당 15회 제한 (60/15=4초) - 여유 있게 4.5초씩 대기
+        def analyze_norm_titles(norm_ts):
+            api_items = []
+            for i, nt in enumerate(norm_ts):
+                item = unique_for_api[nt].copy()
+                item["idx"] = i
+                api_items.append(item)
+            api_items_by_idx = {item["idx"]: item for item in api_items}
+            # 배치가 클수록 배치마다 반복되는 프롬프트 지시문 비용이 줄어든다 (너무 크면 응답 파싱 실패 위험)
+            for start in range(0, len(api_items), 20):
+                for r_idx, score, g_title, summary, sentiment, category in analyze_batch_with_gemini(api_items[start:start + 20]):
+                    original_item = api_items_by_idx.get(r_idx)
+                    if not original_item:
+                        continue
+                    g_title = force_merge_by_keywords(original_item["title"], g_title)
+                    final_category = category or original_item["category"]
+                    analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
+                time.sleep(4.5)  # 무료 등급은 분당 15회 제한 (60/15=4초) - 여유 있게 4.5초씩 대기
+
+        first_pass = list(cluster_members) + list(second_samples.values())
+        print(f"[비용 절감] 고유 제목 {len(unique_for_api)}건 → 유사 제목 클러스터링 후 {len(first_pass)}건만 Gemini 분석 "
+              f"(큰 묶음 교차 확인용 {len(second_samples)}건 포함)")
+        analyze_norm_titles(first_pass)
+
+        def _verdict(res):
+            # (대시보드 노출 여부, 분야) - 둘 중 하나라도 다르면 같은 판정이 아니다
+            return (res[0] >= 5, res[4])
+
+        disputed = []
+        for leader_nt, sample_nt in second_samples.items():
+            a, b = analyzed_results.get(leader_nt), analyzed_results.get(sample_nt)
+            if a and b and _verdict(a) != _verdict(b):
+                disputed.append(leader_nt)
+        if disputed:
+            rest = [m for l in disputed for m in cluster_members[l] if m not in analyzed_results]
+            print(f"[묶음 교차 확인] 대표와 표본의 판정이 다른 묶음 {len(disputed)}개 - 나머지 {len(rest)}건 개별 분석")
+            analyze_norm_titles(rest)
 
         # 유사 제목 그룹의 나머지(대표가 아닌) 기사들도 대표와 같은 분석 결과를 그대로 사용
         for nt, leader_nt in title_cluster_map.items():
-            if nt != leader_nt and leader_nt in analyzed_results:
+            if nt not in analyzed_results and leader_nt in analyzed_results:
                 analyzed_results[nt] = analyzed_results[leader_nt]
 
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))

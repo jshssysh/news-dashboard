@@ -129,6 +129,7 @@ def load_cluster_warnings():
             "category": nz(row.get("카테고리"), ""),
             "issue": nz(row.get("이슈명"), ""),
             "count": int(row["건수"]) if pd.notna(row.get("건수")) else 0,
+            "reason": nz(row.get("사유"), "몰림"),  # 사유 칸이 생기기 전 기록은 전부 "몰림"
         }
         for _, row in wdf.iterrows()
     ]
