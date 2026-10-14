@@ -1528,7 +1528,9 @@ const CRITICAL_KEYWORDS = ["과징금","시정명령","고발","동의의결","�
 const FINE_AMOUNT_PATTERN = /과징금\s*([0-9][0-9,.]*)\s*(억|만)\s*원?/;
 
 const ACTIVE_TAB_KEY = 'activeTab';
-const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결', '법령'];
+// 법령 탭은 쓸 만한 수준이 아니어서 숨겨 둠(코드는 남겨 두고 목록에서만 뺌).
+// 다시 켜려면 여기와 renderTabBar의 tabs에 '법령'을 되돌리면 된다.
+const TAB_VALUES = ['뉴스', '입법', '국회의원', '심결판결'];
 function getSavedTab() {
   // 예전에 쓰던 '공정위 조직' 같은 값이 남아 있으면 어느 화면도 안 켜져서 빈 페이지가
   // 되므로, 지금 있는 탭이 아니면 뉴스로 돌린다.
@@ -1810,7 +1812,7 @@ function renderTopTiles() {
 
 function renderTabsAndDate() {
   const tabsRow = document.getElementById('tabsRow');
-  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결'], ['법령','법령']];
+  const tabs = [['뉴스','뉴스'], ['입법','입법'], ['의원','국회의원'], ['심·판결','심결판결']];
   tabsRow.innerHTML = tabs.map(([label, value]) =>
     `<button data-value="${value}" class="${state.activeTab===value?'active':''}" style="white-space:nowrap;">${label}</button>`
   ).join('');
