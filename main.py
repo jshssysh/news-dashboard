@@ -1,4 +1,5 @@
 import os
+import base64
 import gzip
 import json
 import time
@@ -62,7 +63,7 @@ def save_gemini_usage(script, articles, today_str):
     try:
         row = pd.DataFrame([{"실행일시": today_str, "스크립트": script, "Gemini 호출": GEMINI_USAGE["calls"],
                              "429(한도 초과)": GEMINI_USAGE["rate_limited"], "기타 오류": GEMINI_USAGE["errors"],
-                             "저장 기사 수": articles}])
+                             "저장 기사 수": articles, "임베딩 묶기": EMBED_LAST_RESULT["text"]}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=GEMINI_USAGE_RETENTION_DAYS)).strftime("%Y-%m-%d")
@@ -102,8 +103,11 @@ def pick_embedding_model():
     return names[0] if names else None
 
 
+EMBED_RATE_LIMIT_WAITS = [30, 60]  # 429(분당 한도)면 이만큼 기다렸다 다시 시도(초)
+
+
 def embed_texts(texts, model, task_type="CLUSTERING"):
-    """texts를 임베딩한다. 실패한 묶음은 None으로 채운다(호출 수는 GEMINI_USAGE에 기록)."""
+    """texts를 임베딩한다. 끝내 실패한 묶음은 None으로 채운다(호출 수는 GEMINI_USAGE에 기록)."""
     vectors = []
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
     for start in range(0, len(texts), EMBED_BATCH_SIZE):
@@ -113,20 +117,25 @@ def embed_texts(texts, model, task_type="CLUSTERING"):
              "taskType": task_type, "outputDimensionality": EMBED_DIMENSIONS}
             for t in chunk
         ]}
-        try:
-            res = post_gemini_with_retry(url, payload, timeout=60)
+        got = None
+        for wait in [0] + EMBED_RATE_LIMIT_WAITS:
+            time.sleep(wait)
+            try:
+                res = post_gemini_with_retry(url, payload, timeout=60)
+            except Exception as e:
+                print(f"[임베딩 예외] {e}")
+                break
             if res.status_code == 200:
                 got = [e.get("values") for e in res.json().get("embeddings", [])]
-                if len(got) == len(chunk):
-                    vectors.extend(got)
-                    time.sleep(1)  # 무료 등급 분당 한도 여유(수집 1회 최대 20번 안팎)
-                    continue
-                print(f"[임베딩 개수 불일치] 요청 {len(chunk)}건, 응답 {len(got)}건")
+                if len(got) != len(chunk):
+                    print(f"[임베딩 개수 불일치] 요청 {len(chunk)}건, 응답 {len(got)}건")
+                    got = None
+                break
             print(f"[임베딩 실패] HTTP {res.status_code} {res.text[:200]}")
-        except Exception as e:
-            print(f"[임베딩 예외] {e}")
-        vectors.extend([None] * len(chunk))
-        time.sleep(4.5)
+            if res.status_code != 429:
+                break
+        vectors.extend(got if got else [None] * len(chunk))
+        time.sleep(1)  # 무료 등급 분당 한도 여유
     return vectors
 
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
@@ -1056,71 +1065,123 @@ def build_article_vocab_merge_mapping(df):
 # 같은 사건도 이름이 달라 갈리고(정답 데이터 기준 같은 사건 기사 쌍의 63%가 다른 이슈),
 # 그걸 막으려 예외 단어 목록을 계속 늘려야 했다. 기사 제목+설명 임베딩으로 같은 데이터를
 # 시험했더니 유사도 0.85 이상이면 갈림 20%, 섞임 0%였다(eval/results, 10/15 14:31).
-# 벡터는 저장하지 않는다 - 이슈별 벡터 파일을 매번 커밋하면 저장소가 빨리 커지므로,
-# 최근 며칠 이슈의 대표 기사를 실행마다 다시 임베딩해 비교한다(수집 1회 10~20회 호출).
+#
+# 벡터는 GitHub Actions 캐시(.cache/, 저장소에 커밋 안 함)에 기사링크별로 보관한다. 처음엔
+# 최근 이슈 대표 기사를 실행마다 다시 임베딩했는데, 수집 1회에 약 1,900건이라 무료 한도
+# (429)에 걸려 10/15 18:01·10/16 06:01 두 번 모두 임베딩 없이 처리됐다. 이제 새 기사와
+# 캐시에 없는 최근 이슈 대표 기사만 임베딩한다(캐시가 비어 있는 첫 실행만 많음).
 EMBED_GROUP_THRESHOLD = 0.85
 EMBED_RECENT_ISSUE_DAYS = 3
+EMBED_CACHE_PATH = os.path.join(".cache", "embeddings.json.gz")
+EMBED_CACHE_DAYS = 4
+EMBED_LAST_RESULT = {"text": "실행 안 함"}  # gemini_usage.csv에 남기는 이번 실행 결과
+
+
+def _load_embed_cache():
+    import numpy as np
+    if not os.path.exists(EMBED_CACHE_PATH):
+        return {}
+    try:
+        with gzip.open(EMBED_CACHE_PATH, "rb") as f:
+            raw = json.loads(f.read().decode("utf-8"))
+        return {k: (np.frombuffer(base64.b64decode(v["v"]), dtype=np.float16).astype(float), v["t"])
+                for k, v in raw.items()}
+    except Exception as e:
+        print(f"[임베딩 캐시 읽기 예외 - 빈 캐시로 시작] {e}")
+        return {}
+
+
+def _save_embed_cache(cache):
+    import numpy as np
+    try:
+        cutoff = (datetime.now(KST) - timedelta(days=EMBED_CACHE_DAYS)).strftime("%Y-%m-%d")
+        raw = {k: {"v": base64.b64encode(np.asarray(v, dtype=np.float16).tobytes()).decode("ascii"), "t": ts}
+               for k, (v, ts) in cache.items() if ts >= cutoff}
+        os.makedirs(os.path.dirname(EMBED_CACHE_PATH), exist_ok=True)
+        with gzip.open(EMBED_CACHE_PATH, "wb") as f:
+            f.write(json.dumps(raw).encode("utf-8"))
+        print(f"[임베딩 캐시] {len(raw)}건 보관")
+    except Exception as e:
+        print(f"[임베딩 캐시 저장 예외 - 건너뜀] {e}")
 
 
 def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
-    """new_items: [{"link", "title", "description", "group_title", "score"}].
+    """new_items: [{"link", "title", "description", "group_title", "score", "ts"}].
     {기사링크: 이슈명}을 돌려준다. 임베딩을 못 쓰면 None(호출한 쪽이 기존 방식으로 처리).
 
-    점수가 높은 기사부터 차례로, 최근 이슈 대표 기사나 이번에 먼저 붙은 묶음 중 가장
-    비슷한 것과 유사도가 기준 이상이면 그 이슈명을 쓰고, 아니면 Gemini가 붙인 이름으로
-    새 묶음을 만든다. 점수 순이라 새 묶음 이름은 그 사건에서 가장 관련도 높은 기사 것이 된다."""
+    점수가 높은 기사부터 차례로, 최근 이슈(그 이슈 기사 벡터들의 평균)나 이번에 먼저 붙은
+    묶음 중 가장 비슷한 것과 유사도가 기준 이상이면 그 이슈명을 쓰고, 아니면 Gemini가 붙인
+    이름으로 새 묶음을 만든다. 점수 순이라 새 묶음 이름은 그 사건에서 가장 관련도 높은 기사 것이 된다."""
     import numpy as np
     if not new_items or not model:
+        EMBED_LAST_RESULT["text"] = "대상 없음"
         return None
+    cache = _load_embed_cache()
 
-    reps = []  # (이슈명, 대표 기사 텍스트)
+    hist = pd.DataFrame()
     if os.path.exists(history_file):
         try:
-            hist = pd.read_csv(history_file, usecols=["수집일자", "대표이슈", "제목", "AI요약", "중요도", "논조"],
+            hist = pd.read_csv(history_file, usecols=["수집일자", "대표이슈", "제목", "AI요약", "중요도", "논조", "기사링크"],
                                encoding="utf-8-sig")
             cutoff = (datetime.now(KST) - timedelta(days=EMBED_RECENT_ISSUE_DAYS)).strftime("%Y-%m-%d")
             hist = hist[(hist["수집일자"].astype(str) >= cutoff) & hist["대표이슈"].notna()
                         & ~hist["대표이슈"].isin(ERROR_ISSUE_TITLES) & (hist["논조"] != "판단 실패")]
             hist["중요도"] = pd.to_numeric(hist["중요도"], errors="coerce").fillna(0)
-            best = hist.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1)
-            # 화면에 나오는 이슈(최고점 6점 이상)만 후보로 삼아 임베딩 호출 수를 줄인다
-            best = best[best["중요도"] >= 6]
-            reps = [(r["대표이슈"], f"{r['제목']} {r['AI요약'] if isinstance(r['AI요약'], str) else ''}".strip())
-                    for _, r in best.iterrows()]
+            # 화면에 나오는 이슈(최고점 6점 이상)만 후보로 삼는다
+            hist = hist[hist.groupby("대표이슈")["중요도"].transform("max") >= 6]
         except Exception as e:
             print(f"[임베딩 묶기 - 최근 이슈 읽기 예외, 이번 기사끼리만 묶음] {e}")
-            reps = []
+            hist = pd.DataFrame()
 
+    # 캐시에 벡터가 하나도 없는 최근 이슈는 대표 기사(최고점·최신) 하나만 임베딩해 채운다
+    to_embed = []  # (기사링크, 텍스트, 수집일자)
+    if not hist.empty:
+        cached_issue = hist[hist["기사링크"].isin(cache)]["대표이슈"].unique()
+        missing = hist[~hist["대표이슈"].isin(cached_issue)]
+        for _, r in missing.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1).iterrows():
+            summary = r["AI요약"] if isinstance(r["AI요약"], str) else ""
+            to_embed.append((r["기사링크"], f"{r['제목']} {summary}".strip(), str(r["수집일자"])))
     items = sorted(new_items, key=lambda x: -x["score"])
-    texts = [t for _, t in reps] + [f"{x['title']} {x['description']}".strip() for x in items]
-    vectors = embed_texts(texts, model)
-    if any(v is None for v in vectors):
-        print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] 실패 {sum(v is None for v in vectors)}건")
-        return None
-    vecs = np.array(vectors, dtype=float)
-    vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)
+    to_embed += [(x["link"], f"{x['title']} {x['description']}".strip(), x["ts"]) for x in items if x["link"] not in cache]
 
-    names = [name for name, _ in reps]
-    sums = [vecs[i].copy() for i in range(len(reps))]
-    cents = [vecs[i].copy() for i in range(len(reps))]
+    vectors = embed_texts([t for _, t, _ in to_embed], model) if to_embed else []
+    failed = sum(v is None for v in vectors)
+    for (link, _, ts), v in zip(to_embed, vectors):
+        if v is not None:
+            vec = np.asarray(v, dtype=float)
+            cache[link] = (vec / np.linalg.norm(vec), ts)
+    _save_embed_cache(cache)
+    if any(x["link"] not in cache for x in items):
+        EMBED_LAST_RESULT["text"] = f"실패(임베딩 {failed}/{len(to_embed)}건 실패) -> 기존 방식"
+        print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
+        return None
+
+    names, sums = [], []
+    if not hist.empty:
+        for issue, g in hist[hist["기사링크"].isin(cache)].groupby("대표이슈"):
+            names.append(issue)
+            sums.append(np.sum([cache[l][0] for l in g["기사링크"]], axis=0))
+    n_recent = len(names)
+    cents = [s / np.linalg.norm(s) for s in sums]
     mapping, attached, created = {}, 0, 0
-    for k, x in enumerate(items):
-        v = vecs[len(reps) + k]
+    for x in items:
+        v = cache[x["link"]][0]
         sims = [float(np.dot(v, c)) for c in cents]
         best_i = int(np.argmax(sims)) if sims else -1
         if best_i >= 0 and sims[best_i] >= EMBED_GROUP_THRESHOLD:
             mapping[x["link"]] = names[best_i]
             sums[best_i] = sums[best_i] + v
             cents[best_i] = sums[best_i] / np.linalg.norm(sums[best_i])
-            attached += best_i < len(reps)
+            attached += best_i < n_recent
         else:
             names.append(x["group_title"])
             sums.append(v.copy())
             cents.append(v.copy())
             mapping[x["link"]] = x["group_title"]
             created += 1
-    print(f"[임베딩 묶기] 모델 {model}, 최근 이슈 {len(reps)}개와 비교 - 기사 {len(items)}건 중 "
-          f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개")
+    EMBED_LAST_RESULT["text"] = (f"성공(새로 임베딩 {len(to_embed)}건, 최근 이슈 {n_recent}개와 비교, "
+                                 f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개)")
+    print(f"[임베딩 묶기] 모델 {model} - {EMBED_LAST_RESULT['text']}")
     return mapping
 
 
@@ -1715,7 +1776,7 @@ def main():
         desc_by_link = {a["link"]: a["description"] for a in all_articles}
         candidates = [
             {"link": r[8], "title": r[3], "description": desc_by_link.get(r[8], "")[:ANALYZE_DESCRIPTION_CHARS],
-             "group_title": r[2], "score": r[7]}
+             "group_title": r[2], "score": r[7], "ts": r[0]}
             for r in rows if r[6] != "판단 실패" and r[7] >= 5
         ]
         issue_by_link = assign_issues_by_embedding(candidates, embed_model)

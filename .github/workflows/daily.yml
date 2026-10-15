@@ -67,6 +67,17 @@ jobs:
         with:
           python-version: '3.10'
 
+      # 기사 임베딩 벡터(.cache/embeddings.json.gz)를 실행 사이에 보관한다. 저장소에 커밋하면
+      # 매번 수 MB가 다시 올라가 저장소가 커지므로 Actions 캐시를 쓴다(main.py EMBED_CACHE_PATH).
+      # 키가 실행마다 달라 매번 새로 저장되고, 복원은 가장 최근 것을 쓴다.
+      - name: 임베딩 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: embed-${{ github.run_id }}
+          restore-keys: |
+            embed-
+
       - name: 필수 라이브러리 설치
         run: |
           python -m pip install --upgrade pip
