@@ -1,13 +1,18 @@
 # 뉴스 필터 평가 - 정답 데이터(eval/labels_*.csv)로 Gemini 채점 기준을 시험한다.
 # GitHub 웹 Actions 탭에서 "Run workflow" 버튼으로만 실행한다(자동 실행 없음).
-# 저장소에는 아무것도 커밋하지 않고, 결과는 실행 요약 화면(Summary)에 표로 나온다.
+# 뉴스 데이터는 건드리지 않고, 결과 파일 eval/results/latest.md·latest.csv만 커밋한다
+# (회사 PC에서는 실행 로그를 못 보므로, 저장소 파일로 남겨 읽는다).
 name: 뉴스 필터 평가
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: eval
+  cancel-in-progress: false
 
 jobs:
   eval:
@@ -29,5 +34,21 @@ jobs:
       - name: 정답 데이터로 채점 기준 평가
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           python eval/run_eval.py
+
+      - name: 평가 결과 커밋
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add eval/results
+          if git diff --staged --quiet; then exit 0; fi
+          git commit -m "뉴스 필터 평가 결과"
+          # 뉴스 수집 봇이 그사이 커밋했을 수 있으니 받아와서 올린다(결과 파일만 바꾸므로 충돌 없음)
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1
