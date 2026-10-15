@@ -507,10 +507,41 @@ def load_analyzed_links(file_name="news_list.csv"):
             & df["대표이슈"].notna()
             & ~df["대표이슈"].isin(ERROR_ISSUE_TITLES)
         ]
-        return set(ok["기사링크"].dropna().astype(str))
+        links = set(ok["기사링크"].dropna().astype(str))
     except Exception as e:
         print(f"[기분석 링크 로드 예외 - 이번엔 전체 분석] {e}")
         return set()
+    # 관련도가 낮아 저장하지 않은 기사도 이미 분석한 기사다. 예전엔 이 기록이 없어서 같은
+    # 기사가 네이버 24시간 창에 남아 있는 동안 실행마다(하루 최대 3번) 다시 분석됐다.
+    if os.path.exists(REJECTED_NEWS_PATH):
+        try:
+            links |= set(pd.read_csv(REJECTED_NEWS_PATH, usecols=["기사링크"], encoding="utf-8-sig")["기사링크"].dropna().astype(str))
+        except Exception as e:
+            print(f"[탈락 기사 기록 로드 예외 - 탈락 기사도 다시 분석] {e}")
+    return links
+
+
+# 관련도 4점 이하로 저장하지 않은 기사 기록. 두 가지 용도다:
+#   1) 다음 실행에서 같은 기사를 다시 분석하지 않기(load_analyzed_links)
+#   2) 정답 데이터를 만들 때 "놓친 기사"(나와야 하는데 버려진 기사)를 셀 수 있게 하기
+#      - 이 기록이 없으면 버려진 기사는 어디에도 남지 않아 놓침을 잴 수 없었다.
+# 네이버 수집 창(24시간)보다 넉넉히, 평가용으로 2주만 보관한다.
+REJECTED_NEWS_PATH = "rejected_news.csv"
+REJECTED_NEWS_RETENTION_DAYS = 14
+
+
+def save_rejected_news(rejected):
+    try:
+        new_df = pd.DataFrame(rejected, columns=["수집일자", "분야", "제목", "설명", "관련도", "기사링크", "발행일시"])
+        if os.path.exists(REJECTED_NEWS_PATH):
+            new_df = pd.concat([pd.read_csv(REJECTED_NEWS_PATH, encoding="utf-8-sig"), new_df], ignore_index=True)
+        new_df = new_df.drop_duplicates(subset=["기사링크"], keep="last")
+        cutoff = (datetime.now(KST) - timedelta(days=REJECTED_NEWS_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        new_df = new_df[new_df["수집일자"].astype(str) >= cutoff]
+        new_df.to_csv(REJECTED_NEWS_PATH, index=False, encoding="utf-8-sig")
+        print(f"[탈락 기사 기록] 이번 실행 {len(rejected)}건, 보관 {len(new_df)}건")
+    except Exception as e:
+        print(f"[탈락 기사 기록 예외 - 건너뜀] {e}")
 
 
 # 예전에 클러스터링이 나쁘게 돌아간 날 생겨서 이미 수백 건씩 쌓인, 특정 기업/기관명이
@@ -965,12 +996,23 @@ def build_article_vocab_merge_mapping(df):
     return mapping
 
 
-def apply_issue_merge(df):
-    """저장 직전에 전체 데이터(과거 행 포함)의 대표이슈를 한 번 더 병합한다.
-    과거 행까지 같이 고쳐야, 어제 "쿠팡 공정위 조사"로 저장된 기사와 오늘
-    "쿠팡 공정위 조사 거부"로 잡힌 기사가 하나의 이슈로 합쳐진다."""
+def apply_issue_merge(df, new_links=None):
+    """저장 직전에 대표이슈를 한 번 더 병합한다. 병합 판정은 전체 데이터(과거 행 포함)를
+    보고 하지만, 이름을 바꾸는 건 이번 실행에 새로 들어온 기사(new_links)만이다.
+    통합 이름은 항상 먼저 등장한 이름이라, 어제 "쿠팡 공정위 조사"로 저장된 기사에
+    오늘 "쿠팡 공정위 조사 거부"로 잡힌 기사가 붙는 방식으로 합쳐진다.
+
+    과거 행은 고정한다(2026-10-15): 예전엔 과거 행까지 다시 묶다 보니, 규칙이 바뀌거나
+    새 기사가 들어올 때마다 며칠 전 기사의 이슈명이 바뀌었다(실측: 10/14 기사 99건이
+    8월 쿠팡 이슈로 끌려감, 10/12 '우아한형제들 국정감사'가 다른 이슈로 바뀜). 과거 기사를
+    고쳐야 하면 config/news_overrides.csv로만 고친다. new_links가 None이면 전체에 적용한다."""
     if "대표이슈" not in df.columns or df.empty:
         return df
+    target = df["기사링크"].isin(new_links) if new_links is not None else pd.Series(True, index=df.index)
+
+    def relabel(mapping):
+        df.loc[target, "대표이슈"] = df.loc[target, "대표이슈"].map(lambda t: mapping.get(t, t))
+
     try:
         order = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
         first_seen = df.assign(_dt=order).groupby("대표이슈")["_dt"].min().sort_values()
@@ -978,19 +1020,21 @@ def apply_issue_merge(df):
             t for t in first_seen.index
             if isinstance(t, str) and t.strip() and t not in ERROR_ISSUE_TITLES
         ])
-        changed = {k: v for k, v in mapping.items() if k != v}
+        new_issues = set(df.loc[target, "대표이슈"].dropna())
+        changed = {k: v for k, v in mapping.items() if k != v and k in new_issues}
         if changed:
             print(f"[이슈 자동 병합] {len(changed)}건: " + ", ".join(f"{k} -> {v}" for k, v in list(changed.items())[:10]))
-            df["대표이슈"] = df["대표이슈"].map(lambda t: mapping.get(t, t))
+            relabel(changed)
 
         # 이슈명 토큰만으로 못 잡는 "같은 회사, 완전히 다른 어휘로 쓰인 같은 사건"을
         # 소속 기사들의 핵심 어휘 겹침으로 한 번 더 병합한다(대한항공 5분할 실사례로 검증).
         article_mapping = build_article_vocab_merge_mapping(df)
-        article_changed = {k: v for k, v in article_mapping.items() if k != v}
+        new_issues = set(df.loc[target, "대표이슈"].dropna())
+        article_changed = {k: v for k, v in article_mapping.items() if k != v and k in new_issues}
         if article_changed:
             print(f"[이슈 자동 병합 - 기사어휘] {len(article_changed)}건: "
                   + ", ".join(f"{k} -> {v}" for k, v in list(article_changed.items())[:10]))
-            df["대표이슈"] = df["대표이슈"].map(lambda t: article_mapping.get(t, t))
+            relabel(article_changed)
     except Exception as e:
         print(f"[이슈 자동 병합 예외] {e}")
     return df
@@ -1341,13 +1385,16 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
         print(f"[보관 기간 정리 예외 - 이번엔 건너뜀] {e}")
         combined_df = combined_df.drop(columns=["dt"], errors="ignore")
 
-    combined_df = apply_issue_merge(combined_df)
+    combined_df = apply_issue_merge(combined_df, new_links=set(new_df["기사링크"].dropna()))
+    # 사람이 정한 정정이 자동 병합보다 우선한다(정정 대상 기사가 이번에 다시 수집된 경우 대비)
+    combined_df = apply_news_overrides(combined_df)
 
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
 
 def main():
     today_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     all_articles = []
+    rejected = []  # 관련도 4점 이하로 저장하지 않은 기사(save_rejected_news 참고)
     seen_links, unique_for_api = set(), {}
     idx = 0
 
@@ -1499,7 +1546,13 @@ def main():
             if norm_t in analyzed_results:
                 score, group_title, summary, sentiment, category = analyzed_results[norm_t]
                 # 기술적 분석 실패("판단 실패")는 항상 노출하고, 저관련도(score<5)만 걸러낸다
-                if sentiment != "판단 실패" and score < 5: continue
+                if sentiment != "판단 실패" and score < 5:
+                    rejected.append({
+                        "수집일자": item["today_str"], "분야": category or item["category"],
+                        "제목": item["title"], "설명": item["description"][:ANALYZE_DESCRIPTION_CHARS],
+                        "관련도": score, "기사링크": item["link"], "발행일시": item["pub_date"],
+                    })
+                    continue
                 group_title = force_merge_by_keywords(item["title"], group_title)
                 category = category or item["category"]
             else:
@@ -1523,6 +1576,7 @@ def main():
 
     save_and_merge_data(rows)
     if not SKIP_AI_ANALYSIS:
+        save_rejected_news(rejected)
         save_gemini_usage("main.py(뉴스)", len(rows), today_str)
 
 if __name__ == "__main__":
