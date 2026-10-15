@@ -30,6 +30,13 @@ KST = timezone(timedelta(hours=9))
 # 않는 죽은 코드였어서 제거함.
 HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 
+# 이슈 안 기사들의 최고 관련도가 이 점수 미만이면 화면에 안 보인다(데이터는 그대로 저장).
+# 정답 데이터(eval/labels_20261014.csv, 200건) 기준: 5점 기준은 화면 기사의 51%가 무관
+# 기사였고, 6점으로 올리면 38%로 줄면서 관련 기사는 3%만 빠졌다. 기사 단위로 자르면
+# 같은 사건 묶음이 쪼개지므로 이슈 단위로 본다.
+# "인사"는 관련도가 항상 5로 고정되고, "판단 실패"(점수 0)는 일부러 보여주는 것이라 예외.
+DISPLAY_MIN_ISSUE_SCORE = 6
+
 OUT_DIR = "docs"
 OUT_PATH = os.path.join(OUT_DIR, "index.html")
 NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
@@ -83,6 +90,10 @@ def load_data():
 
     cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=RECENT_DAYS_WINDOW)
     df = df[df['dt'] >= cutoff]
+
+    issue_max = df.groupby('대표이슈')['중요도'].transform('max')
+    exempt = (df['분야'] == '인사') | (df['논조'] == '판단 실패') | df['대표이슈'].isna()
+    df = df[exempt | (issue_max >= DISPLAY_MIN_ISSUE_SCORE)]
 
     return df
 
