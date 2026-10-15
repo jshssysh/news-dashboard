@@ -119,6 +119,7 @@ def embed_texts(texts, model, task_type="CLUSTERING"):
                 got = [e.get("values") for e in res.json().get("embeddings", [])]
                 if len(got) == len(chunk):
                     vectors.extend(got)
+                    time.sleep(1)  # 무료 등급 분당 한도 여유(수집 1회 최대 20번 안팎)
                     continue
                 print(f"[임베딩 개수 불일치] 요청 {len(chunk)}건, 응답 {len(got)}건")
             print(f"[임베딩 실패] HTTP {res.status_code} {res.text[:200]}")
@@ -1051,6 +1052,78 @@ def build_article_vocab_merge_mapping(df):
     return mapping
 
 
+# 임베딩 유사도로 새 기사를 이슈에 붙인다(2026-10-15 도입). 위의 이슈명 단어 겹침 병합은
+# 같은 사건도 이름이 달라 갈리고(정답 데이터 기준 같은 사건 기사 쌍의 63%가 다른 이슈),
+# 그걸 막으려 예외 단어 목록을 계속 늘려야 했다. 기사 제목+설명 임베딩으로 같은 데이터를
+# 시험했더니 유사도 0.85 이상이면 갈림 20%, 섞임 0%였다(eval/results, 10/15 14:31).
+# 벡터는 저장하지 않는다 - 이슈별 벡터 파일을 매번 커밋하면 저장소가 빨리 커지므로,
+# 최근 며칠 이슈의 대표 기사를 실행마다 다시 임베딩해 비교한다(수집 1회 10~20회 호출).
+EMBED_GROUP_THRESHOLD = 0.85
+EMBED_RECENT_ISSUE_DAYS = 3
+
+
+def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
+    """new_items: [{"link", "title", "description", "group_title", "score"}].
+    {기사링크: 이슈명}을 돌려준다. 임베딩을 못 쓰면 None(호출한 쪽이 기존 방식으로 처리).
+
+    점수가 높은 기사부터 차례로, 최근 이슈 대표 기사나 이번에 먼저 붙은 묶음 중 가장
+    비슷한 것과 유사도가 기준 이상이면 그 이슈명을 쓰고, 아니면 Gemini가 붙인 이름으로
+    새 묶음을 만든다. 점수 순이라 새 묶음 이름은 그 사건에서 가장 관련도 높은 기사 것이 된다."""
+    import numpy as np
+    if not new_items or not model:
+        return None
+
+    reps = []  # (이슈명, 대표 기사 텍스트)
+    if os.path.exists(history_file):
+        try:
+            hist = pd.read_csv(history_file, usecols=["수집일자", "대표이슈", "제목", "AI요약", "중요도", "논조"],
+                               encoding="utf-8-sig")
+            cutoff = (datetime.now(KST) - timedelta(days=EMBED_RECENT_ISSUE_DAYS)).strftime("%Y-%m-%d")
+            hist = hist[(hist["수집일자"].astype(str) >= cutoff) & hist["대표이슈"].notna()
+                        & ~hist["대표이슈"].isin(ERROR_ISSUE_TITLES) & (hist["논조"] != "판단 실패")]
+            hist["중요도"] = pd.to_numeric(hist["중요도"], errors="coerce").fillna(0)
+            best = hist.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1)
+            # 화면에 나오는 이슈(최고점 6점 이상)만 후보로 삼아 임베딩 호출 수를 줄인다
+            best = best[best["중요도"] >= 6]
+            reps = [(r["대표이슈"], f"{r['제목']} {r['AI요약'] if isinstance(r['AI요약'], str) else ''}".strip())
+                    for _, r in best.iterrows()]
+        except Exception as e:
+            print(f"[임베딩 묶기 - 최근 이슈 읽기 예외, 이번 기사끼리만 묶음] {e}")
+            reps = []
+
+    items = sorted(new_items, key=lambda x: -x["score"])
+    texts = [t for _, t in reps] + [f"{x['title']} {x['description']}".strip() for x in items]
+    vectors = embed_texts(texts, model)
+    if any(v is None for v in vectors):
+        print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] 실패 {sum(v is None for v in vectors)}건")
+        return None
+    vecs = np.array(vectors, dtype=float)
+    vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)
+
+    names = [name for name, _ in reps]
+    sums = [vecs[i].copy() for i in range(len(reps))]
+    cents = [vecs[i].copy() for i in range(len(reps))]
+    mapping, attached, created = {}, 0, 0
+    for k, x in enumerate(items):
+        v = vecs[len(reps) + k]
+        sims = [float(np.dot(v, c)) for c in cents]
+        best_i = int(np.argmax(sims)) if sims else -1
+        if best_i >= 0 and sims[best_i] >= EMBED_GROUP_THRESHOLD:
+            mapping[x["link"]] = names[best_i]
+            sums[best_i] = sums[best_i] + v
+            cents[best_i] = sums[best_i] / np.linalg.norm(sums[best_i])
+            attached += best_i < len(reps)
+        else:
+            names.append(x["group_title"])
+            sums.append(v.copy())
+            cents.append(v.copy())
+            mapping[x["link"]] = x["group_title"]
+            created += 1
+    print(f"[임베딩 묶기] 모델 {model}, 최근 이슈 {len(reps)}개와 비교 - 기사 {len(items)}건 중 "
+          f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개")
+    return mapping
+
+
 def apply_issue_merge(df, new_links=None):
     """저장 직전에 대표이슈를 한 번 더 병합한다. 병합 판정은 전체 데이터(과거 행 포함)를
     보고 하지만, 이름을 바꾸는 건 이번 실행에 새로 들어온 기사(new_links)만이다.
@@ -1372,7 +1445,7 @@ def save_cluster_warnings(warnings, today_str):
     combined.to_csv(CLUSTER_WARNINGS_PATH, index=False, encoding="utf-8-sig")
 
 
-def save_and_merge_data(new_rows, file_name="news_list.csv"):
+def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
     new_df = pd.DataFrame(new_rows, columns=columns)
 
@@ -1440,7 +1513,9 @@ def save_and_merge_data(new_rows, file_name="news_list.csv"):
         print(f"[보관 기간 정리 예외 - 이번엔 건너뜀] {e}")
         combined_df = combined_df.drop(columns=["dt"], errors="ignore")
 
-    combined_df = apply_issue_merge(combined_df, new_links=set(new_df["기사링크"].dropna()))
+    # 임베딩으로 이슈가 정해진 기사는 이슈명 단어 병합에서 뺀다(그 결과를 덮어쓰지 않게)
+    merge_links = set(new_df["기사링크"].dropna()) - (embedded_links or set())
+    combined_df = apply_issue_merge(combined_df, new_links=merge_links)
     # 사람이 정한 정정이 자동 병합보다 우선한다(정정 대상 기사가 이번에 다시 수집된 경우 대비)
     combined_df = apply_news_overrides(combined_df)
 
@@ -1580,8 +1655,12 @@ def main():
             if nt not in analyzed_results and leader_nt in analyzed_results:
                 analyzed_results[nt] = analyzed_results[leader_nt]
 
+        # 임베딩을 쓸 수 있으면 Gemini 이슈명 통합(master_cluster_with_gemini)은 건너뛴다 -
+        # 그 단계가 새 이슈를 엉뚱한 기존 이름에 붙이면(10/14 '현장조사 거부 파장' 사례)
+        # 임베딩 묶음의 이름까지 오염되기 때문이다. 묶기는 아래 assign_issues_by_embedding이 한다.
+        embed_model = pick_embedding_model()
         valid_group_titles = list(set([res[1] for res in analyzed_results.values() if res[0] >= 5 and res[1]]))
-        if valid_group_titles:
+        if valid_group_titles and not embed_model:
             # 이슈명별 실제 기사 제목 예시(최대 2개) - Gemini에게 이슈명 압축으로 사라진
             # 판단 근거(회사명, 사건 대상 등)를 보여줘서 같은 배치 안 중복을 더 잘 알아보게 한다.
             title_samples = {}
@@ -1631,7 +1710,22 @@ def main():
         detected = extract_personnel_appointments(personnel_candidates)
         update_personnel_csv(detected)
 
-    save_and_merge_data(rows)
+    embedded_links = set()
+    if not SKIP_AI_ANALYSIS and embed_model:
+        desc_by_link = {a["link"]: a["description"] for a in all_articles}
+        candidates = [
+            {"link": r[8], "title": r[3], "description": desc_by_link.get(r[8], "")[:ANALYZE_DESCRIPTION_CHARS],
+             "group_title": r[2], "score": r[7]}
+            for r in rows if r[6] != "판단 실패" and r[7] >= 5
+        ]
+        issue_by_link = assign_issues_by_embedding(candidates, embed_model)
+        if issue_by_link:
+            for r in rows:
+                if r[8] in issue_by_link:
+                    r[2] = force_merge_by_keywords(r[3], issue_by_link[r[8]])
+            embedded_links = set(issue_by_link)
+
+    save_and_merge_data(rows, embedded_links=embedded_links)
     if not SKIP_AI_ANALYSIS:
         save_rejected_news(rejected)
         save_gemini_usage("main.py(뉴스)", len(rows), today_str)
