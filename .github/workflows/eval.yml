@@ -1,0 +1,33 @@
+# 뉴스 필터 평가 - 정답 데이터(eval/labels_*.csv)로 Gemini 채점 기준을 시험한다.
+# GitHub 웹 Actions 탭에서 "Run workflow" 버튼으로만 실행한다(자동 실행 없음).
+# 저장소에는 아무것도 커밋하지 않고, 결과는 실행 요약 화면(Summary)에 표로 나온다.
+name: 뉴스 필터 평가
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 환경 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 필수 라이브러리 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 정답 데이터로 채점 기준 평가
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python eval/run_eval.py
