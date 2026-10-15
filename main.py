@@ -73,6 +73,61 @@ def save_gemini_usage(script, articles, today_str):
     except Exception as e:
         print(f"[Gemini 사용량 기록 예외 - 건너뜀] {e}")
 
+
+# 임베딩(기사 내용을 숫자 벡터로 바꾼 것) - 이슈명 단어 겹침 대신 내용 유사도로 같은 사건을
+# 묶기 위한 준비. 쓸 수 있는 모델 이름이 계정·시기마다 달라서(공식 문서는 회사망에서 막힘)
+# 실행할 때 목록을 조회해 고른다. 앞에 있을수록 우선.
+EMBED_MODEL_PREFERENCE = ["gemini-embedding-2", "gemini-embedding-001", "text-embedding-004"]
+EMBED_DIMENSIONS = 256   # 저장 공간을 줄이려고 줄인 차원(모델이 지원하지 않으면 무시됨)
+EMBED_BATCH_SIZE = 100   # batchEmbedContents 한 번에 보내는 개수
+
+
+def pick_embedding_model():
+    """이 키로 쓸 수 있는 임베딩 모델 이름을 고른다. 못 찾으면 None."""
+    try:
+        res = requests.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                           headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=30)
+        if res.status_code != 200:
+            print(f"[임베딩 모델 조회 실패] HTTP {res.status_code}")
+            return None
+        names = [m["name"].split("/", 1)[-1] for m in res.json().get("models", [])
+                 if "embedContent" in m.get("supportedGenerationMethods", [])]
+    except Exception as e:
+        print(f"[임베딩 모델 조회 예외] {e}")
+        return None
+    for pref in EMBED_MODEL_PREFERENCE:
+        for name in sorted(names):
+            if name.startswith(pref):
+                return name
+    return names[0] if names else None
+
+
+def embed_texts(texts, model, task_type="CLUSTERING"):
+    """texts를 임베딩한다. 실패한 묶음은 None으로 채운다(호출 수는 GEMINI_USAGE에 기록)."""
+    vectors = []
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
+    for start in range(0, len(texts), EMBED_BATCH_SIZE):
+        chunk = texts[start:start + EMBED_BATCH_SIZE]
+        payload = {"requests": [
+            {"model": f"models/{model}", "content": {"parts": [{"text": t}]},
+             "taskType": task_type, "outputDimensionality": EMBED_DIMENSIONS}
+            for t in chunk
+        ]}
+        try:
+            res = post_gemini_with_retry(url, payload, timeout=60)
+            if res.status_code == 200:
+                got = [e.get("values") for e in res.json().get("embeddings", [])]
+                if len(got) == len(chunk):
+                    vectors.extend(got)
+                    continue
+                print(f"[임베딩 개수 불일치] 요청 {len(chunk)}건, 응답 {len(got)}건")
+            print(f"[임베딩 실패] HTTP {res.status_code} {res.text[:200]}")
+        except Exception as e:
+            print(f"[임베딩 예외] {e}")
+        vectors.extend([None] * len(chunk))
+        time.sleep(4.5)
+    return vectors
+
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
 
 def load_keywords(path=KEYWORDS_CONFIG_PATH):
