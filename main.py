@@ -23,6 +23,13 @@ SKIP_AI_ANALYSIS = os.environ.get("SKIP_AI_ANALYSIS", "").strip().lower() == "tr
 # GitHub Actions 러너는 UTC로 동작하므로, 날짜/시각은 항상 한국시간(KST) 기준으로 명시해서 사용한다
 KST = timezone(timedelta(hours=9))
 
+# 이번 실행의 Gemini 호출 수. 뉴스·법안·심결·의원뉴스가 같은 무료 키를 나눠 쓰므로,
+# 실제 사용량을 gemini_usage.csv에 남겨 한도에 얼마나 가까운지 본다(save_gemini_usage).
+GEMINI_USAGE = {"calls": 0, "rate_limited": 0, "errors": 0}
+GEMINI_USAGE_PATH = "gemini_usage.csv"
+GEMINI_USAGE_RETENTION_DAYS = 60
+
+
 def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     """Gemini 호출 하나를 감싸서, 서버 과부하(503)나 타임아웃처럼 '잠깐 있다 다시 하면
     될' 일시적 오류일 때만 짧게 대기 후 한 번 더 시도한다. 그 외(200 성공, 4xx 등
@@ -30,18 +37,41 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     last_exc = None
     for attempt in range(retries + 1):
         try:
+            GEMINI_USAGE["calls"] += 1
             res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
+            if res.status_code == 429:
+                GEMINI_USAGE["rate_limited"] += 1
+            elif res.status_code != 200:
+                GEMINI_USAGE["errors"] += 1
             if res.status_code == 503 and attempt < retries:
                 time.sleep(retry_wait)
                 continue
             return res
         except requests.exceptions.RequestException as e:
+            GEMINI_USAGE["errors"] += 1
             last_exc = e
             if attempt < retries:
                 time.sleep(retry_wait)
                 continue
             raise
     raise last_exc
+
+
+def save_gemini_usage(script, articles, today_str):
+    """이번 실행의 호출 수를 gemini_usage.csv에 한 줄 추가한다(실패해도 수집에는 영향 없음)."""
+    try:
+        row = pd.DataFrame([{"실행일시": today_str, "스크립트": script, "Gemini 호출": GEMINI_USAGE["calls"],
+                             "429(한도 초과)": GEMINI_USAGE["rate_limited"], "기타 오류": GEMINI_USAGE["errors"],
+                             "저장 기사 수": articles}])
+        if os.path.exists(GEMINI_USAGE_PATH):
+            row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
+        cutoff = (datetime.now(KST) - timedelta(days=GEMINI_USAGE_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        row = row[row["실행일시"].astype(str) >= cutoff]
+        row.to_csv(GEMINI_USAGE_PATH, index=False, encoding="utf-8-sig")
+        print(f"[Gemini 사용량] 호출 {GEMINI_USAGE['calls']}회, 429 {GEMINI_USAGE['rate_limited']}회, "
+              f"기타 오류 {GEMINI_USAGE['errors']}회")
+    except Exception as e:
+        print(f"[Gemini 사용량 기록 예외 - 건너뜀] {e}")
 
 KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
 
@@ -355,9 +385,13 @@ def analyze_batch_with_gemini(batch_items):
    - 5점 이하(화면에 안 나옴): 전시회·박람회·포럼·세미나·행사 참가/개최 홍보,
      신제품·서비스·제휴카드 출시, 수주·실적·주가 전망, CSR·봉사·기부·캠페인·수상·인증
      홍보, 업무협약(MOU) 홍보, 공공기관·지자체 홍보, 공정위와 무관한 기관의 국감
-     (식약처·국세청·복지부 등), 인물 소개·일정 안내, 일반 칼럼·업계 동향
+     (식약처·국세청·복지부·코레일·국민연금 등), 정무위 국감이라도 공정위가 아닌 금융·보험
+     질의(보험 GA 등), 금융권 내부고발·포상 제도, 인물 소개·CEO 선임 일정·일정 안내,
+     계열사 자금조달(유상증자 등), 중소기업의 사업 인수·재편, 일반 칼럼·업계 동향
    기사 일부에 상생·동반성장 같은 말이 섞여 있어도 주제가 위 5점 이하 유형이면 5점 이하로
-   줄 것(예: "삼성전자, 반도체대전서 HBM4E 공개…상생협력 비전"은 기술 전시 홍보라 4점).
+   줄 것(예: "삼성전자, 반도체대전서 HBM4E 공개…상생협력 비전"은 기술 전시 홍보라 4점,
+   "롯데멤버스, 외국인 관광객 대상 '상생 영수증' 행사"는 마케팅 행사라 4점).
+   6점은 "확실히 봐야 하는 기사"에만 줄 것 - 6점과 5점 사이에서 애매하면 5점으로 줄 것.
    단, category가 삼성그룹/삼성물산인 기사는 내부 추적용이라 이 홍보성 규칙을 적용하지
    말고 그 기업 동향으로서의 중요도로 평가할 것.
 3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형).
@@ -1482,6 +1516,8 @@ def main():
         update_personnel_csv(detected)
 
     save_and_merge_data(rows)
+    if not SKIP_AI_ANALYSIS:
+        save_gemini_usage("main.py(뉴스)", len(rows), today_str)
 
 if __name__ == "__main__":
     main()
