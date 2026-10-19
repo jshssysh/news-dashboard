@@ -71,18 +71,24 @@ button:active { transform: translateY(1px); }
 
 hr.thin { border: none; border-top: 1px solid var(--app-border); margin: 8px 0; }
 
-.badge-positive, .badge-neutral, .badge-negative, .badge-fail, .badge-skipped, .chip-category, .chip-tag-warn, .chip-alert {
+.badge-fail, .badge-skipped, .chip-category, .chip-tag-warn, .chip-alert {
   display: inline-block; padding: 3px 9px; border-radius: 5px; font-weight: 700; font-size: 0.8em; letter-spacing: 0.1px; margin-right: 6px; text-decoration: none;
+  /* 테두리 있는 .chip-category와 없는 배지가 한 줄에 섞이면 2px씩 높이가 달랐고,
+     줄 높이(데스크톱 1.45 / 모바일 1.7)를 부모에서 물려받아 화면마다 또 달라졌다.
+     투명 테두리와 고정 line-height로 어디서든 같은 높이로 맞춘다. */
+  border: 1px solid transparent; line-height: 1.35;
 }
 a.badge-skipped:hover { text-decoration: underline; }
-.badge-positive { background-color: #e8f5e9; color: #2e7d32; }
-.badge-neutral { background-color: #fff3cd; color: #8a6100; }
-.badge-negative { background-color: #fdecea; color: #c62828; }
 .badge-fail { background-color: #f3e5f5; color: #7b1fa2; }
 .badge-skipped { background-color: rgba(128,128,128,0.18); color: var(--app-text); opacity: 0.7; }
 .chip-category { background: var(--app-secondary-bg); border: 1px solid var(--app-border); }
 .chip-tag-warn { background-color: #fdecea; color: #c62828; }
 .chip-alert { background-color: #c62828; color: #fff; font-size: 0.76em; }
+@media (prefers-color-scheme: dark) {
+  /* 밝은 파스텔 배경이 어두운 카드 위에서 혼자 튀어서 다크모드용으로 낮춘다 */
+  .chip-tag-warn { background-color: rgba(244,67,54,0.16); color: #ef9a9a; }
+  .badge-fail { background-color: rgba(156,39,176,0.18); color: #ce93d8; }
+}
 .card-meta-inline { font-size: 0.78em; opacity: 0.56; margin-left: 8px; }
 .bill-title-line { margin: 1px 0 5px; line-height: 1.5; }
 .card-head.bill-title-line { flex-wrap: wrap; }
@@ -98,6 +104,12 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-step.step-future { opacity: 0.35; }
 .bill-step .step-date { margin-left: 4px; font-weight: 400; opacity: 0.85; font-size: 0.92em; }
 .bill-step-arrow { opacity: 0.35; font-size: 0.85em; padding: 0 1px; }
+/* 화살표를 다음 단계와 한 묶음으로 둬서, 줄이 넘어갈 때 "›"만 윗줄 끝에 남지 않게 한다 */
+.bill-step-group { display: inline-flex; align-items: center; gap: 3px; }
+.bill-no { opacity: 0.56; font-size: 0.92em; white-space: nowrap; }
+/* 데스크톱은 제안자와 한 줄이라 "· "로 구분하고, 줄이 넘어가는 모바일에선
+   줄머리에 가운뎃점이 오지 않게 뺀다(아래 미디어쿼리). */
+.bill-no::before { content: "· "; }
 .bill-alt-link { color: #1565c0; text-decoration: none; font-weight: 600; margin-left: 2px; }
 .bill-alt-link:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) { .bill-alt-link { color: #7aa7e0; } }
@@ -131,7 +143,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .signal-box { background-color: #12203a; border: 1px solid #1b2e50; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
 .signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; cursor: help; }
 .signal-box-head { display: flex; align-items: center; justify-content: space-between; }
-.signal-toggle-btn { background: none; border: none; color: #8ab4f8; opacity: 0.7; font-size: 0.8em; padding: 0; transition: transform .15s var(--ease); }
+.signal-toggle-btn { background: none; border: none; color: #8ab4f8; opacity: 0.7; font-size: 0.8em; padding: 8px 10px; margin: -8px -10px; transition: transform .15s var(--ease); }
 .signal-box.collapsed #signalItems { display: none; }
 .signal-box.collapsed .signal-toggle-btn { transform: rotate(-90deg); }
 .signal-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); }
@@ -182,7 +194,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 #billStageSelect:hover, #billPeriodSelect:hover { border-color: var(--app-border-strong); }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus,
 #billStageSelect:focus, #billPeriodSelect:focus { outline: none; border-color: var(--app-primary); }
-.news-filter-row input[type=text] { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.news-filter-row input[type=text], .search-input { flex: 1 1 auto; min-width: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; transition: border-color .15s var(--ease); }
+.search-input:hover { border-color: var(--app-border-strong); }
+.search-input:focus { outline: none; border-color: var(--app-primary); }
 .custom-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; opacity: 0.85; }
 .custom-range-inputs input[type=date] { background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 6px; font-size: 0.95em; color-scheme: light dark; }
 .custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
@@ -205,7 +219,7 @@ a.badge-skipped:hover { text-decoration: underline; }
    모아둔 걸 분야별 보고서 표로 보여준다(2026-09-14, 화면에서 보고 캡처/복사해
    쓰는 용도 - 체크박스+일괄 담기 대신 항목별 즉시 토글 버튼으로 바꿨다). */
 .cart-inline-btn { flex-shrink: 0; background: none; border: 1px solid var(--app-border); border-radius: 6px;
-  color: var(--app-text); padding: 2px 8px; font-size: 0.78em; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  color: var(--app-text); padding: 3px 8px; font-size: 0.78em; font-weight: 700; line-height: 1.35; cursor: pointer; white-space: nowrap; }
 .cart-inline-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
 .cart-inline-btn.in-cart { background: var(--app-primary); border-color: var(--app-primary); color: #fff; }
 .cart-remove-btn { flex-shrink: 0; background: none; border: none; color: inherit; opacity: 0.4;
@@ -290,17 +304,17 @@ a.badge-skipped:hover { text-decoration: underline; }
    요청함(2026-09-11). 조치·결과(시정명령/과징금 등)는 배지가 보여준다.) */
 .decision-summary-row { display: flex; align-items: flex-start; gap: 6px; }
 .decision-summary-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-/* -webkit-line-clamp을 지원 안 하거나 line-height 계산이 딱 안 맞는 환경에서는
-   자른 경계에 3번째 줄 글자 일부가 반쯤 걸쳐 보이는 지저분한 문제가 생긴다
-   (실측: 모바일 375px에서 확인). 아래쪽을 살짝 페이드시켜서 어떤 환경에서
-   잘리든 "의도된 요약"처럼 보이게 하는 안전망 - line-clamp가 정상 동작하는
-   환경에서도 자연스러운 여운 효과라 해가 되지 않는다. */
-.decision-summary-text { -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
+/* 자른 경계에 다음 줄 글자 윗부분이 비쳐 보였다(실측: 375px, 데스크톱도 동일).
+   원인은 패딩(9px)이 있는 요소에 line-clamp를 건 것 - overflow는 패딩 박스에서
+   잘리므로 다음 줄이 아래 패딩 자리에 보였다. 위아래 여백을 투명 테두리로 옮기면
+   배경은 테두리 밑까지 칠해지고(background-clip 기본값 border-box) 글자는 테두리
+   안쪽에서 잘린다. (예전의 아래쪽 페이드 마스크는 상자 배경까지 흐려서 뺐다) */
+.decision-summary-text { padding-top: 0; padding-bottom: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
 /* 펼침 상태에 몇 줄로든 캡을 걸어두면 그보다 긴 요약은 펼쳐도 못 읽는
    부분이 생긴다(실제로 2줄을 넘는 요약이 상당수 있음) - 펼침 상태에서는
    클램프를 완전히 풀어서 항상 전문을 읽을 수 있게 한다. */
-.decision-summary-row.expanded .decision-summary-text { -webkit-line-clamp: unset; -webkit-mask-image: none; mask-image: none; }
-.decision-summary-toggle { flex-shrink: 0; margin-top: 9px; background: none; border: none; color: inherit; opacity: 0.5; cursor: pointer; padding: 0 4px; font-size: 0.75em; line-height: 1; transition: transform .15s var(--ease), opacity .15s var(--ease); }
+.decision-summary-row.expanded .decision-summary-text { -webkit-line-clamp: unset; }
+.decision-summary-toggle { flex-shrink: 0; margin-top: 1px; background: none; border: none; color: inherit; opacity: 0.5; cursor: pointer; padding: 8px 6px; font-size: 0.75em; line-height: 1; transition: transform .15s var(--ease), opacity .15s var(--ease); }
 .decision-summary-toggle:hover { opacity: 0.9; }
 .decision-summary-row.expanded .decision-summary-toggle { transform: rotate(180deg); }
 #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
@@ -373,7 +387,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .kw-row { margin-bottom: 18px; }
 .kw-row:last-child { margin-bottom: 0; }
 .kw-row-total .kw-label { font-size: 0.9em; }
-.kw-row-total .sentiment-track { height: 10px; }
+.kw-row-total .sentiment-track { height: 16px; }
 hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 0 0 16px; }
 .kw-row .kw-label { font-size: 0.84em; font-weight: 700; margin-bottom: 7px; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
 .kw-label-clickable { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: background-color .15s var(--ease); }
@@ -388,7 +402,9 @@ hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 
 .cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
 /* 법안 제안자 옆 - 22대 안에서도 동명이인이라 정당/지역구를 못 정한 경우(cat-warn과 같은 스타일) */
 .proposer-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
-.sentiment-track { display: flex; width: 100%; height: 8px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
+/* 막대 안에 건수/비율 글자(약 10px)를 넣는데 막대가 8px이라 글자가 위아래로
+   삐져나와 겹쳐 보였다 - 모바일에서 쓰던 높이(14/16px)를 데스크톱에도 쓴다. */
+.sentiment-track { display: flex; width: 100%; height: 14px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
 .sentiment-seg {
     display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
     -webkit-text-stroke: 3px var(--app-secondary-bg); paint-order: stroke fill; transition: width .3s var(--ease), filter .15s var(--ease);
@@ -613,6 +629,14 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .stat-card { padding: 10px 12px; }
   .stat-card .value { font-size: 1.35em; white-space: nowrap; }
   .stat-card .label { margin-bottom: 4px; }
+  /* 기간 표시가 라벨 옆에 붙어 있으면 "08시", "까지"만 다음 줄로 떨어졌다 - 자기 줄로 내린다 */
+  .stat-card .label .era-tag { display: block; margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 손가락으로 누르기엔 작던 버튼들(높이 17~25px)을 키운다. 페이지 번호는 12칸이
+     한 줄에 들어가야 해서 폭은 그대로 두고 높이만 늘린다. */
+  .db-date-row button, .date-pill { min-height: 32px; }
+  .pg-nav button { min-height: 32px; }
+  .pg-top select { min-height: 32px; }
 
   /* 모바일은 세로가 짧아서 필터를 고정하면 기사 카드 첫 장을 통째로 덮어버린다
      (실제로 그렇게 보였음). 좁은 화면에서는 고정하지 않고 같이 스크롤되게 둔다. */
@@ -630,13 +654,25 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 한글은 기본적으로 아무 글자에서나 줄바꿈돼 "매체 26 / 개", "중요도 / 9/10"처럼
      단어가 쪼개진다. keep-all로 어절을 붙여두되, 긴 URL 등은 못 끊으면 넘치므로
      overflow-wrap으로 예외를 허용한다. */
-  .article-title, .card-meta-group, .card-meta-inline, .summary-box-blue,
-  .bill-title-line, .signal-item-head, .signal-item-body {
+  /* 요약 본문(.summary-box-blue/.signal-item-body)은 뺐다 - 긴 어절("대상·오뚜기·CJ제일제당을")이
+     통째로 다음 줄로 밀려 오른쪽이 크게 비고, 못 넣으면 "·CJ..."처럼 줄머리에
+     가운뎃점이 오는 강제 줄바꿈이 생겼다. 본문은 한글 기본 줄바꿈이 더 고르다. */
+  .article-title, .card-meta-group, .card-meta-inline,
+  .bill-title-line, .signal-item-head {
     word-break: keep-all; overflow-wrap: anywhere;
   }
 
   /* ── 통계 타일 접기 ── */
   .stat-toggle-row { display: flex; }        /* 데스크톱에선 none (아래 기본 규칙) */
+  /* 펼쳤을 땐 바로 아래 타일 두 장이 같은 숫자를 보여주므로 요약 줄이 중복이었다
+     (사용자 지적, 2026-10-19). 펼친 상태에선 요약을 숨기고 얇은 "현황 접기 ▲"
+     줄만 남기고, 접었을 때만 요약 한 줄을 보여준다. */
+  #topStatRow:not(.stats-collapsed) .stat-toggle-row {
+    justify-content: flex-end; gap: 4px; padding: 0 2px; border: none; background: none;
+    font-size: 0.72em; font-weight: 600; opacity: 0.55; min-height: 28px; margin: -6px 0; }
+  #topStatRow:not(.stats-collapsed) #statSummaryText { display: none; }
+  #topStatRow:not(.stats-collapsed) .stat-toggle-row .toggle-caret { transform: rotate(180deg); }
+  #topStatRow.stats-collapsed .stat-fold-label { display: none; }
   #topStatRow.stats-collapsed .tile-collect,
   #topStatRow.stats-collapsed .tile-law { display: none; }
 
@@ -647,9 +683,26 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .filter-selects select { flex: 1 1 0; width: auto; min-width: 0; }
   /* 달력 두 개는 셀렉트 사이에 끼워 넣으면 너무 좁아지니 자기 줄을 통째로 쓴다 */
   .custom-range-inputs { flex: 1 1 100%; }
-  /* "오늘만" 옆 시간 선택도 셀렉트들 사이에 끼면 다른 셀렉트가 눌려 글자가 잘린다 -
-     자기 줄로 내려서 오른쪽 정렬한다(순서도 셀렉트들 뒤로 보낸다). */
-  #hoursBackSelect { order: 5; flex: 1 1 100%; }
+  /* "오늘만"일 때 나오는 시간 선택까지 네 개를 한 줄에 둔다(사용자 요청, 2026-10-19 -
+     예전엔 시간 선택이 자기 줄을 통째로 써서 두 줄이 됐다). 순서는 기간·정렬·논조·시간.
+     기본 화살표가 칸마다 20px 넘게 먹어서 작은 화살표로 바꾸고, 폭은 보통 보이는
+     글자 길이에 맞춘 비율로 나눠 375px에 네 개가 들어가게 한다. */
+  .filter-selects { gap: 6px; }
+  /* #billStageSelect/#billPeriodSelect는 아이디 규칙의 background 단축 속성이 화살표
+     이미지를 지우므로 같은 규칙에 아이디로도 걸어 우선순위를 맞춘다. */
+  .filter-selects select, .filter-selects #billStageSelect, .filter-selects #billPeriodSelect {
+    -webkit-appearance: none; appearance: none; padding: 7px 15px 7px 7px; font-size: 0.8em;
+    white-space: nowrap; text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 5px center; }
+  /* 기준 폭 = 평소 보이는 글자 폭(실측) + 좌우 여백·화살표 24px. 남는 폭은 고르게 나눈다. */
+  #periodSelect { flex: 1 1 62px; }
+  #sortSelect { flex: 1 1 75px; }
+  /* 논조는 "판단 실패"를 고를 때만 글자가 길어서 그때만 칸을 넓힌다 - 그러면 네 칸이
+     한 줄에 안 들어가 시간 칸이 다음 줄로 내려가는데, 글자가 잘리는 것보다 낫다. */
+  #sentimentSelect { flex: 1 1 50px; }
+  #sentimentSelect.is-long { flex-basis: 79px; }
+  #hoursBackSelect { order: 5; flex: 1 1 112px; }
   .news-filter-row input[type=text] { width: 100%; }
   #newsFilterSticky.news-collapsed .filter-selects,
   #newsFilterSticky.news-collapsed #searchInput,
@@ -664,7 +717,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
   /* 유사기사 토글: 하단 긴 버튼 대신 제목 줄 옆에 짧게 */
   .toggle-btn-bottom { display: none; }
-  .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 2px 8px; font-size: 0.72em; }
+  .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 5px 9px; font-size: 0.72em; }
   /* 버튼이 빠지면 선별근거 상자만 남으므로 폭을 다 쓰게 한다.
      근거가 셋(반복/키워드/제재·심결)까지 붙어도 두 줄로 넘어가지 않게
      줄바꿈을 막고 칩과 라벨을 한 단계씩 줄인다. */
@@ -723,7 +776,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     font-weight: 700; font-size: 0.95em; cursor: pointer; }
   #mobileBillSearchRow #billStarredToggle { flex: 0 0 auto; font-size: 0.99em; cursor: pointer;
     border: none; background: none; color: inherit; }
-  #mobileBillSearchRow #billSearchInput { flex: 1 1 100px; min-width: 0; }
+  /* 검색창은 .news-filter-row 밖으로 옮겨져도 .search-input 클래스로 모양을 유지한다.
+     padding만 위 "> *" 규칙(padding 0)에 지지 않게 다시 준다. */
+  #mobileBillSearchRow #billSearchInput { flex: 1 1 100px; min-width: 0; padding: 7px 12px !important; }
   #mobileBillSearchRow .custom-range-inputs { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; font-size: 0.82em; }
   #mobileBillSearchRow .custom-range-inputs input[type=date] { min-width: 0; width: 106px; padding: 5px 3px; font-size: 0.88em; }
   #mobileBillSearchRow #billDateResetBtn { flex-shrink: 0; padding: 4px 0; font-size: 0.78em; }
@@ -761,10 +816,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #billBucketFilterSection.collapsed,
   #memberCommitteeFilterSection.collapsed { display: none; }
 
-  /* 화면이 넓어 막대가 기니 건수/비율을 막대 안에 넣고 줄 간격을 줄인다 */
+  /* 화면이 넓어 막대가 기니 줄 간격을 줄인다(막대 높이는 기본 규칙과 같음) */
   .kw-row { margin-bottom: 14px; }
-  .sentiment-track { height: 14px; }
-  .kw-row-total .sentiment-track { height: 16px; }
 
   /* ── 처리상태 흐름을 좁은 화면에서도 한 줄로 ──
      칸 5개 + 화살표 4개를 폭 안에 넣으려면 이름 옆에 건수를 나란히 못 둔다.
@@ -777,9 +830,15 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .stage-flow-header .bill-step-arrow { font-size: 0.55em; padding: 0; }
   .stage-flow-compact .flow-plain { flex-direction: column; gap: 0; line-height: 1.3; }
   .stage-flow-compact .flow-cnt { font-size: 0.86em; }
+  /* 건수가 아랫줄로 내려간 단계 칸(2줄)과 "전체" 칸(1줄)의 높이가 달랐다 - 같은 높이로 늘린다 */
+  .stage-flow-header, .stage-flow-compact { align-items: stretch; }
+  .stage-flow-header .bill-step-arrow { align-self: center; }
 
   /* ── 국회의원 카드 ── */
-  #memberListArea { grid-template-columns: 1fr; }
+  /* 그냥 1fr이면 최소 폭이 내용(줄바꿈 안 하는 지역구 줄 등) 폭이 되어 카드가
+     화면 밖으로 넘치고 페이지 전체가 좌우로 밀렸다(실측: 375px에서 404px) */
+  #memberListArea { grid-template-columns: minmax(0, 1fr); }
+  .bill-no::before { content: none; }
   .member-card-row { gap: 10px; }
   .member-side { width: 70px; }
   .member-photo { width: 48px; height: 60px; }
@@ -807,7 +866,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     </div>
     <!-- 모바일에서만 보이는 접기 줄. 접으면 아래 두 타일이 숨고 요약만 한 줄로 남는다. -->
     <button class="stat-toggle-row" id="statToggleBtn">
-      <span id="statSummaryText"></span><span class="toggle-caret">▼</span>
+      <span id="statSummaryText"></span><span class="stat-fold-label">현황 접기</span><span class="toggle-caret">▼</span>
     </button>
     <div class="tile-collect"><div class="stat-card" id="statCollect"></div></div>
     <div class="tile-law"><div class="stat-card" id="statLaw"></div></div>
@@ -852,7 +911,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
             <option value="latest">최신순</option>
           </select>
           <select id="sentimentSelect" class="sel-sentiment">
-            <option value="">논조 전체</option>
+            <option value="">논조</option>
             <option value="긍정">긍정</option>
             <option value="중립">중립</option>
             <option value="부정">부정</option>
@@ -937,7 +996,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           </span>
         </div>
         <button id="billStarredToggle" class="star-filter-btn">☆</button>
-        <input type="text" id="billSearchInput" placeholder="법안명, 발의자에서 검색">
+        <input type="text" id="billSearchInput" class="search-input" placeholder="법안명, 발의자에서 검색">
       </div>
       <div class="filter-section" id="committeeFilterSection">
         <div class="filter-section-header">
@@ -1109,7 +1168,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-19 07:54 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-19 12:34 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1655,7 +1714,6 @@ function selectionReasons(g) {
   if (g.category === "공정거래") reasons.push(REASON_SANCTION);
   return reasons;
 }
-function badgeClass(sentiment) { return {'긍정':'badge-positive','부정':'badge-negative','판단 실패':'badge-fail'}[sentiment] || 'badge-neutral'; }
 function fmtDt(ts) {
   if (!ts) return "";
   const d = new Date(ts);
@@ -2513,6 +2571,7 @@ function renderNewsView(dr, allGroups) {
     state.page = 1;
     chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
     document.getElementById('sentimentSelect').value = state.sentiment;
+    syncSentimentSelectWidth();
     renderMainList(scoped, allGroups);
   };
   sidebarEl.querySelectorAll('.kw-label-clickable, .sentiment-seg').forEach(el => {
@@ -2556,14 +2615,18 @@ function renderMainList(scoped, allGroups) {
     listEl.innerHTML = "<div class='info-box'>조건에 맞는 기사가 없습니다.</div>";
   } else {
     listEl.innerHTML = pageGroups.map(g => {
-      const bc = badgeClass(g.sentiment);
       const reasons = selectionReasons(g);
       const fineTag = extractFineAmount(g.title + " " + g.summary);
       const domain = extractDomain(g.repLink);
       const dt = fmtDt(g.repPubTs || g.repTs);
       const issueKey = (g.title + "|" + g.repLink).replace(/"/g,'&quot;');
       const isOpen = !!state.openIssues[issueKey];
-      let tags = `<span class="${bc}">${g.sentiment}</span> <span class="chip-category">${g.category}</span>`;
+      // 긍정/부정/중립 배지는 뺐다(2026-10-19) - 논조가 카테고리에 거의 따라붙어서
+      // (공정거래 68% 부정, 상생 78%·ESG 87% 긍정) 카드마다 새로 알려주는 게 적었다.
+      // 논조 필터와 수집 현황 막대는 그대로 둔다. "판단 실패"는 논조가 아니라 AI
+      // 분석이 안 된 기사라는 표시라 그때만 남긴다.
+      let tags = g.sentiment === '판단 실패' ? `<span class="badge-fail">판단 실패</span> ` : '';
+      tags += `<span class="chip-category">${g.category}</span>`;
       if (reasons.indexOf(REASON_SANCTION) !== -1) tags += " <span class='chip-tag-warn'>제재·규제</span>";
       if (fineTag) tags += ` <span class="chip-alert">${fineTag}</span>`;
       const reasonChips = reasons.map(r => `<span class='reason-chip'>${r}</span>`).join(' ');
@@ -2618,13 +2681,14 @@ function renderMainList(scoped, allGroups) {
   pg.querySelectorAll('.pg-num').forEach(b => b.addEventListener('click', () => { state.page = parseInt(b.dataset.p,10); renderMainList(scoped, allGroups); }));
 }
 
+// 약칭은 국회 인터넷 의사중계 표기를 따른다(2026-10-19 - 산자중기위/기후노동위/재경위).
 const COMMITTEE_ABBR = {
   "국회운영위원회": "운영위", "법제사법위원회": "법사위", "정무위원회": "정무위",
-  "재정경제기획위원회": "재정경제기획위", "교육위원회": "교육위", "과학기술정보방송통신위원회": "과방위",
+  "재정경제기획위원회": "재경위", "교육위원회": "교육위", "과학기술정보방송통신위원회": "과방위",
   "외교통일위원회": "외통위", "국방위원회": "국방위", "행정안전위원회": "행안위",
   "문화체육관광위원회": "문체위", "농림축산식품해양수산위원회": "농해수위",
-  "산업통상자원중소벤처기업위원회": "산자위", "보건복지위원회": "복지위",
-  "기후에너지환경노동위원회": "기후에너지환경노동위", "국토교통위원회": "국토위", "정보위원회": "정보위",
+  "산업통상자원중소벤처기업위원회": "산자중기위", "보건복지위원회": "복지위",
+  "기후에너지환경노동위원회": "기후노동위", "국토교통위원회": "국토위", "정보위원회": "정보위",
   "성평등가족위원회": "성평등가족위", "예산결산특별위원회": "예결위", "기후위기 특별위원회": "기후위기특위",
 };
 function committeeAbbr(name) {
@@ -2642,15 +2706,15 @@ function committeeAbbr(name) {
 }
 
 // 의원 카드는 이름 옆 좁은 자리에 위원회가 여러 개 붙는 칸이라(예: 위원회 3개짜리
-// 카드), 필터 칩에 쓰는 committeeAbbr("기후에너지환경노동위" 10자)까지도 너무 길어서
-// 한 개씩 줄바꿈되는 문제가 있었다. 카드에서만 4자 넘으면 더 짧게 자르고,
+// 카드), 긴 약칭은 한 개씩 줄바꿈되는 문제가 있었다. 카드에서만 5자 넘으면 더
+// 짧게 자르고(의사중계 약칭으로 바꾼 뒤 "산자중기위"·"기후노동위"는 5자라 그대로 보인다),
 // 전체 이름은 마우스를 올리면(title) 보이게 한다.
 function committeeCardLabel(name) {
   const abbr = committeeAbbr(name) || name;
-  return abbr.length > 4 ? abbr.slice(0, 3) + "…" : abbr;
+  return abbr.length > 5 ? abbr.slice(0, 3) + "…" : abbr;
 }
 
-// 정무위/법사위/산자위/기후에너지환경노동위/재경위를 앞에 고정하고, 그 뒤는
+// 정무위/법사위/산자중기위/기후노동위/재경위를 앞에 고정하고, 그 뒤는
 // 산업·기업 활동과 연관도가 높은 순으로 상임위를 배치한다 (사용자 지정 순서).
 const COMMITTEE_PRIORITY = [
   "정무위원회", "법제사법위원회", "산업통상자원중소벤처기업위원회",
@@ -2738,7 +2802,7 @@ function billStepperHtml(b) {
       const isOpen = !!state.openBillAlts[b.id];
       altHtml = ` <button type="button" class="bill-alt-toggle" data-id="${b.id}">반영된 법안 ${b.absorbedBills.length}건 ${isOpen?'▲':'▼'}</button>`;
     }
-    return `${arrow}<span class="bill-step ${cls}">${s.label}${resultHtml}${dateHtml}${altHtml}</span>`;
+    return `<span class="bill-step-group">${arrow}<span class="bill-step ${cls}">${s.label}${resultHtml}${dateHtml}${altHtml}</span></span>`;
   }).join('');
 }
 
@@ -3130,7 +3194,7 @@ function renderBillList() {
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
-          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer, b.repProposerAmbiguous)}<span class="meta-dim">${b.no?` · 의안번호 ${b.no}`:''}</span>
+          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer, b.repProposerAmbiguous)}${b.no?`<span class="bill-no">의안번호 ${b.no}</span>`:''}
         </div>
         <div class="bill-stepper">${billStepperHtml(b)}</div>
         ${b.absorbedBills && b.absorbedBills.length ? billAltChildrenHtml(b) : ''}
@@ -3637,7 +3701,13 @@ document.getElementById('customToInput').addEventListener('change', e => {
   renderAll();
 });
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
-document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; renderAll(); });
+// 모바일 한 줄 필터에서 논조 칸은 "판단 실패"를 고르면 글자가 길어 잘리므로 칸을 넓힌다
+// (긍정/중립/부정은 기본 폭에 들어간다).
+function syncSentimentSelectWidth() {
+  const sel = document.getElementById('sentimentSelect');
+  sel.classList.toggle('is-long', sel.value === '판단 실패');
+}
+document.getElementById('sentimentSelect').addEventListener('change', e => { state.sentiment = e.target.value; state.page = 1; syncSentimentSelectWidth(); renderAll(); });
 document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; state.page = 1; renderAll(); });
 document.getElementById('billSearchInput').addEventListener('input', e => { state.billSearch = e.target.value; state.billPage = 1; renderBills(); });
 document.getElementById('memberSearchInput').addEventListener('input', e => { state.memberSearch = e.target.value; state.memberPage = 1; renderMembers(); });
@@ -3819,90 +3889,82 @@ sidebarToggleEl.addEventListener('click', () => {
   writeFlag(SIDE_COLLAPSE_KEY, on);
 });
 
-// "카테고리별 주요뉴스"/"카테고리별 수집 현황" 제목 두 줄을 모바일에서만 한 줄로
-// 좌우로 합친다(사용자 요청, 2026-09-11) - 서로 다른 부모 밑이라 CSS만으론
-// 안 되므로, 제목 요소 자체를 공유 래퍼로 옮긴다. IS_NARROW는 로드 시 한 번만
-// 계산되는 값이라 이 이동도 로드 시 한 번만 일어나고, 데스크톱(IS_NARROW
-// false)에서는 원본 구조를 전혀 건드리지 않는다.
-if (IS_NARROW) {
-  const filterRow = document.querySelector('.news-filter-row');
-  if (filterRow && filterRow.parentNode) {
-    const combinedRow = document.createElement('div');
-    combinedRow.id = 'mobileSectionToggleRow';
-    combinedRow.appendChild(newsFilterToggleEl);
-    combinedRow.appendChild(sidebarToggleEl);
-    filterRow.parentNode.insertBefore(combinedRow, filterRow);
-  }
+// 모바일에서는 서로 다른 부모 밑에 있는 제목·토글들을 공유 행 하나로 옮겨 한 줄에
+// 모은다(뉴스/입법/의원 탭, 사용자 요청 2026-09-11~09-22 - CSS만으론 부모가 달라
+// 합칠 수 없다). 예전엔 로드 시 한 번만 옮기고 끝이라, 창을 넓히거나 태블릿을
+// 돌려 800px을 넘으면 데스크톱 화면에 모바일 배치가 남았다. 지금은 원래 자리에
+// 표시(주석 노드)를 남겨 두고 옮겼다가, 폭이 바뀌면 그 자리로 되돌린다.
+function mobileRow(id, anchor, els, onApply, onUndo) {
+  const row = document.createElement('div');
+  row.id = id;
+  const marks = els.map(el => { const m = document.createComment(id); el.parentNode.insertBefore(m, el); return m; });
+  return {
+    row,
+    apply() { els.forEach(el => row.appendChild(el)); anchor.parentNode.insertBefore(row, anchor); if (onApply) onApply(); },
+    undo() { els.forEach((el, i) => marks[i].parentNode.insertBefore(el, marks[i])); row.remove(); if (onUndo) onUndo(); },
+  };
 }
+const NARROW_MQ = (() => { try { return window.matchMedia('(max-width: 800px)'); } catch(e) { return null; } })();
+const isNarrowNow = () => !!(NARROW_MQ && NARROW_MQ.matches);
+const mobileRows = [];
 
-// 입법 탭: "검색"▶ 하나로 단계·기간 셀렉트·☆ 즐겨찾기·검색창까지 모바일에서만
-// 한 줄로 합쳐서 같이 접었다 펼친다(사용자 요청, 2026-09-14 최초 / 2026-09-22
-// 단계·기간 셀렉트로 확장 - 뉴스 탭처럼 처리단계[전체/입안/상임위/법사위/
-// 본회의]와 제안일 기간[오늘만/최근7일/최근30일/날짜지정]을 검색 줄에 통합).
-// "소관위"는 이 줄에 넣지 않고 원래 있던 필터-섹션에 그대로 남겨둔다.
+// 뉴스 탭: "검색"/"수집 현황" 두 접기 제목을 좌우로 나란히.
+mobileRows.push(mobileRow('mobileSectionToggleRow', document.querySelector('.news-filter-row'),
+  [newsFilterToggleEl, sidebarToggleEl]));
+
+// 입법 탭: "검색"▶ 하나로 단계·기간 셀렉트·☆ 즐겨찾기·검색창까지 한 줄로 합쳐서 같이
+// 접었다 펼친다. "소관위"는 이 줄에 넣지 않고 원래 필터-섹션에 그대로 둔다.
 const BILL_SEARCH_COLLAPSE_KEY = 'billSearchCollapsed';
 const billMainFilterRow = document.getElementById('billMainFilterRow');
 const billSearchToggleEl = document.getElementById('billSearchToggle');
-const billFilterSelectsEl = document.getElementById('billFilterSelects');
-if (IS_NARROW && billMainFilterRow && billSearchToggleEl) {
-  const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
-    ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
+const billSearchCollapsedInit = localStorage.getItem(BILL_SEARCH_COLLAPSE_KEY) === null
+  ? true : readFlag(BILL_SEARCH_COLLAPSE_KEY);
+const billRow = mobileRow('mobileBillSearchRow', billMainFilterRow,
+  ['billSearchToggle', 'billFilterSelects', 'billStarredToggle', 'billSearchInput'].map(id => document.getElementById(id)),
+  // 옮기고 나면 원래 줄은 비므로 숨기고, 되돌릴 때 다시 보인다. 접힘 표시(캐럿)는
+  // 모바일 공유 행에서만 의미가 있어 데스크톱에선 떼어 둔다.
+  () => { billMainFilterRow.style.display = 'none'; billSearchToggleEl.classList.toggle('is-collapsed', billRow.row.classList.contains('bill-search-collapsed')); },
+  () => { billMainFilterRow.style.display = ''; billSearchToggleEl.classList.remove('is-collapsed'); });
+billRow.row.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
+billSearchToggleEl.addEventListener('click', () => {
+  if (!isNarrowNow()) return;
+  const on = billRow.row.classList.toggle('bill-search-collapsed');
+  billSearchToggleEl.classList.toggle('is-collapsed', on);
+  writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
+});
+mobileRows.push(billRow);
 
-  const billStarredToggleEl = document.getElementById('billStarredToggle');
-  const billSearchInputEl = document.getElementById('billSearchInput');
-  if (billStarredToggleEl && billSearchInputEl && billMainFilterRow.parentNode) {
-    const billCombinedRow = document.createElement('div');
-    billCombinedRow.id = 'mobileBillSearchRow';
-    billCombinedRow.appendChild(billSearchToggleEl);
-    if (billFilterSelectsEl) billCombinedRow.appendChild(billFilterSelectsEl);
-    billCombinedRow.appendChild(billStarredToggleEl);
-    billCombinedRow.appendChild(billSearchInputEl);
-    billMainFilterRow.parentNode.insertBefore(billCombinedRow, billMainFilterRow);
-    // 검색토글/단계·기간 셀렉트/☆/입력창이 다 옮겨져 비었으니 원래 자리는 숨긴다.
-    billMainFilterRow.style.display = 'none';
-
-    billCombinedRow.classList.toggle('bill-search-collapsed', billSearchCollapsedInit);
-    billSearchToggleEl.classList.toggle('is-collapsed', billSearchCollapsedInit);
-    billSearchToggleEl.addEventListener('click', () => {
-      const on = billCombinedRow.classList.toggle('bill-search-collapsed');
-      billSearchToggleEl.classList.toggle('is-collapsed', on);
-      writeFlag(BILL_SEARCH_COLLAPSE_KEY, on);
-    });
-  }
-}
-
-// 의원 탭: "검색" 제목을 눌러 "기본" 범위토글 버튼 + 검색창을 같이 접었다
-// 펼친다(모바일 전용, 사용자 요청 2026-09-11 - 입법 탭과 같은 패턴).
+// 의원 탭: "검색" 제목을 눌러 "기본" 범위토글 버튼 + 검색창을 같이 접었다 펼치고,
+// "검색"/"정당"/"법안"/"소속위" 네 토글을 한 줄로 합친다(입법 탭과 같은 기법 -
+// 정당/법안/소속위 칩 목록은 각자의 .filter-section 안에 그대로 남는다).
+// member-search-collapsed 클래스는 모바일 미디어쿼리 안에서만 효과가 있다.
 const MEMBER_SEARCH_COLLAPSE_KEY = 'memberSearchCollapsed';
 const memberMainFilterRow = document.getElementById('memberMainFilterRow');
 const memberSearchToggleEl = document.getElementById('memberSearchToggle');
-if (IS_NARROW && memberMainFilterRow && memberSearchToggleEl) {
-  const memberSearchCollapsedInit = localStorage.getItem(MEMBER_SEARCH_COLLAPSE_KEY) === null
-    ? true : readFlag(MEMBER_SEARCH_COLLAPSE_KEY);
-  memberMainFilterRow.classList.toggle('member-search-collapsed', memberSearchCollapsedInit);
-  memberSearchToggleEl.classList.toggle('is-collapsed', memberSearchCollapsedInit);
-  memberSearchToggleEl.addEventListener('click', () => {
-    const on = memberMainFilterRow.classList.toggle('member-search-collapsed');
-    memberSearchToggleEl.classList.toggle('is-collapsed', on);
-    writeFlag(MEMBER_SEARCH_COLLAPSE_KEY, on);
-  });
+const memberSearchCollapsedInit = localStorage.getItem(MEMBER_SEARCH_COLLAPSE_KEY) === null
+  ? true : readFlag(MEMBER_SEARCH_COLLAPSE_KEY);
+memberMainFilterRow.classList.toggle('member-search-collapsed', memberSearchCollapsedInit);
+memberSearchToggleEl.classList.toggle('is-collapsed', memberSearchCollapsedInit);
+memberSearchToggleEl.addEventListener('click', () => {
+  if (!isNarrowNow()) return;
+  const on = memberMainFilterRow.classList.toggle('member-search-collapsed');
+  memberSearchToggleEl.classList.toggle('is-collapsed', on);
+  writeFlag(MEMBER_SEARCH_COLLAPSE_KEY, on);
+});
+mobileRows.push(mobileRow('mobileMemberToggleRow', memberMainFilterRow,
+  ['memberSearchToggle', 'memberPartyToggle', 'memberBillBucketToggle', 'memberCommitteeToggle'].map(id => document.getElementById(id))));
 
-  // "검색"/"정당"/"법안"/"소속위" 네 토글을 한 줄로 합친다(사용자 요청,
-  // 2026-09-11) - 입법 탭과 같은 기법. 정당/법안/소속위는 원래 있던
-  // 필터-섹션 토글 버튼을 그대로 재사용하되 공유 행으로 옮긴다(그 몸통인
-  // 칩 목록은 각자의 .filter-section 안에 그대로 남아 원래 순서대로 펼쳐짐).
-  const memberPartyToggleEl = document.getElementById('memberPartyToggle');
-  const memberBillBucketToggleEl = document.getElementById('memberBillBucketToggle');
-  const memberCommitteeToggleEl = document.getElementById('memberCommitteeToggle');
-  if (memberPartyToggleEl && memberBillBucketToggleEl && memberCommitteeToggleEl && memberMainFilterRow.parentNode) {
-    const memberCombinedRow = document.createElement('div');
-    memberCombinedRow.id = 'mobileMemberToggleRow';
-    memberCombinedRow.appendChild(memberSearchToggleEl);
-    memberCombinedRow.appendChild(memberPartyToggleEl);
-    memberCombinedRow.appendChild(memberBillBucketToggleEl);
-    memberCombinedRow.appendChild(memberCommitteeToggleEl);
-    memberMainFilterRow.parentNode.insertBefore(memberCombinedRow, memberMainFilterRow);
-  }
+let mobileRowsApplied = false;
+function syncMobileRows() {
+  const narrow = isNarrowNow();
+  if (narrow === mobileRowsApplied) return;
+  mobileRows.forEach(r => narrow ? r.apply() : r.undo());
+  mobileRowsApplied = narrow;
+}
+syncMobileRows();
+if (NARROW_MQ) {
+  if (NARROW_MQ.addEventListener) NARROW_MQ.addEventListener('change', syncMobileRows);
+  else if (NARROW_MQ.addListener) NARROW_MQ.addListener(syncMobileRows);
 }
 
 // 뉴스 탭의 sticky 필터 블록 높이를 CSS 변수로 흘려서, 오른쪽 사이드바가 그 아래에
