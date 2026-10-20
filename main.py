@@ -913,11 +913,11 @@ def _should_merge_issue_cross_root(tokens_a, tokens_b):
     return len(shared_specific) >= CROSS_ROOT_MIN_SHARED_SPECIFIC
 
 
-def build_issue_merge_mapping(titles_oldest_first):
+def build_issue_merge_mapping(titles_oldest_first, allow_cross_root=True):
     """이슈명 목록(먼저 등장한 순)을 받아 {이슈명: 통합 이슈명} 매핑을 만든다.
     Gemini 호출 없이 파이썬만으로 처리하므로 무료 등급 호출 한도에 영향이 없다.
     통합 이름은 "가장 먼저 등장한 이름"으로 고정해서, 같은 사건 이름이 날마다
-    바뀌지 않게 한다."""
+    바뀌지 않게 한다. allow_cross_root=False면 뿌리(당사자)가 다른 이슈끼리는 묶지 않는다."""
     canonical = {}  # 뿌리(동의어는 대표 표기로 정규화) -> [(대표이름, 토큰)]
     all_canonical = []  # 뿌리 무관 전체 목록 (교차 뿌리 검사용)
     mapping = {}
@@ -934,7 +934,7 @@ def build_issue_merge_mapping(titles_oldest_first):
             if _should_merge_issue(existing_tokens, tokens):
                 merged_into = existing_title
                 break
-        if merged_into is None:
+        if merged_into is None and allow_cross_root:
             for existing_title, existing_tokens in all_canonical:
                 if _should_merge_issue_cross_root(existing_tokens, tokens):
                     merged_into = existing_title
@@ -1072,6 +1072,8 @@ def build_article_vocab_merge_mapping(df):
 # 캐시에 없는 최근 이슈 대표 기사만 임베딩한다(캐시가 비어 있는 첫 실행만 많음).
 EMBED_GROUP_THRESHOLD = 0.85
 EMBED_RECENT_ISSUE_DAYS = 3
+EMBED_MIN_SCORE = 6
+EMBED_MAX_REPS_PER_RUN = 300  # 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한
 EMBED_CACHE_PATH = os.path.join(".cache", "embeddings.json.gz")
 EMBED_CACHE_DAYS = 4
 EMBED_LAST_RESULT = {"text": "실행 안 함"}  # gemini_usage.csv에 남기는 이번 실행 결과
@@ -1133,16 +1135,28 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             print(f"[임베딩 묶기 - 최근 이슈 읽기 예외, 이번 기사끼리만 묶음] {e}")
             hist = pd.DataFrame()
 
-    # 캐시에 벡터가 하나도 없는 최근 이슈는 대표 기사(최고점·최신) 하나만 임베딩해 채운다
-    to_embed = []  # (기사링크, 텍스트, 수집일자)
+    to_embed = []  # (기사링크, 텍스트, 수집일자) - 새 기사를 먼저 넣어 한도가 모자라도 새 기사부터 임베딩된다
+    items = sorted(new_items, key=lambda x: -x["score"])
+    # 같은 유사 제목 묶음(group_key)에서는 점수가 가장 높은 기사 한 건만 임베딩한다
+    seen_keys, group_rep = set(), {}
+    for x in items:
+        key = x.get("group_key", x["link"])
+        if key in group_rep:
+            continue
+        group_rep[key] = x["link"]
+        if x["link"] not in cache and key not in seen_keys:
+            to_embed.append((x["link"], f"{x['title']} {x['description']}".strip(), x["ts"]))
+        seen_keys.add(key)
+
+    # 캐시에 벡터가 하나도 없는 최근 이슈는 대표 기사(최고점·최신) 하나만 임베딩해 채운다.
+    # 캐시가 빈 첫 실행에 1,300건 넘게 몰려 하루 한도를 다 쓰지 않도록 최근 이슈부터 상한까지만.
     if not hist.empty:
         cached_issue = hist[hist["기사링크"].isin(cache)]["대표이슈"].unique()
         missing = hist[~hist["대표이슈"].isin(cached_issue)]
-        for _, r in missing.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1).iterrows():
+        reps = missing.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1)
+        for _, r in reps.sort_values("수집일자", ascending=False).head(EMBED_MAX_REPS_PER_RUN).iterrows():
             summary = r["AI요약"] if isinstance(r["AI요약"], str) else ""
             to_embed.append((r["기사링크"], f"{r['제목']} {summary}".strip(), str(r["수집일자"])))
-    items = sorted(new_items, key=lambda x: -x["score"])
-    to_embed += [(x["link"], f"{x['title']} {x['description']}".strip(), x["ts"]) for x in items if x["link"] not in cache]
 
     vectors = embed_texts([t for _, t, _ in to_embed], model) if to_embed else []
     failed = sum(v is None for v in vectors)
@@ -1150,8 +1164,15 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
         if v is not None:
             vec = np.asarray(v, dtype=float)
             cache[link] = (vec / np.linalg.norm(vec), ts)
+    for x in items:  # 대표 기사의 벡터를 같은 묶음 기사에 나눠 준다
+        rep_link = group_rep.get(x.get("group_key", x["link"]), x["link"])
+        if x["link"] not in cache and rep_link in cache:
+            cache[x["link"]] = (cache[rep_link][0], x["ts"])
     _save_embed_cache(cache)
-    if any(x["link"] not in cache for x in items):
+    # 벡터가 없는 기사(임베딩 실패)는 빼고 진행한다 - 그 기사들만 이슈명 병합으로 처리된다
+    skipped = [x for x in items if x["link"] not in cache]
+    items = [x for x in items if x["link"] in cache]
+    if not items:
         EMBED_LAST_RESULT["text"] = f"실패(임베딩 {failed}/{len(to_embed)}건 실패) -> 기존 방식"
         print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
         return None
@@ -1179,8 +1200,9 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             cents.append(v.copy())
             mapping[x["link"]] = x["group_title"]
             created += 1
-    EMBED_LAST_RESULT["text"] = (f"성공(새로 임베딩 {len(to_embed)}건, 최근 이슈 {n_recent}개와 비교, "
-                                 f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개)")
+    EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, "
+                                 f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
+                                 f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 기존 방식으로 넘김 {len(skipped)}건)")
     print(f"[임베딩 묶기] 모델 {model} - {EMBED_LAST_RESULT['text']}")
     return mapping
 
@@ -1204,11 +1226,21 @@ def apply_issue_merge(df, new_links=None):
 
     try:
         order = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
-        first_seen = df.assign(_dt=order).groupby("대표이슈")["_dt"].min().sort_values()
+        dated = df.assign(_dt=order)
+        first_seen = dated.groupby("대표이슈")["_dt"].min().sort_values()
+        # 새 기사는 최근 며칠 안에 기사가 있었던 이슈에만 붙인다. 이 제한이 없어서 10/20
+        # 세라젬 승계 기사가 '지분 승계'·'경영권 승계' 단어만 겹친 8월 '원림 지분 승계 재편',
+        # '가족기업 경영권 승계' 이슈에 붙었다(임베딩이 하루 한도로 실패해 이 방식으로 처리된 날).
+        last_seen = dated.groupby("대표이슈")["_dt"].max()
+        recent_cutoff = order.max() - pd.Timedelta(days=EMBED_RECENT_ISSUE_DAYS)
+        recent = set(last_seen[last_seen >= recent_cutoff].index)
+        # 당사자(첫 단어)가 다른 이슈끼리 붙이는 교차 뿌리 병합도 끈다 - 같은 사건이 갈리는
+        # 것보다, 다른 회사 이슈에 붙어 버리는 쪽이 훨씬 해롭다(원림·강덕영·현장조사 사례).
+        # 표현이 다른 같은 사건은 임베딩 묶기가 맡는다.
         mapping = build_issue_merge_mapping([
             t for t in first_seen.index
-            if isinstance(t, str) and t.strip() and t not in ERROR_ISSUE_TITLES
-        ])
+            if isinstance(t, str) and t.strip() and t not in ERROR_ISSUE_TITLES and t in recent
+        ], allow_cross_root=False)
         new_issues = set(df.loc[target, "대표이슈"].dropna())
         changed = {k: v for k, v in mapping.items() if k != v and k in new_issues}
         if changed:
@@ -1774,10 +1806,15 @@ def main():
     embedded_links = set()
     if not SKIP_AI_ANALYSIS and embed_model:
         desc_by_link = {a["link"]: a["description"] for a in all_articles}
+        # 제목이 거의 같은 기사(같은 유사 제목 묶음)는 대표 한 건만 임베딩해 나눠 쓴다
+        group_by_link = {a["link"]: title_cluster_map.get(a["norm_t"], a["norm_t"]) for a in all_articles}
+        # 임베딩 무료 한도가 하루 약 1,000건이라(10/19~21 기록: 저녁 수집에서 1,000건 안팎
+        # 성공 후 막히고 아침·점심은 전부 실패) 화면에 나오는 6점 이상 기사만 임베딩한다.
+        # 5점 기사는 아래 이슈명 병합(같은 당사자·최근 3일)으로 처리된다.
         candidates = [
             {"link": r[8], "title": r[3], "description": desc_by_link.get(r[8], "")[:ANALYZE_DESCRIPTION_CHARS],
-             "group_title": r[2], "score": r[7], "ts": r[0]}
-            for r in rows if r[6] != "판단 실패" and r[7] >= 5
+             "group_title": r[2], "score": r[7], "ts": r[0], "group_key": group_by_link.get(r[8], r[8])}
+            for r in rows if r[6] != "판단 실패" and r[7] >= EMBED_MIN_SCORE
         ]
         issue_by_link = assign_issues_by_embedding(candidates, embed_model)
         if issue_by_link:
