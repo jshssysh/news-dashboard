@@ -243,6 +243,59 @@ def party_abbr(name):
     return PARTY_ABBR.get(name, name)
 
 
+# ALLNAMEMBER의 정당 칸(PLPT_NM)은 "당선 당시" 정당이라, 위성정당 비례대표로
+# 당선된 사람은 위성정당이 해산되고 원래 당(사회민주당·진보당·기본소득당 등)으로
+# 돌아간 뒤에도 계속 "더불어민주연합"/"국민의미래"로 남는다(실측: 한창민 -
+# ALLNAMEMBER엔 더불어민주연합, 현직 API엔 사회민주당). 현재 소속은 현직 의원
+# 인적사항 API(POLY_NM)가 정확하므로 그걸 우선하고, 위성정당은 "이전 정당"
+# 이력에서도 뺀다(선거용으로 잠깐 적만 둔 곳이라 "前 더불어민주연합"은 오해를 준다).
+CURRENT_MEMBER_API = "nwvrqwxyaytdsfvhu"  # 국회의원 인적사항(현직) - POLY_NM이 현재 소속정당
+SATELLITE_PARTIES = {"더불어민주연합", "국민의미래", "더불어시민당", "미래한국당"}
+
+
+def fetch_current_parties():
+    """현직 의원 인적사항 API에서 {의원코드(MONA_CD): 현재 소속정당} 사전을 만든다.
+    실패하면 빈 사전 - 그때는 ALLNAMEMBER 정당을 그대로 쓴다."""
+    parties = {}
+    p_index = 1
+    while p_index <= 10:  # 안전장치: 현직은 300명 남짓
+        params = {"KEY": ASSEMBLY_API_KEY, "Type": "json", "pIndex": p_index, "pSize": 100}
+        try:
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{CURRENT_MEMBER_API}", params, timeout=40)
+            if res.status_code != 200:
+                print(f"[현직 의원 정당 조회 실패] {p_index}페이지: status={res.status_code} body={res.text[:300]}")
+                break
+            rows = _extract_rows(res.json(), CURRENT_MEMBER_API)
+            if not rows:
+                break
+            for row in rows:
+                code = row.get("MONA_CD")
+                party = (row.get("POLY_NM") or "").strip()
+                if code and party:
+                    parties[code] = party
+            if len(rows) < 100:
+                break
+            p_index += 1
+            time.sleep(0.1)
+        except Exception:
+            print(f"[현직 의원 정당 조회 예외] {p_index}페이지:\n{traceback.format_exc()}")
+            break
+    print(f"[현직 의원 정당 조회] {len(parties)}명 확인")
+    return parties
+
+
+def resolve_parties(plpt_nm, current_party=""):
+    """(현재 정당, 이전 정당)을 정식명으로 돌려준다. current_party가 있으면 그걸
+    현재 정당으로 쓰고, 그때는 이력에서 위성정당을 뺀다. 없으면 예전처럼
+    PLPT_NM의 마지막/그 앞 조각을 쓴다."""
+    history = [p.strip() for p in (plpt_nm or "").split("/") if p.strip()]
+    if current_party:
+        history = [p for p in history if p not in SATELLITE_PARTIES]
+        if not history or history[-1] != current_party:
+            history.append(current_party)
+    return (history[-1] if history else "", history[-2] if len(history) >= 2 else "")
+
+
 def fetch_member_info():
     """국회의원 인적사항 API에서 이름 -> {정당, 이전정당, 지역구, 선수} 사전을 만든다.
     한 사람당 한 행에 그동안 거쳐온 소속정당이 '/'로 이어져 있어서(예: "더불어민주당/조국혁신당"),
@@ -250,6 +303,7 @@ def fetch_member_info():
 
     (사전, 22대 현역 원본행 목록)을 돌려준다. 원본행은 의원 검색 화면(member_list.csv)에
     쓰는데, 같은 API를 두 번 훑지 않으려고 여기서 같이 걷어 온다."""
+    current_parties = fetch_current_parties()
     info = {}
     current_rows = []
     era_samples = []  # 22대를 하나도 못 찾았을 때, GTELT_ERACO가 기대와 다른 형태인지 보려고 남긴다
@@ -296,10 +350,11 @@ def fetch_member_info():
                 elif name in info and not is_current and info[name].get("_current"):
                     pass
                 else:
-                    parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
+                    party, prev_party = resolve_parties(
+                        row.get("PLPT_NM"), current_parties.get(row.get("NAAS_CD")) if is_current else "")
                     info[name] = {
-                        "party": parties[-1] if parties else "",
-                        "prev_party": parties[-2] if len(parties) >= 2 else "",
+                        "party": party,
+                        "prev_party": prev_party,
                         # 지역구가 비어있으면(API가 안 채워준 경우도 포함) 지역구 없는
                         # 의원은 곧 비례대표라는 뜻이라 "비례대표"라고 명시한다.
                         "district": (row.get("ELECD_NM") or "").split("/")[-1].strip() or "비례대표",
@@ -307,6 +362,8 @@ def fetch_member_info():
                         "_current": is_current,
                     }
                 if is_current:
+                    # save_members에서도 같은 현재 정당을 쓰도록 행에 붙여 둔다.
+                    row["_CURRENT_PARTY"] = current_parties.get(row.get("NAAS_CD"), "")
                     current_rows.append(row)
                 elif len(era_samples) < 5:
                     era_samples.append(era)
@@ -405,7 +462,7 @@ def save_members(rows, chairs=None):
     chairs = chairs or {}
     members = []
     for row in rows:
-        parties = [p.strip() for p in (row.get("PLPT_NM") or "").split("/") if p.strip()]
+        party, prev_party = resolve_parties(row.get("PLPT_NM"), row.get("_CURRENT_PARTY", ""))
         code = row.get("NAAS_CD", "")
         members.append({
             "의원코드": code,
@@ -413,8 +470,8 @@ def save_members(rows, chairs=None):
             "한자명": row.get("NAAS_CH_NM", "") or "",
             # 법안 카드의 제안자 문구도 약칭("민주당")을 쓰므로 여기서도 맞춘다.
             # 정식명 그대로 두면 같은 정당이 화면마다 다르게 보인다.
-            "정당": party_abbr(parties[-1]) if parties else "",
-            "이전정당": party_abbr(parties[-2]) if len(parties) >= 2 else "",
+            "정당": party_abbr(party),
+            "이전정당": party_abbr(prev_party),
             "선수": row.get("RLCT_DIV_NM", "") or "",
             "당선대수": row.get("GTELT_ERACO", "") or "",
             "지역구": last(row.get("ELECD_NM")) or "비례대표",
