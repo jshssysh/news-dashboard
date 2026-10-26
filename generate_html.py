@@ -45,6 +45,7 @@ MEMBERS_JSON_PATH = os.path.join(OUT_DIR, "members.json")
 WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
 DECISIONS_JSON_PATH = os.path.join(OUT_DIR, "decisions.json")
 LAW_PENALTIES_JSON_PATH = os.path.join(OUT_DIR, "law_penalties.json")
+SUBORDINATE_LAWS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_laws.json")
 # 화면 어느 탭에도 안 쓰인다 - 계약서 문구 검토 Worker(worker/)가 GitHub Pages에서
 # 이 파일 하나만 fetch해서 AI 프롬프트의 후보 법령 코퍼스로 쓴다.
 CONTRACT_LAW_CORPUS_JSON_PATH = os.path.join(OUT_DIR, "contract_law_corpus.json")
@@ -221,6 +222,34 @@ def load_law_penalties():
             "link": law_deep_link(nz(row.get("법령명"), ""), nz(row.get("조문"), "")),
         }
         for _, row in ldf.iterrows()
+    ]
+
+
+def load_subordinate_laws():
+    """collect_subordinate_laws.py가 받은 subordinate_law_list.csv(공정위 소관
+    시행령·시행규칙의 공포 이력)를 읽는다. 입법 탭 "시행령·시행규칙 개정" 패널용.
+    시행예정 여부는 날짜에 따라 바뀌므로 여기서 정하지 않고 화면이 오늘 날짜로 가른다."""
+    path = "subordinate_law_list.csv"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    try:
+        sdf = pd.read_csv(path, dtype=str, keep_default_na=False)
+    except Exception:
+        return []
+    sdf = sdf.sort_values(["공포일자", "법령명"], ascending=[False, True])
+    return [
+        {
+            "name": nz(row.get("법령명"), ""),
+            "abbr": nz(row.get("법령약칭"), ""),
+            "kind": nz(row.get("법령종류"), ""),
+            "revision": nz(row.get("제개정구분"), ""),
+            "promulgated": nz(row.get("공포일자"), ""),
+            "effective": [d for d in nz(row.get("시행일자"), "").split(";") if d],
+            "summary": nz(row.get("개정요약"), ""),
+            "detail": nz(row.get("개정상세"), ""),
+            "link": nz(row.get("상세링크"), ""),
+        }
+        for _, row in sdf.iterrows()
     ]
 
 
@@ -597,6 +626,7 @@ def build():
     cluster_warnings = load_cluster_warnings()
     decisions = load_decisions()
     law_penalties = load_law_penalties()
+    subordinate_laws = load_subordinate_laws()
     contract_law_corpus = load_contract_law_corpus()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
@@ -622,6 +652,7 @@ def build():
     warnings_bytes = dump_json(WARNINGS_JSON_PATH, cluster_warnings)
     decisions_bytes = dump_json(DECISIONS_JSON_PATH, decisions)
     law_penalties_bytes = dump_json(LAW_PENALTIES_JSON_PATH, law_penalties)
+    subordinate_laws_bytes = dump_json(SUBORDINATE_LAWS_JSON_PATH, subordinate_laws)
     contract_corpus_bytes = dump_json(CONTRACT_LAW_CORPUS_JSON_PATH, contract_law_corpus)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
@@ -633,6 +664,7 @@ def build():
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
         f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)\n"
         f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)\n"
+        f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (시행령·시행규칙 개정 {len(subordinate_laws)}건)\n"
         f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
     )
 

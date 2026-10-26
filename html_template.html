@@ -238,6 +238,24 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-preview-panel.collapsed #cartPreviewList,
 .cart-preview-panel.collapsed #billCartPreviewList { display: none; }
 .cart-preview-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+/* 입법 탭 "시행령·시행규칙 개정" 패널 - 법안 필터(sticky) 위에 두고, 접으면 제목 줄만 남는다. */
+.sublaw-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.sublaw-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0 !important; }
+.sublaw-toggle .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.sublaw-filter-row { margin: 0; }
+.sublaw-panel.collapsed .sublaw-body, .sublaw-panel.collapsed .sublaw-filter-row { display: none; }
+.sublaw-panel.collapsed .panel-title-row { margin-bottom: 0; }
+.sublaw-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
+.sublaw-item { padding: 8px 0; border-top: 1px solid var(--app-border); }
+.sublaw-item:first-child { border-top: none; padding-top: 0; }
+.sublaw-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 6px; }
+.sublaw-head .article-title { font-weight: 700; }
+.sublaw-head .card-meta-inline { margin-left: 0; }
+.sublaw-rev { font-size: 0.8em; opacity: 0.7; }
+.sublaw-text { white-space: pre-line; }
+.sublaw-text .sublaw-full { display: none; }
+.decision-summary-row.expanded .sublaw-text .sublaw-sum { display: none; }
+.decision-summary-row.expanded .sublaw-text .sublaw-full { display: inline; }
 .cart-export-btn, .cart-clear-btn { flex-shrink: 0; font-size: 0.78em !important; }
 #cartPreviewList, #billCartPreviewList { display: flex; flex-direction: column; gap: 6px; }
 .cart-preview-item { display: flex; align-items: baseline; gap: 6px; font-size: 0.85em; }
@@ -972,6 +990,16 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
   <div id="view-law" class="view">
     <hr class="thin">
+    <div class="sidebar-panel sublaw-panel" id="subLawPanel">
+      <div class="panel-title-row">
+        <div class="panel-title sublaw-toggle" id="subLawToggle">시행령·시행규칙 개정<span class="current-tag" id="subLawCountTag"></span><span class="toggle-caret">▼</span></div>
+        <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
+      </div>
+      <div class="sublaw-body">
+        <div id="subLawListArea"><div class='info-box'>시행령·시행규칙 개정 목록을 불러오는 중…</div></div>
+        <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
+      </div>
+    </div>
     <div class="bill-filter-sticky">
       <div class="news-filter-row" id="billMainFilterRow">
         <h5 id="billSearchToggle">검색<span class="toggle-caret">▼</span></h5>
@@ -3539,6 +3567,112 @@ document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
   renderPenaltyList();
 });
 
+// ── 입법 탭: 시행령·시행규칙 개정 (collect_subordinate_laws.py) ──────────
+// 국회를 안 거치는 하위법령이라 법안 목록과 따로, 공포된 것만 보여준다.
+// 기본은 "직접 개정"(타법개정 제외) - 타법개정은 부처 이름 변경 같은 단순
+// 정비가 대부분이라 섞어 두면 실질 개정이 묻힌다.
+let SUB_LAW_DATA = [];
+const SUB_LAW_FILTERS = ['직접 개정', '타법개정', '시행예정', '전체'];
+const SUB_LAW_PREVIEW_COUNT = 5;
+const SUB_LAW_COLLAPSE_KEY = 'subLawPanelCollapsed';
+let subLawFilter = '직접 개정';
+let subLawShowAll = false;
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function todayKstIso() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// 시행일이 여러 개(공포일 시행 + 나중 시행)면 아직 안 온 첫 시행일을 돌려준다.
+function subLawUpcoming(r, today) {
+  return (r.effective || []).find(d => d > today) || '';
+}
+
+function subLawMatches(r, filter, today) {
+  if (filter === '직접 개정') return r.revision !== '타법개정';
+  if (filter === '타법개정') return r.revision === '타법개정';
+  if (filter === '시행예정') return !!subLawUpcoming(r, today);
+  return true;
+}
+
+function subLawItemHtml(r, today) {
+  const upcoming = subLawUpcoming(r, today);
+  const badges = [`<span class="chip-category">${escHtml(r.kind)}</span>`];
+  if (upcoming) badges.push(`<span class="chip-alert">시행예정 ${upcoming}</span>`);
+  const full = r.revision === '타법개정' ? [r.summary, r.detail].filter(Boolean).join('\n') : (r.detail || r.summary);
+  return `<div class="sublaw-item">
+    <div class="sublaw-head">
+      <span class="card-tags">${badges.join(' ')}</span>
+      <a class="article-title" href="${escHtml(r.link)}" target="_blank">${escHtml(r.abbr || r.name)}</a>
+      <span class="sublaw-rev">${escHtml(r.revision)}</span>
+      <span class="card-meta-inline">공포 ${r.promulgated} · 시행 ${(r.effective || []).join(', ')}</span>
+    </div>
+    <div class="decision-summary-row">
+      <div class="summary-box-blue decision-summary-text sublaw-text"><span class="sublaw-sum">${escHtml(r.summary)}</span><span class="sublaw-full">${escHtml(full)}</span></div>
+      <button type="button" class="decision-summary-toggle" title="개정 내용 펼치기/접기">▼</button>
+    </div>
+  </div>`;
+}
+
+function applySubLawCollapse() {
+  document.getElementById('subLawPanel').classList.toggle('collapsed', readFlag(SUB_LAW_COLLAPSE_KEY));
+}
+
+function renderSubLawPanel() {
+  const today = todayKstIso();
+  const counts = {};
+  SUB_LAW_FILTERS.forEach(f => { counts[f] = SUB_LAW_DATA.filter(r => subLawMatches(r, f, today)).length; });
+  const upcomingCount = counts['시행예정'];
+  document.getElementById('subLawCountTag').textContent = upcomingCount ? `시행예정 ${upcomingCount}` : '';
+
+  const row = document.getElementById('subLawFilterRow');
+  row.innerHTML = SUB_LAW_FILTERS.map(f =>
+    `<button data-val="${f}" class="${subLawFilter === f ? 'active' : ''}">${f} ${counts[f]}</button>`).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    subLawFilter = btn.dataset.val;
+    subLawShowAll = false;
+    renderSubLawPanel();
+  }));
+
+  const filtered = SUB_LAW_DATA.filter(r => subLawMatches(r, subLawFilter, today));
+  const items = subLawShowAll ? filtered : filtered.slice(0, SUB_LAW_PREVIEW_COUNT);
+  const listEl = document.getElementById('subLawListArea');
+  listEl.innerHTML = items.length ? items.map(r => subLawItemHtml(r, today)).join('')
+    : "<div class='info-box'>해당하는 개정이 없습니다.</div>";
+  listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
+
+  const more = document.getElementById('subLawMoreBtn');
+  more.style.display = filtered.length > SUB_LAW_PREVIEW_COUNT ? '' : 'none';
+  more.textContent = subLawShowAll ? '접기' : `더보기 (${filtered.length - SUB_LAW_PREVIEW_COUNT}건 더)`;
+}
+
+document.getElementById('subLawMoreBtn').addEventListener('click', () => {
+  subLawShowAll = !subLawShowAll;
+  renderSubLawPanel();
+});
+document.getElementById('subLawToggle').addEventListener('click', () => {
+  writeFlag(SUB_LAW_COLLAPSE_KEY, !readFlag(SUB_LAW_COLLAPSE_KEY));
+  applySubLawCollapse();
+});
+applySubLawCollapse();
+
+let subLawsLoaded = false;
+let subLawsPromise = null;
+function ensureSubLaws() {
+  if (subLawsLoaded) return Promise.resolve();
+  if (!subLawsPromise) {
+    subLawsPromise = loadJson('subordinate_laws.json')
+      .then(rows => { SUB_LAW_DATA = rows; subLawsLoaded = true; })
+      .catch(err => { subLawsPromise = null; throw err; });
+  }
+  return subLawsPromise;
+}
+
 // ── 계약서 문구 검토 (Cloudflare Worker + Gemini, worker/ 참고) ──────────
 // GitHub Pages는 정적 사이트라 이 호출만은 별도로 배포한 Worker가 대신
 // 받는다. 배포 후 실제 워커 주소로 아래 값을 바꾼다.
@@ -3628,6 +3762,16 @@ function renderAll() {
     }
   } else if (state.activeTab === '입법') {
     document.getElementById('view-law').classList.add('active');
+    // 시행령·시행규칙 패널은 법안 목록과 따로 받는다 - 한쪽이 늦거나 실패해도 다른 쪽은 그대로 보인다.
+    if (subLawsLoaded) {
+      renderSubLawPanel();
+    } else {
+      ensureSubLaws().then(() => { if (state.activeTab === '입법') renderSubLawPanel(); })
+        .catch(() => {
+          document.getElementById('subLawListArea').innerHTML =
+            "<div class='info-box'>시행령·시행규칙 개정 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+        });
+    }
     if (billsLoaded) {
       renderBills();
     } else {

@@ -44,12 +44,12 @@ on:
         type: string
         default: ''
       skip_law_penalties:
-        description: '[법령] 체크 시 공정위 소관 법령+상법 벌칙/과징금 조문 수집(법제처 API) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[법령] 체크 시 공정위 소관 법령+상법 벌칙/과징금 조문 수집과 시행령·시행규칙 개정 이력 수집(법제처 API) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
       skip_law_penalties_wait:
-        description: '[법령] 체크 시 "토요일 06시대까지 기다리기"를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[법령] 체크 시 "토요일 06시대까지 기다리기"(시행령·시행규칙 개정은 "06시대까지 기다리기")를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
         required: false
         type: boolean
         default: false
@@ -140,6 +140,17 @@ jobs:
         run: |
           python collect_law_penalties.py
 
+      - name: 시행령·시행규칙 개정 이력 수집 (법제처 국가법령정보 Open API)
+        # workflow_dispatch 입력은 10개가 한도라(이미 9개) 새 입력을 만들지 않고
+        # [법령] 입력 두 개(skip_law_penalties / skip_law_penalties_wait)를 같이 쓴다.
+        # 06시대 실행이 아니면 collect_subordinate_laws.py가 바로 종료한다.
+        if: ${{ !cancelled() && github.event.inputs.skip_law_penalties != 'true' }}
+        env:
+          LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
+          SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
+        run: |
+          python collect_subordinate_laws.py
+
       - name: 정적 대시보드(docs/) 생성
         # 앞 수집 스텝 하나가 실패해도(예: 뉴스 CSV를 못 읽어 저장을 중단) 나머지 스텝의
         # 결과는 커밋되게 한다. 실패한 스텝이 있으면 잡은 끝에 실패로 표시된다.
@@ -168,7 +179,7 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv bill_list.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/contract_law_corpus.json; do
+          for f in news_list.csv bill_list.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json docs/contract_law_corpus.json; do
             [ -f "$f" ] && git add "$f"
           done
           # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다
