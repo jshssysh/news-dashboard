@@ -250,6 +250,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 #view-law.sublaw-mode #committeeFilterSection, #view-law.sublaw-mode .bill-result-row,
 #view-law.sublaw-mode #billListArea { display: none; }
 .sublaw-filter-row { margin: 0; }
+#subLawMinistryRow, #subLawLawRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; margin: 0 0 10px; }
+#subLawLawRow button { padding: 4px 9px; font-size: 0.78em; }
 .sublaw-filter-sep { width: 1px; align-self: stretch; background: var(--app-border); margin: 0 4px; }
 .sublaw-item { padding: 8px 0; border-top: 1px solid var(--app-border); }
 .sublaw-item:first-child { border-top: none; padding-top: 0; }
@@ -1068,6 +1070,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="panel-title">법령 공포·시행<span class="current-tag" id="subLawCountTag"></span></div>
         <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
       </div>
+      <div class="cat-chip-row sublaw-law-row" id="subLawMinistryRow"></div>
+      <div class="cat-chip-row sublaw-law-row" id="subLawLawRow"></div>
       <div class="sublaw-body">
         <div id="subLawListArea"><div class='info-box'>법령 공포·시행 목록을 불러오는 중…</div></div>
         <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
@@ -1204,7 +1208,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-27 13:33 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-27 16:14 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -3630,6 +3634,29 @@ const SUB_LAW_RECENT_DAYS = 30;
 const SUB_LAW_PREVIEW_COUNT = 5;
 let subLawFilter = '시행예정';
 let subLawKind = '전체';
+let subLawLaw = '전체';
+let subLawMinistry = '전체';
+// 부처 칩 순서와 짧은 이름. 목록에 없는 부처는 법제처 이름 그대로 맨 뒤에 붙는다.
+const SUB_LAW_MINISTRY_ORDER = [
+  ['공정거래위원회', '공정위'], ['고용노동부', '고용노동부'], ['금융위원회', '금융위'],
+  ['법무부', '법무부'], ['개인정보보호위원회', '개인정보위'], ['국토교통부', '국토부'],
+  ['재정경제부', '재경부'], ['기획재정부', '기재부'], ['행정안전부', '행안부'],
+  ['기후에너지환경부', '기후환경부'], ['환경부', '환경부'], ['산업통상부', '산업부'],
+  ['산업통상자원부', '산업부'], ['지식재산처', '지식재산처'], ['특허청', '특허청'],
+  ['문화체육관광부', '문체부'], ['식품의약품안전처', '식약처'],
+];
+const SUB_LAW_MINISTRY_ABBR = Object.fromEntries(SUB_LAW_MINISTRY_ORDER);
+// 여러 부처 공동 소관("재정경제부,조달청")이면 순서표에서 가장 앞선 부처 하나로 묶는다.
+function subLawMinistryOf(r) {
+  const names = (r.ministry || '').split(',').map(x => x.trim()).filter(Boolean);
+  if (!names.length) return '기타';
+  const abbrs = names.map(n => SUB_LAW_MINISTRY_ABBR[n] || n);
+  return abbrs.reduce((best, a) => subLawMinistryRank(a) < subLawMinistryRank(best) ? a : best);
+}
+function subLawMinistryRank(abbr) {
+  const i = SUB_LAW_MINISTRY_ORDER.findIndex(([, a]) => a === abbr);
+  return i < 0 ? SUB_LAW_MINISTRY_ORDER.length : i;
+}
 let subLawShowAll = false;
 
 function escHtml(s) {
@@ -3659,6 +3686,14 @@ function subLawKindMatches(r, kind) {
   if (kind === '법률') return r.kind === '법률';
   if (kind === '시행령·시행규칙') return r.kind !== '법률';
   return true;
+}
+
+// 법령별 칩의 묶음 이름 - 시행령·시행규칙은 모법 이름으로 모은다("하도급법 시행령" -> "하도급법").
+// 여러 법을 한꺼번에 고친 일괄개정(약칭 없는 "…등 N개 법령의 일부개정에 관한 …")은 한 칸으로 모은다.
+const SUB_LAW_BUNDLE = '일괄개정';
+function subLawGroup(r) {
+  if (!r.abbr && /\d+개 법(령|률)의 일부개정/.test(r.name || '')) return SUB_LAW_BUNDLE;
+  return (r.abbr || r.name || '').replace(/\s*시행(령|규칙)$/, '');
 }
 
 function subLawMatches(r, filter, today) {
@@ -3697,7 +3732,38 @@ function subLawItemHtml(r, today) {
 
 function renderSubLawPanel() {
   const today = todayKstIso();
-  const byKind = SUB_LAW_DATA.filter(r => subLawKindMatches(r, subLawKind));
+  const byKindAll = SUB_LAW_DATA.filter(r => subLawKindMatches(r, subLawKind));
+  // 1단: 부처. 2단(법령)은 고른 부처 안에서만 센다.
+  const minCounts = {};
+  byKindAll.forEach(r => { const m = subLawMinistryOf(r); minCounts[m] = (minCounts[m] || 0) + 1; });
+  if (subLawMinistry !== '전체' && !minCounts[subLawMinistry]) subLawMinistry = '전체';
+  const ministries = Object.keys(minCounts).sort((a, b) => subLawMinistryRank(a) - subLawMinistryRank(b) || a.localeCompare(b));
+  const minRow = document.getElementById('subLawMinistryRow');
+  minRow.innerHTML = [`<button data-min="전체" class="${subLawMinistry === '전체' ? 'active' : ''}">전체 ${byKindAll.length}</button>`,
+    ...ministries.map(m => `<button data-min="${escHtml(m)}" class="${subLawMinistry === m ? 'active' : ''}">${escHtml(m)} ${minCounts[m]}</button>`)].join('');
+  minRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    subLawMinistry = subLawMinistry === btn.dataset.min ? '전체' : btn.dataset.min;
+    subLawLaw = '전체';
+    subLawShowAll = false;
+    renderSubLawPanel();
+  }));
+  const byKindOnly = subLawMinistry === '전체' ? byKindAll : byKindAll.filter(r => subLawMinistryOf(r) === subLawMinistry);
+  const lawCounts = {};
+  byKindOnly.forEach(r => { const g = subLawGroup(r); lawCounts[g] = (lawCounts[g] || 0) + 1; });
+  if (subLawLaw !== '전체' && !lawCounts[subLawLaw]) subLawLaw = '전체';
+  // 건수 많은 법부터, 일괄개정은 맨 뒤.
+  const laws = Object.keys(lawCounts).sort((a, b) =>
+    (a === SUB_LAW_BUNDLE) - (b === SUB_LAW_BUNDLE) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
+  const lawRow = document.getElementById('subLawLawRow');
+  lawRow.innerHTML = [`<button data-law="전체" class="${subLawLaw === '전체' ? 'active' : ''}">전체 ${byKindOnly.length}</button>`,
+    ...laws.map(g => `<button data-law="${escHtml(g)}" class="${subLawLaw === g ? 'active' : ''}">${escHtml(g)} ${lawCounts[g]}</button>`)].join('');
+  lawRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    // 고른 법을 다시 누르면 전체로 돌아간다(단계 줄 칩과 같은 규칙).
+    subLawLaw = subLawLaw === btn.dataset.law ? '전체' : btn.dataset.law;
+    subLawShowAll = false;
+    renderSubLawPanel();
+  }));
+  const byKind = subLawLaw === '전체' ? byKindOnly : byKindOnly.filter(r => subLawGroup(r) === subLawLaw);
   const counts = {};
   SUB_LAW_FILTERS.forEach(f => { counts[f] = byKind.filter(r => subLawMatches(r, f, today)).length; });
   const upcomingAll = SUB_LAW_DATA.filter(r => subLawMatches(r, '시행예정', today)).length;
