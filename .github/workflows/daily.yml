@@ -47,12 +47,12 @@ on:
         type: string
         default: ''
       skip_law_penalties:
-        description: '[건너뛰기] 법령 벌칙·과징금 수집 + 법령 공포·시행 수집 (테스트용). 아래 ''지금 바로 수집''과 같이 체크하면 수집 안 됨'
+        description: '[건너뛰기] 법령 벌칙·과징금 + 법령 공포·시행 + 입법예고 수집 (테스트용). 아래 ''지금 바로 수집''과 같이 체크하면 수집 안 됨'
         required: false
         type: boolean
         default: false
       skip_law_penalties_wait:
-        description: '[지금 바로 수집] 법령 벌칙·과징금(평소 토요일 06시대) + 법령 공포·시행(평소 매일 06시대). 체크하면 시간 상관없이 지금 수집'
+        description: '[지금 바로 수집] 법령 벌칙·과징금(평소 토요일 06시대) + 법령 공포·시행·입법예고(평소 매일 06시대). 체크하면 시간 상관없이 지금 수집'
         required: false
         type: boolean
         default: false
@@ -154,6 +154,14 @@ jobs:
         run: |
           python collect_subordinate_laws.py
 
+      - name: 입법예고 수집 (법제처 국민참여입법센터)
+        # 법령 공포·시행 수집과 같은 입력·시각(06시대)으로 돈다. 목록을 못 받으면 기존 파일을 둔다.
+        if: ${{ !cancelled() && github.event.inputs.skip_law_penalties != 'true' }}
+        env:
+          SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
+        run: |
+          python collect_legislative_notices.py
+
       - name: 정적 대시보드(docs/) 생성
         # 앞 수집 스텝 하나가 실패해도(예: 뉴스 CSV를 못 읽어 저장을 중단) 나머지 스텝의
         # 결과는 커밋되게 한다. 실패한 스텝이 있으면 잡은 끝에 실패로 표시된다.
@@ -182,7 +190,7 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json docs/contract_law_corpus.json; do
+          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json legislative_notice_list.csv docs/legislative_notices.json docs/contract_law_corpus.json; do
             [ -f "$f" ] && git add "$f"
           done
           # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다

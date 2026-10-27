@@ -49,6 +49,7 @@ LAW_PENALTIES_JSON_PATH = os.path.join(OUT_DIR, "law_penalties.json")
 SUBORDINATE_LAWS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_laws.json")
 # 신구조문 대비는 법령마다 수 KB라 목록과 따로 두고, 화면이 처음 펼칠 때만 받는다.
 SUBORDINATE_LAW_DIFFS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_law_diffs.json")
+LEGISLATIVE_NOTICES_JSON_PATH = os.path.join(OUT_DIR, "legislative_notices.json")
 # 화면 어느 탭에도 안 쓰인다 - 계약서 문구 검토 Worker(worker/)가 GitHub Pages에서
 # 이 파일 하나만 fetch해서 AI 프롬프트의 후보 법령 코퍼스로 쓴다.
 CONTRACT_LAW_CORPUS_JSON_PATH = os.path.join(OUT_DIR, "contract_law_corpus.json")
@@ -276,6 +277,36 @@ def load_subordinate_laws(diffs=None):
             ],
         }
         for _, row in sdf.iterrows()
+    ]
+
+
+def load_legislative_notices():
+    """collect_legislative_notices.py가 받은 legislative_notice_list.csv(국민참여입법센터
+    입법예고 중 챙기는 부처·법령). 입법 탭 단계 줄 "입법예고" 칩용. 접수 중/마감은
+    날짜에 따라 바뀌므로 화면이 오늘 날짜로 가른다."""
+    path = "legislative_notice_list.csv"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    try:
+        ndf = pd.read_csv(path, dtype=str, keep_default_na=False)
+    except Exception:
+        return []
+    ndf = ndf.sort_values(["예고시작일", "예고ID"], ascending=[False, False])
+    return [
+        {
+            "name": nz(row.get("법령명"), ""),
+            "title": nz(row.get("예고제목"), ""),
+            "revision": nz(row.get("제개정구분"), ""),
+            "ministry": nz(row.get("소관부처"), ""),
+            "dept": nz(row.get("담당부서"), ""),
+            "kind": nz(row.get("법령종류"), ""),
+            "start": nz(row.get("예고시작일"), ""),
+            "end": nz(row.get("예고종료일"), ""),
+            "summary": nz(row.get("개정요약"), ""),
+            "detail": nz(row.get("개정상세"), ""),
+            "link": nz(row.get("상세링크"), ""),
+        }
+        for _, row in ndf.iterrows()
     ]
 
 
@@ -699,6 +730,7 @@ def build():
     cluster_warnings = load_cluster_warnings()
     decisions = load_decisions()
     law_penalties = load_law_penalties()
+    legislative_notices = load_legislative_notices()
     subordinate_law_diffs = load_subordinate_law_diffs()
     subordinate_laws = load_subordinate_laws(subordinate_law_diffs)
     subordinate_law_diffs = {r["mst"]: subordinate_law_diffs[r["mst"]]
@@ -735,6 +767,7 @@ def build():
     with open(SUBORDINATE_LAW_DIFFS_JSON_PATH, "w", encoding="utf-8") as f:
         f.write(diffs_text)
     subordinate_law_diffs_bytes = len(diffs_text.encode("utf-8"))
+    legislative_notices_bytes = dump_json(LEGISLATIVE_NOTICES_JSON_PATH, legislative_notices)
     contract_corpus_bytes = dump_json(CONTRACT_LAW_CORPUS_JSON_PATH, contract_law_corpus)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
@@ -748,6 +781,7 @@ def build():
         f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)\n"
         f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건, 공포 법안 시행일 연결 {effective_matched}건)\n"
         f"  {SUBORDINATE_LAW_DIFFS_JSON_PATH:<20} {subordinate_law_diffs_bytes/1024:8.0f}KB (신구조문 대비 {len(subordinate_law_diffs)}건)\n"
+        f"  {LEGISLATIVE_NOTICES_JSON_PATH:<20} {legislative_notices_bytes/1024:8.0f}KB (입법예고 {len(legislative_notices)}건)\n"
         f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
     )
 
