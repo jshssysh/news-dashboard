@@ -182,7 +182,7 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json docs/contract_law_corpus.json; do
+          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json docs/contract_law_corpus.json; do
             [ -f "$f" ] && git add "$f"
           done
           # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다

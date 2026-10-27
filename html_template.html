@@ -260,6 +260,28 @@ a.badge-skipped:hover { text-decoration: underline; }
 .sublaw-head .card-meta-inline { margin-left: 0; }
 .sublaw-rev { font-size: 0.8em; opacity: 0.7; }
 .sublaw-text { white-space: pre-line; }
+.sublaw-articles { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; font-size: 0.8em; }
+.sublaw-articles-label { opacity: 0.65; margin-right: 2px; }
+.sublaw-art, .sublaw-diff-toggle { border: 1px solid var(--app-border); background: transparent; color: inherit; border-radius: 999px; padding: 2px 8px; font-size: 1em; cursor: pointer; }
+.sublaw-art:hover, .sublaw-diff-toggle:hover { border-color: currentColor; }
+.sublaw-diff-toggle { margin-left: 4px; font-weight: 700; }
+.sublaw-diff { display: none; margin-bottom: 8px; font-size: 0.86em; }
+.sublaw-item.diff-open .sublaw-diff { display: block; }
+.sublaw-diff-art { border: 1px solid var(--app-border); border-radius: 8px; margin-top: 6px; overflow: hidden; }
+.sublaw-diff-art.flash { box-shadow: 0 0 0 2px #f59e0b; }
+.sublaw-diff-head { font-weight: 700; padding: 5px 8px; border-bottom: 1px solid var(--app-border); }
+.sublaw-diff-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.sublaw-diff-grid > div { padding: 3px 8px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
+.sublaw-diff-grid > div:nth-child(odd) { border-right: 1px solid var(--app-border); }
+.sublaw-diff-grid .sublaw-diff-col { font-size: 0.85em; opacity: 0.65; font-weight: 700; }
+.sublaw-diff-grid .same { opacity: 0.5; }
+.sublaw-diff mark.del { background: rgba(239, 68, 68, 0.2); color: inherit; text-decoration: line-through; text-decoration-color: rgba(239, 68, 68, 0.7); }
+.sublaw-diff mark.ins { background: rgba(34, 197, 94, 0.25); color: inherit; font-weight: 700; }
+.sublaw-diff-note { opacity: 0.65; margin-top: 4px; }
+@media (max-width: 640px) {
+  .sublaw-diff-grid { grid-template-columns: 1fr; }
+  .sublaw-diff-grid > div:nth-child(odd) { border-right: none; border-bottom: 1px dashed var(--app-border); }
+}
 .sublaw-text .sublaw-full { display: none; }
 .decision-summary-row.expanded .sublaw-text .sublaw-sum { display: none; }
 .decision-summary-row.expanded .sublaw-text .sublaw-full { display: inline; }
@@ -3716,18 +3738,81 @@ function subLawItemHtml(r, today) {
     badges.push(`<span class="chip-tag-warn">시행 D+${isoDayDiff(today, recent)} (${recent})</span>`);
   }
   const full = r.revision === '타법개정' ? [r.summary, r.detail].filter(Boolean).join('\n') : (r.detail || r.summary);
-  return `<div class="sublaw-item">
+  const arts = r.articles || [];
+  const artsHtml = arts.length ? `<div class="sublaw-articles">
+      <span class="sublaw-articles-label">개정 조문</span>
+      ${arts.slice(0, SUB_LAW_ART_CHIPS).map(a => `<button type="button" class="sublaw-art" data-no="${escHtml(a.no)}" title="${escHtml(a.title)}">${escHtml(a.no)}</button>`).join('')}
+      ${arts.length > SUB_LAW_ART_CHIPS ? `<span class="sublaw-articles-label">외 ${arts.length - SUB_LAW_ART_CHIPS}개</span>` : ''}
+      <button type="button" class="sublaw-diff-toggle">신구조문 대비 ▼</button>
+    </div>
+    <div class="sublaw-diff"></div>` : '';
+  return `<div class="sublaw-item" data-mst="${escHtml(r.mst || '')}">
     <div class="sublaw-head">
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${escHtml(r.link)}" target="_blank">${escHtml(r.abbr || r.name)}</a>
       <span class="sublaw-rev">${escHtml(r.revision)}</span>
       <span class="card-meta-inline">공포 ${r.promulgated} · 시행 ${(r.effective || []).join(', ')}</span>
     </div>
+    ${artsHtml}
     <div class="decision-summary-row">
       <div class="summary-box-blue decision-summary-text sublaw-text"><span class="sublaw-sum">${escHtml(r.summary)}</span><span class="sublaw-full">${escHtml(full)}</span></div>
       <button type="button" class="decision-summary-toggle" title="개정 내용 펼치기/접기">▼</button>
     </div>
   </div>`;
+}
+
+// 신구조문 대비: 법제처 표시(<P>…</P>)를 개정 전은 지운 부분, 개정 후는 새로 넣은 부분으로 강조한다.
+const SUB_LAW_ART_CHIPS = 12;
+const SUB_LAW_SAME_ROW = /^\(?(생\s*략|현행과\s*같음)\)?$|\((생\s*략|현행과\s*같음)\)$/;
+function subLawDiffLine(text, cls) {
+  return escHtml(text || '').replace(/&lt;P&gt;/g, `<mark class="${cls}">`).replace(/&lt;\/P&gt;/g, '</mark>');
+}
+function subLawDiffHtml(articles) {
+  if (!articles || !articles.length) return "<div class='sublaw-diff-note'>신구조문 대비가 없습니다.</div>";
+  return articles.map(a => {
+    const cells = a.rows.map(([o, n]) => {
+      const same = SUB_LAW_SAME_ROW.test((n || '').replace(/<\/?P>/g, '').trim()) ? ' same' : '';
+      return `<div class="${same.trim()}">${subLawDiffLine(o, 'del')}</div><div class="${same.trim()}">${subLawDiffLine(n, 'ins')}</div>`;
+    }).join('');
+    return `<div class="sublaw-diff-art" data-no="${escHtml(a.no)}">
+      <div class="sublaw-diff-head">${escHtml(a.no || '조문')}${a.title ? ` (${escHtml(a.title)})` : ''}</div>
+      <div class="sublaw-diff-grid"><div class="sublaw-diff-col">개정 전</div><div class="sublaw-diff-col">개정 후</div>${cells}</div>
+    </div>`;
+  }).join('') + (articles[articles.length - 1].truncated
+    ? "<div class='sublaw-diff-note'>조문이 많아 앞부분만 보여 줍니다. 전체는 법령 이름을 눌러 법제처에서 보세요.</div>" : '');
+}
+
+let subLawDiffsPromise = null;
+function ensureSubLawDiffs() {
+  if (!subLawDiffsPromise) {
+    subLawDiffsPromise = loadJson('subordinate_law_diffs.json').catch(err => { subLawDiffsPromise = null; throw err; });
+  }
+  return subLawDiffsPromise;
+}
+
+// 조문 칩을 누르면 대비를 펼치고 그 조문으로 옮겨 간다. "신구조문 대비" 버튼은 펼침/접힘만 한다.
+function toggleSubLawDiff(item, no) {
+  const box = item.querySelector('.sublaw-diff');
+  const btn = item.querySelector('.sublaw-diff-toggle');
+  const open = no ? true : !item.classList.contains('diff-open');
+  item.classList.toggle('diff-open', open);
+  btn.textContent = open ? '신구조문 대비 ▲' : '신구조문 대비 ▼';
+  if (!open) return;
+  const focus = () => {
+    if (!no) return;
+    const target = [...box.querySelectorAll('.sublaw-diff-art')].find(el => el.dataset.no === no);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    target.classList.add('flash');
+    setTimeout(() => target.classList.remove('flash'), 1200);
+  };
+  if (box.dataset.loaded) { focus(); return; }
+  box.innerHTML = "<div class='sublaw-diff-note'>신구조문 대비를 불러오는 중…</div>";
+  ensureSubLawDiffs().then(all => {
+    box.innerHTML = subLawDiffHtml(all[item.dataset.mst]);
+    box.dataset.loaded = '1';
+    focus();
+  }).catch(() => { box.innerHTML = "<div class='sublaw-diff-note'>신구조문 대비를 불러오지 못했습니다.</div>"; });
 }
 
 function renderSubLawPanel() {
@@ -3795,6 +3880,9 @@ function renderSubLawPanel() {
     : "<div class='info-box'>해당하는 법령이 없습니다.</div>";
   listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
     btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
+  listEl.querySelectorAll('.sublaw-art, .sublaw-diff-toggle').forEach(btn => {
+    btn.addEventListener('click', () => toggleSubLawDiff(btn.closest('.sublaw-item'), btn.dataset.no || ''));
   });
 
   const more = document.getElementById('subLawMoreBtn');

@@ -38,11 +38,19 @@ target=eflaw에 nw=1,2,3(연혁+시행예정+현행)을 주면 과거 개정 이
 공정위 직제(공정거래위원회와 그 소속기관 직제, 같은 시행규칙)는 내부 조직
 개편이라 기업이 지킬 규정이 아니므로 뺀다.
 
+바뀐 조문은 lawService.do?target=oldAndNew&MST=<일련번호>(신구법비교)로 받아
+subordinate_law_diffs.json({MST: [조문별 신구 대비]})에 따로 둔다. 응답은 개정 전·후
+"줄"이 1:1로 짝지어 오고(바뀐 부분은 <P>…</P>, 안 바뀐 항은 "(생  략)"/"(현행과
+같음)"), "제N조(제목)"로 시작하는 줄마다 조문이 새로 시작한다(2026-10-27 실측:
+공정거래법·대외무역법 시행령·관광진흥법). 일괄개정 대통령령은 빈 목록이 온다.
+공포본마다 내용이 고정이라 한 번 받은 MST는 다시 받지 않는다(2026-10-27 사용자 요청).
+
 공포는 주 몇 건 수준이라 하루 1번(06시대 실행)만 수집한다 - 목록 1~2번 +
 새로 공포된 것만 본문 조회라 API 호출도 적다.
 
 실행: python collect_subordinate_laws.py
 """
+import json
 import os
 import re
 import time
@@ -57,6 +65,10 @@ LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 KST = timezone(timedelta(hours=9))
 
 SUBORDINATE_LAW_LIST_PATH = "subordinate_law_list.csv"
+SUBORDINATE_LAW_DIFFS_PATH = "subordinate_law_diffs.json"
+# 전부개정처럼 법 전체가 바뀐 공포본은 대비표가 수천 줄이라 앞부분만 남긴다.
+DIFF_MAX_LINES = 300
+DIFF_MAX_LINE_CHARS = 2000
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 # OC 없이 누구나 열리는 법제처 본문 링크(해당 공포본 기준) - 실측 200 확인.
 PUBLIC_LAW_LINK = "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq={mst}"
@@ -293,6 +305,58 @@ def fetch_detail(mst, ef_date, law_name, revision_kind):
     return summarize_reason(reason) or "(제개정이유 원문 없음)", reason
 
 
+_ARTICLE_HEAD = re.compile(r"^(제\d+조(?:의\d+)?)\s*(?:\(([^)]*)\))?")
+_TABLE_HEAD = re.compile(r"^\[?(별표\s*\d+(?:의\d+)?|별지\s*제?\d+호?(?:의\d+)?\s*서식)")
+
+
+def _article_of(line):
+    """줄이 새 조문(제N조 / 별표 N)의 첫 줄이면 (번호, 제목)을, 아니면 None을 준다."""
+    plain = re.sub(r"</?P>", "", line).strip()
+    m = _ARTICLE_HEAD.match(plain)
+    if m:
+        return m.group(1), (m.group(2) or "").strip()
+    m = _TABLE_HEAD.match(plain)
+    if m:
+        return re.sub(r"\s+", " ", m.group(1)), ""
+    return None
+
+
+def fetch_diff(mst):
+    """신구법비교를 받아 [{"no": "제111조", "title": "당사자의 자료제출",
+    "rows": [[개정 전 줄, 개정 후 줄], ...]}, ...]로 돌려준다. 바뀐 부분 표시(<P>…</P>)는
+    그대로 두고 화면이 강조로 바꾼다."""
+    params = {"OC": LAW_API_OC, "target": "oldAndNew", "MST": mst, "type": "XML"}
+    res = get_law_api_with_retry(f"{LAW_API_BASE}/lawService.do", params, timeout=40)
+    root = ET.fromstring(res.content)
+    old = [(c.text or "").strip() for c in root.findall("구조문목록/조문")]
+    new = [(c.text or "").strip() for c in root.findall("신조문목록/조문")]
+    articles = []
+    for i in range(max(len(old), len(new))):
+        if i >= DIFF_MAX_LINES:
+            if articles:
+                articles[-1]["truncated"] = True
+            break
+        o = old[i] if i < len(old) else ""
+        n = new[i] if i < len(new) else ""
+        # 신설 조문은 개정 전 쪽이 "<신  설>", 삭제는 개정 후 쪽이 "<삭  제>"라 번호는 있는 쪽에서 읽는다.
+        head = _article_of(n) or _article_of(o)
+        if head or not articles:
+            no, title = head or ("", "")
+            articles.append({"no": no, "title": title, "rows": []})
+        articles[-1]["rows"].append([o[:DIFF_MAX_LINE_CHARS], n[:DIFF_MAX_LINE_CHARS]])
+    return articles
+
+
+def load_cached_diffs():
+    if not os.path.exists(SUBORDINATE_LAW_DIFFS_PATH):
+        return {}
+    try:
+        with open(SUBORDINATE_LAW_DIFFS_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def load_cached_details():
     if not os.path.exists(SUBORDINATE_LAW_LIST_PATH) or os.path.getsize(SUBORDINATE_LAW_LIST_PATH) == 0:
         return {}
@@ -330,6 +394,9 @@ def main():
         return
 
     cached = load_cached_details()
+    cached_diffs = load_cached_diffs()
+    diffs = {}
+    diff_fetched = 0
     now_str = now.strftime("%Y-%m-%d %H:%M")
     rows = []
     fetched = 0
@@ -343,6 +410,16 @@ def main():
             except Exception:
                 print(f"[개정이유 조회 실패] {e['법령명']} (MST {mst}):\n{traceback.format_exc()}")
             time.sleep(0.2)
+        if mst in cached_diffs:
+            diffs[mst] = cached_diffs[mst]
+        else:
+            # 실패하면 diffs에 안 넣어 다음 실행에 다시 받는다(빈 목록은 "대비표 없음"으로 저장).
+            try:
+                diffs[mst] = fetch_diff(mst)
+                diff_fetched += 1
+            except Exception:
+                print(f"[신구법비교 조회 실패] {e['법령명']} (MST {mst}):\n{traceback.format_exc()}")
+            time.sleep(0.2)
         rows.append({
             **e,
             "공포일자": _fmt_date(e["공포일자"]),
@@ -355,7 +432,10 @@ def main():
 
     df = pd.DataFrame(rows, columns=CSV_COLUMNS).sort_values(["공포일자", "법령명"], ascending=[False, True])
     df.to_csv(SUBORDINATE_LAW_LIST_PATH, index=False, encoding="utf-8-sig")
-    print(f"[법령 공포·시행 이력 수집 완료] {len(df)}건 (개정이유 새로 조회 {fetched}건) -> {SUBORDINATE_LAW_LIST_PATH}")
+    with open(SUBORDINATE_LAW_DIFFS_PATH, "w", encoding="utf-8") as f:
+        json.dump(diffs, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"[법령 공포·시행 이력 수집 완료] {len(df)}건 (개정이유 새로 조회 {fetched}건, "
+          f"신구법비교 새로 조회 {diff_fetched}건) -> {SUBORDINATE_LAW_LIST_PATH}, {SUBORDINATE_LAW_DIFFS_PATH}")
 
 
 if __name__ == "__main__":
