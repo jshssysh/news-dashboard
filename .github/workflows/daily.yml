@@ -7,49 +7,52 @@ on:
   # 호출하는 방식으로 완전히 옮겼다. 그래서 schedule 트리거는 더 없다 - 아래
   # 스텝들의 건너뛰기 조건도 workflow_dispatch 입력만 본다.
   workflow_dispatch:
+    # 체크 항목은 전부 "체크하면 동작": [건너뛰기]는 그 수집을 빼고, [지금 바로 수집]은
+    # 정해진 시각까지 기다리지 않고 바로 돈다. 아무것도 체크 안 하면 평소대로 전부 돈다.
+    # 입력 이름(skip_*)은 cron-job.org 호출이 쓰므로 바꾸지 않고 설명만 고친다.
     inputs:
       skip_news:
-        description: '[뉴스] 체크 시 뉴스 수집+AI 분석을 통째로 건너뛰기(네이버 수집 자체를 안 함). skip_ai(수집은 하되 Gemini만 건너뛰기)와 다름. cron-job.org 같은 외부 트리거가 07:12/07:47 "법안만 재확인" 실행을 보낼 때 이 값을 true로 준다.'
+        description: '[건너뛰기] 뉴스 수집 + AI 분석 전체. 법안만 다시 받을 때 이것만 체크 (cron-job.org의 07:12/07:47 "법안만 재확인" 실행도 이 값을 씀)'
         required: false
         type: boolean
         default: false
       skip_ai:
-        description: '[뉴스] 체크 시 뉴스 AI 분석(Gemini) 건너뛰기 (개발/UI 테스트용 - 빠르고 무료, 분류 없이 원본만 수집). 법안+의원 수집(skip_bills)과는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[건너뛰기] 뉴스 AI 분석(Gemini)만. 뉴스 수집은 함 (테스트용)'
         required: false
         type: boolean
         default: false
       skip_bills:
-        description: '[법안+의원] 체크 시 계류 법안 + 의원 정보 수집 건너뛰기 (개발/UI 테스트용 - 법안은 하루 한 번이면 충분해서 반복 테스트할 땐 API 호출 절약). 뉴스 수집(skip_ai)·의원별 뉴스(skip_member_news)와는 별개로 동작. 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[건너뛰기] 법안 + 의원 정보 수집 (테스트용)'
         required: false
         type: boolean
         default: false
       skip_member_news:
-        description: '[의원별 뉴스] 체크 시 의원별 뉴스 수집(네이버+Gemini) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). member_list.csv는 예전 것을 그대로 쓰므로 skip_bills를 체크해도 이 스텝은 돌 수 있음. 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[건너뛰기] 의원별 뉴스 수집 (테스트용)'
         required: false
         type: boolean
         default: false
       skip_decisions:
-        description: '[심·판결] 체크 시 공정위 의결서/판례 수집(법제처 API+Gemini) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[건너뛰기] 심·판결 수집 (테스트용)'
         required: false
         type: boolean
         default: false
       skip_decisions_wait:
-        description: '[심·판결] 체크 시 "토요일 06시대까지 기다리기"를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[지금 바로 수집] 심·판결 - 평소엔 토요일 06시대에만 수집. 체크하면 시간 상관없이 지금 수집'
         required: false
         type: boolean
         default: false
       decisions_lookback_days:
-        description: '[심·판결] 몇 일치를 훑을지. 비워두면 이미 쌓인 데이터의 가장 오래된 날짜까지 다시 훑어 늦게 공개된 결정문도 채웁니다(평소엔 비워두세요). 더 오래된 것까지 백필하고 싶을 때만 숫자를 넣으세요(예: 500 = 22대 국회 임기 시작 무렵부터).'
+        description: '[심·판결 숫자 입력] 며칠치를 훑을지. 평소엔 비워 두세요 (비우면 쌓인 데이터의 가장 오래된 날짜까지 다시 훑어 늦게 공개된 결정문도 채움). 예: 500 = 22대 국회 임기 시작 무렵부터'
         required: false
         type: string
         default: ''
       skip_law_penalties:
-        description: '[법령] 체크 시 공정위 소관 법령+상법 벌칙/과징금 조문 수집과 시행령·시행규칙 개정 이력 수집(법제처 API) 건너뛰기 (개발/UI 테스트용 - API 호출 절약). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[건너뛰기] 법령 벌칙·과징금 수집 + 법령 공포·시행 수집 (테스트용). 아래 ''지금 바로 수집''과 같이 체크하면 수집 안 됨'
         required: false
         type: boolean
         default: false
       skip_law_penalties_wait:
-        description: '[법령] 체크 시 "토요일 06시대까지 기다리기"(시행령·시행규칙 개정은 "06시대까지 기다리기")를 건너뛰고 지금 바로 수집(초기 백필 등 지금 당장 돌리고 싶을 때). 평소엔 체크 해제 상태로 실행하세요.'
+        description: '[지금 바로 수집] 법령 벌칙·과징금(평소 토요일 06시대) + 법령 공포·시행(평소 매일 06시대). 체크하면 시간 상관없이 지금 수집'
         required: false
         type: boolean
         default: false
