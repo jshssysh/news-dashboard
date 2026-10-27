@@ -110,7 +110,9 @@ def get_law_api_with_retry(url, params, timeout=20, retries=2, retry_wait=10):
     for attempt in range(retries + 1):
         try:
             res = requests.get(url, params=params, timeout=timeout)
-            if res.status_code >= 500 and attempt < retries:
+            # 법제처가 가끔 200에 빈 본문을 돌려준다(실측: 첫 호출이 바로 빈 응답 ->
+            # XML 파싱 실패로 스텝 전체가 죽음). 서버 오류와 같이 잠깐 쉬고 다시 받는다.
+            if (res.status_code >= 500 or not res.content.strip()) and attempt < retries:
                 time.sleep(retry_wait)
                 continue
             return res
