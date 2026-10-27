@@ -1011,6 +1011,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
             <option value="상임위 심사">상임위</option>
             <option value="법사위 심사">법사위</option>
             <option value="본회의 의결">본회의</option>
+            <option value="공포">공포</option>
           </select>
           <select id="billPeriodSelect">
             <option value="all">전체</option>
@@ -1285,7 +1286,7 @@ function getBillStatsForDate(currentDate) {
     if (BILL_DATE_STATS[mid].date <= target) { found = BILL_DATE_STATS[mid]; lo = mid + 1; }
     else hi = mid - 1;
   }
-  return found || { total: 0, draft: 0, committee: 0, law: 0, plenary: 0 };
+  return found || { total: 0, draft: 0, committee: 0, law: 0, plenary: 0, promulgated: 0 };
 }
 
 const STARRED_BILLS_KEY = 'starredBills';
@@ -1885,7 +1886,7 @@ function renderTopTiles() {
        <span class="value">${billStatsNow.total}건</span>
        <div class="law-substats-block">
          <div>입안 및 발의 ${billStatsNow.draft}건</div>
-         <div>상임위 ${billStatsNow.committee} · 법사위 ${billStatsNow.law} · 본회의 ${billStatsNow.plenary}</div>
+         <div>상임위 ${billStatsNow.committee} · 법사위 ${billStatsNow.law} · 본회의 ${billStatsNow.plenary} · 공포 ${billStatsNow.promulgated || 0}</div>
        </div>
      </div>`;
 
@@ -2795,18 +2796,41 @@ function proposerHtml(raw, repProposer, ambiguous) {
 // 처럼 그 법안 자신의 진행 상황을 날짜와 함께 보여준다. 지난 단계는 흐리게+완료일,
 // 지금 단계는 강조+진행중인 날짜, 아직 안 온 단계는 더 흐리게 날짜 없이 표시한다.
 // 각 단계에 날짜가 그대로 찍히니 별도의 "상태변경" 배지 없이도 뭐가 바뀌었는지 보인다.
-const BILL_STEP_STAGES = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결"];
+const BILL_STEP_STAGES = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
+// 공포된 법안의 시행일 표시 - 아직 안 온 첫 시행일은 D-day로, 다 지났으면 마지막 시행일.
+// 시행일은 법제처(공정위 소관 법령)에서만 받으므로 다른 부처 법률은 비어 있다.
+function billEffectiveText(b) {
+  const eff = b.effective || [];
+  if (!eff.length) return '';
+  const today = todayKstIso();
+  const upcoming = eff.find(d => d > today);
+  if (upcoming) return `시행 D-${isoDayDiff(upcoming, today)} (${upcoming})`;
+  return `시행 ${eff[eff.length - 1]}`;
+}
 function billStepperHtml(b) {
   const curRank = BILL_STEP_STAGES.indexOf(b.stage);
   const steps = [
     { stage: "입안 및 발의", label: "입안 및 발의", startDt: b.proposeDate, doneDt: b.proposeDate, result: null },
     { stage: "상임위 심사", label: `${committeeAbbr(b.committee) || '상임위'} 심사`, startDt: b.committeeDt, doneDt: b.committeeDoneDt, result: b.committeeResult },
     { stage: "법사위 심사", label: "법사위 심사", startDt: b.lawDt, doneDt: b.lawDoneDt, result: b.lawResult },
-    { stage: "본회의 의결", label: "본회의 의결", startDt: null, doneDt: null, result: null },
+    { stage: "본회의 의결", label: "본회의 의결", startDt: null, doneDt: b.plenaryDt, result: b.plenaryResult },
+    { stage: "공포", label: "공포", startDt: b.transDt, doneDt: b.announceDt, result: null },
   ];
   return steps.map((s, i) => {
     const rank = BILL_STEP_STAGES.indexOf(s.stage);
     let cls, date, result;
+    // 공포 단계는 "결과" 대신 공포일·시행일로 끝났는지를 본다 - 정부이송만 됐으면
+    // 공포를 기다리는 중(진행중, 이송일 표시)이다.
+    if (s.stage === '공포' && rank === curRank) {
+      const arrow = `<span class="bill-step-arrow">›</span>`;
+      if (!b.announceDt) {
+        const dateHtml = b.transDt ? `<span class="step-date">정부이송 ${b.transDt}</span>` : '';
+        return `<span class="bill-step-group">${arrow}<span class="bill-step step-active">공포 대기${dateHtml}</span></span>`;
+      }
+      const eff = billEffectiveText(b);
+      const effHtml = eff ? (b.lawLink ? ` · <a href="${b.lawLink}" target="_blank">${eff}</a>` : ` · ${eff}`) : '';
+      return `<span class="bill-step-group">${arrow}<span class="bill-step step-done">공포${effHtml}<span class="step-date">${b.announceDt}</span></span></span>`;
+    }
     if (rank < curRank) { cls = 'step-done'; date = s.doneDt || s.startDt; result = s.result; }
     else if (rank === curRank) {
       // 지금 단계인데 이미 결과가 나와 있으면(대안반영폐기/부결/철회 등) 다음 단계로
@@ -2847,8 +2871,8 @@ function billAltChildrenHtml(b) {
 }
 
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
-const RESULT_STAGES = ["상임위 심사", "법사위 심사", "본회의 의결"]; // 세부 결과(원안가결/수정가결/폐기 등)가 나올 수 있는 단계
-const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결"];
+const RESULT_STAGES = ["상임위 심사", "법사위 심사", "본회의 의결", "공포"]; // 세부 결과(원안가결/수정가결/폐기 등)가 나올 수 있는 단계
+const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결", "정부이송", "공포"];
 function resultRank(v) {
   const idx = RESULT_ORDER.indexOf(v);
   return idx === -1 ? RESULT_ORDER.length : idx;
@@ -2865,6 +2889,11 @@ const LAW_FORWARD_RESULTS = new Set(['원안가결', '수정가결']);
 function billAsOf(b, d) {
   if (!b.proposeDate || b.proposeDate > d) return null;
   const on = v => (v && v <= d) ? v : null;
+  // 본회의 가결 법률안은 의결일부터 "공포" 단계(공포일 전이면 결과 "정부이송").
+  if (on(b.plenaryDt)) {
+    const result = on(b.announceDt) ? '공포' : '정부이송';
+    return (b.stage === '공포' && b.result === result) ? b : { ...b, stage: '공포', result };
+  }
   const committeeDt = on(b.committeeDt), committeeDoneDt = on(b.committeeDoneDt);
   const lawDt = on(b.lawDt), lawDoneDt = on(b.lawDoneDt);
   const committeeResult = committeeDoneDt ? (b.committeeResult || null) : null;
@@ -2913,6 +2942,7 @@ function billStageEventDate(b, stage) {
   if (stage === '상임위 심사') return b.committeeDoneDt || b.committeeDt || null;
   if (stage === '법사위 심사') return b.lawDoneDt || b.lawDt || null;
   if (stage === '본회의 의결') return b.lawDoneDt || null;
+  if (stage === '공포') return b.announceDt || b.plenaryDt || null;
   return null;
 }
 function billStageMatchesInPeriod(b, stage, from, to) {
@@ -2933,6 +2963,7 @@ function billStageResult(b, stage) {
   if (stage === '상임위 심사') return b.committeeResult || '심사중';
   if (stage === '법사위 심사') return b.lawResult || '심사중';
   if (stage === '본회의 의결') return b.result || '심사중'; // 본회의 전용 결과 필드가 따로 없어 전체 결과를 그대로 씀
+  if (stage === '공포') return b.result || '정부이송';
   return null;
 }
 
@@ -2941,6 +2972,7 @@ function billStageResult(b, stage) {
 // 누른 요약과 여기서 걸리는 법안이 정확히 같은 기준이 되게 한다.
 function billOutcomeBucket(result) {
   if (!result || result === '심사중') return null;
+  if (result === '공포' || result === '정부이송') return '가결'; // 본회의 가결 후 단계
   if (result.includes('부결')) return '부결';
   if (result.includes('대안반영')) return '대안반영';
   if (result.includes('가결')) return '가결';
@@ -3086,6 +3118,8 @@ function renderStageFlowRow() {
     stageChip('법사위 심사', '법사위'),
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('본회의 의결', '본회의'),
+    `<span class="bill-step-arrow">▶</span>`,
+    stageChip('공포', '공포'),
   ].join('');
   const row = document.getElementById('billStatusChipRow');
   row.innerHTML = compactHtml;

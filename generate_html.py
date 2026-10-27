@@ -19,6 +19,7 @@ news_list.csv + bill_list.csv + config/personnel.csv 를 읽어서 GitHub Pages�
 """
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -307,6 +308,11 @@ def load_bills():
             "lawDt": None if pd.isna(row.get("법사위회부일")) or not str(row.get("법사위회부일")).strip() else str(row.get("법사위회부일")),
             "lawDoneDt": None if pd.isna(row.get("법사위처리일")) or not str(row.get("법사위처리일")).strip() else str(row.get("법사위처리일")),
             "lawResult": None if pd.isna(row.get("법사위결과")) or not str(row.get("법사위결과")).strip() else str(row.get("법사위결과")),
+            # 본회의 가결 법률안("공포" 단계)만 채워진다 - collect_bills.py의 fetch_passed_bills 참고.
+            "plenaryDt": _opt_str(row.get("본회의의결일")),
+            "plenaryResult": _opt_str(row.get("본회의결과")),
+            "transDt": _opt_str(row.get("정부이송일")),
+            "announceDt": _opt_str(row.get("공포일")),
             "changed": None if pd.isna(row.get("상태변경")) or not str(row.get("상태변경")).strip() else str(row.get("상태변경")),
             "link": nz(row.get("상세링크"), ""),
             "summary": None if pd.isna(row.get("AI요약")) else str(row.get("AI요약")),
@@ -320,6 +326,42 @@ def load_bills():
             "absorbedBills": _parse_absorbed_bills(row.get("반영된원안목록")),
         })
     return records
+
+
+def _opt_str(v):
+    return None if pd.isna(v) or not str(v).strip() else str(v).strip()
+
+
+# 법안명 -> 법령명: "…에 관한 법률 일부개정법률안(대안)" -> "…에 관한 법률".
+BILL_TO_LAW_NAME_RE = re.compile(r"\s*(?:일부개정|전부개정|제정|폐지)?법률안(?:\(대안\))?$")
+
+
+def _law_key(name):
+    """법제처와 국회의 표기 차이(띄어쓰기, 가운뎃점 ·/ㆍ)를 지운 비교용 이름."""
+    return re.sub(r"[\s·ㆍ・]", "", name or "")
+
+
+def attach_effective_dates(bills, laws):
+    """공포된 법안에 법제처 시행일(subordinate_law_list.csv)을 붙인다.
+
+    법령명과 공포일이 둘 다 같은 공포본만 잇는다 - 같은 법이 같은 날 두 번
+    공포되는 경우는 드물어서 이 둘이면 사실상 하나로 정해진다. 법제처 쪽은
+    공정위 소관 법령만 받으므로 다른 부처 법률은 시행일 없이 공포일만 남는다."""
+    by_key = {}
+    for law in laws:
+        if law.get("kind") == "법률":
+            by_key.setdefault((_law_key(law["name"]), law["promulgated"]), law)
+    matched = 0
+    for bill in bills:
+        if not bill.get("announceDt"):
+            continue
+        law_name = BILL_TO_LAW_NAME_RE.sub("", bill.get("name") or "")
+        law = by_key.get((_law_key(law_name), bill["announceDt"]))
+        if law:
+            bill["effective"] = law["effective"]
+            bill["lawLink"] = law["link"]
+            matched += 1
+    return matched
 
 
 def _parse_absorbed_bills(raw):
@@ -359,6 +401,8 @@ def bill_outcome_bucket(result):
     이야기라 일반 "가결"에 놔둔다."""
     if not result or result == "심사중":
         return None
+    if result in ("공포", "정부이송"):  # 본회의 가결 후 단계(collect_bills.py fetch_passed_bills)
+        return "가결"
     if "부결" in result:
         return "부결"
     if "대안반영" in result:
@@ -505,6 +549,7 @@ def bill_stats(bills):
         "committee": counts.get("상임위 심사", 0),
         "law": counts.get("법사위 심사", 0),
         "plenary": counts.get("본회의 의결", 0),
+        "promulgated": counts.get("공포", 0),
     }
 
 
@@ -528,6 +573,9 @@ def bill_stage_as_of(bill, d):
     def on(key):
         v = bill.get(key)
         return v if v and v <= d else None
+
+    if on("plenaryDt"):
+        return "공포", "공포" if on("announceDt") else "정부이송"
 
     law_done = on("lawDoneDt")
     law_result = bill.get("lawResult") if law_done else None
@@ -564,11 +612,11 @@ def bill_stats_by_date(bills):
     필요해서다."""
     stage_key = {
         "입안 및 발의": "draft", "상임위 심사": "committee",
-        "법사위 심사": "law", "본회의 의결": "plenary",
+        "법사위 심사": "law", "본회의 의결": "plenary", "공포": "promulgated",
     }
     deltas = {}  # 날짜 -> {draft/committee/law/plenary: 증감}
     for bill in bills:
-        dates = sorted({bill.get(k) for k in ("proposeDate", "committeeDt", "committeeDoneDt", "lawDt", "lawDoneDt") if bill.get(k)})
+        dates = sorted({bill.get(k) for k in ("proposeDate", "committeeDt", "committeeDoneDt", "lawDt", "lawDoneDt", "plenaryDt") if bill.get(k)})
         prev = None
         for d in dates:
             st = bill_stage_as_of(bill, d)
@@ -582,7 +630,7 @@ def bill_stats_by_date(bills):
                 day[key] = day.get(key, 0) + 1
             prev = key
 
-    running = {"draft": 0, "committee": 0, "law": 0, "plenary": 0}
+    running = {"draft": 0, "committee": 0, "law": 0, "plenary": 0, "promulgated": 0}
     snapshots = []
     for date in sorted(deltas.keys()):
         for key, v in deltas[date].items():
@@ -627,6 +675,7 @@ def build():
     decisions = load_decisions()
     law_penalties = load_law_penalties()
     subordinate_laws = load_subordinate_laws()
+    effective_matched = attach_effective_dates(bills, subordinate_laws)
     contract_law_corpus = load_contract_law_corpus()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
@@ -664,7 +713,7 @@ def build():
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
         f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)\n"
         f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)\n"
-        f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건)\n"
+        f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건, 공포 법안 시행일 연결 {effective_matched}건)\n"
         f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
     )
 

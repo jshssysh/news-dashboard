@@ -8,6 +8,14 @@
   표결 대기로 넘어간 것으로 간접 판단한다(derive_stage_and_result 참고). 정부
   이송/공포는 이 API에 아예 없음 - "계류"(아직 안 끝난) 법안만 주는 API라 그
   단계까지 간 법안은 여기 안 나온다.
+- 본회의 처리안건 - 법률안(nwbpacrgavhjryiph): 본회의에서 처리된 법률안의 의결일
+  (RGS_PROC_DT)·정부이송일(CURR_TRANS_DT)·공포일(ANNOUNCE_DT). 이 중 가결된 것을
+  "공포" 단계로 목록에 더한다(공포일이 아직 없으면 결과 "정부이송"). 철회도
+  RGS_PROC_DT가 찍혀 오므로(실측) 결과에 "가결"이 든 것만 쓴다.
+- 처리의안(nzpltgfqabtcpsmai): 처리가 끝난 의안. 계류의안과 필드가 같아서(상임위·
+  법사위 결과 포함) 위 본회의 처리안건과 의안ID로 묶어 상임위·법사위 단계 정보를
+  채운다. 두 서비스 ID와 필드는 probe_assembly_api.py를 Actions에서 돌려 확인함
+  (2026-10-27).
 - 국회의원 인적사항(ALLNAMEMBER): 대표발의자 이름으로 정당/선수/지역구를 찾아서
   "제안자" 표시 문구에 괄호로 덧붙인다 (예: "황운하의원(조국혁신당, 재선, 비례대표) 등 10인").
 
@@ -52,6 +60,7 @@ MEMBER_LIST_PATH = "member_list.csv"
 # 인적사항 API는 역대 의원 3,300명을 모두 주는데, 이 대시보드는 22대 계류법안만
 # 다루므로 현역만 남긴다. 당선 대수 칸(GTELT_ERACO)이 "제21대, 제22대" 형태다.
 CURRENT_ERA = "제22대"
+CURRENT_ERA_NO = "22"
 
 # ALLNAMEMBER는 인적사항 "이력"만 주고 지금 실제로 의석을 지키고 있는지는
 # 안 알려준다 - 궐원/사퇴 여부를 알려주는 API를 찾지 못했다. 그래서 지자체장
@@ -105,6 +114,8 @@ MEMBER_SEAT_LOST = {
 
 BASE_URL = "https://open.assembly.go.kr/portal/openapi"
 PENDING_BILL_API = "nwbqublzajtcqpdae"  # 계류의안
+PLENARY_BILL_API = "nwbpacrgavhjryiph"  # 본회의 처리안건 - 법률안 (의결일·정부이송일·공포일)
+PROCESSED_BILL_API = "nzpltgfqabtcpsmai"  # 처리의안 (계류의안과 같은 필드)
 MEMBER_INFO_API = "ALLNAMEMBER"  # 국회의원 인적사항 (정당/선수/지역구)
 COMMITTEE_MEMBER_API = "nktulghcadyhmiqxi"  # 위원회 위원 명단 (JOB_RES_NM에 '위원장'/'간사'/'위원' 구분이 있음)
 BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
@@ -207,36 +218,93 @@ def get_assembly_api_with_retry(url, params, timeout=15, retries=2, retry_wait=1
     raise last_exc
 
 
-def fetch_all_pending_bills():
-    """계류의안 API로 국회 전체 계류 법안을 페이지 단위로 다 가져온다 (BILL_NAME 필터 없음).
+def fetch_all_rows(service_id, label, extra_params=None):
+    """열린국회정보 목록 API를 페이지 단위로 끝까지 다 가져온다.
 
     (결과 목록, 끝까지 다 받았는지)를 돌려준다. 중간 페이지에서 예외로 멈추면 뒷부분
     법안이 빠진 채로 오는데, 이걸 "목록에서 빠졌다"로 기록하면 안 되기 때문이다.
+    첫 페이지가 비어 있는 것도(키 문제·필수값 누락 등) 덜 받은 것으로 본다.
     """
     results = []
     p_index = 1
     while p_index <= 300:  # 안전장치: 무한 루프 방지 (최대 3만 건)
-        params = {"Type": "json", "pIndex": p_index, "pSize": 100}
+        params = {"Type": "json", "pIndex": p_index, "pSize": 100, **(extra_params or {})}
         if ASSEMBLY_API_KEY:
             params["KEY"] = ASSEMBLY_API_KEY
         try:
-            res = get_assembly_api_with_retry(f"{BASE_URL}/{PENDING_BILL_API}", params)
-            rows = _extract_rows(res.json(), PENDING_BILL_API)
+            res = get_assembly_api_with_retry(f"{BASE_URL}/{service_id}", params)
+            rows = _extract_rows(res.json(), service_id)
             if not rows:
                 if p_index == 1:
-                    print(f"[계류의안 전체조회 - 결과 없음] status={res.status_code} body={res.text[:300]}")
+                    print(f"[{label} 전체조회 - 결과 없음] status={res.status_code} body={res.text[:300]}")
+                    return results, False
                 break
             results.extend(rows)
             if p_index % 20 == 0:
-                print(f"[계류의안 전체조회] {p_index}페이지까지 누적 {len(results)}건")
+                print(f"[{label} 전체조회] {p_index}페이지까지 누적 {len(results)}건")
             if len(rows) < 100:
                 break
             p_index += 1
             time.sleep(0.1)
         except Exception as e:
-            print(f"[계류의안 전체조회 예외] {p_index}페이지: {e}")
+            print(f"[{label} 전체조회 예외] {p_index}페이지: {e}")
             return results, False
     return results, True
+
+
+def fetch_all_pending_bills():
+    """계류의안 API로 국회 전체 계류 법안을 다 가져온다 (BILL_NAME 필터 없음)."""
+    return fetch_all_rows(PENDING_BILL_API, "계류의안")
+
+
+# 본회의 처리안건의 BILL_NM은 "…일부개정법률안(안상훈의원 등 11인)"처럼 제안자가
+# 붙어 오므로, 처리의안에서 이름을 못 얻었을 때 끝의 제안자 괄호를 떼어 쓴다.
+PROPOSER_SUFFIX_RE = re.compile(r"\((?:[^()]*의원(?: 등 \d+인)?|[^()]*위원장|정부)\)$")
+
+
+def fetch_passed_bills():
+    """본회의에서 가결된 22대 법률안을 계류의안과 같은 필드 모양으로 돌려준다.
+
+    본회의 처리안건(의결일·정부이송일·공포일)을 기준으로, 처리의안에서 같은 의안ID의
+    상임위·법사위 정보를 덧붙인다. (행 목록, 둘 다 끝까지 받았는지)를 돌려준다.
+    """
+    plenary_rows, plenary_ok = fetch_all_rows(PLENARY_BILL_API, "본회의 처리안건", {"AGE": CURRENT_ERA_NO})
+    processed_rows, processed_ok = fetch_all_rows(PROCESSED_BILL_API, "처리의안", {"AGE": CURRENT_ERA_NO})
+    processed = {r.get("BILL_ID"): r for r in processed_rows if r.get("BILL_ID")}
+    passed = []
+    for p in plenary_rows:
+        bill_id = p.get("BILL_ID")
+        result = p.get("PROC_RESULT_CD") or ""
+        if not bill_id or not p.get("RGS_PROC_DT") or "가결" not in result:
+            continue
+        q = processed.get(bill_id, {})
+        proposer = q.get("PROPOSER") or p.get("PROPOSER") or ""
+        rep = re.match(r"^(\S+?)의원", proposer)
+        passed.append({
+            "BILL_ID": bill_id,
+            "BILL_NO": q.get("BILL_NO") or p.get("BILL_NO") or "",
+            "BILL_NAME": q.get("BILL_NAME") or PROPOSER_SUFFIX_RE.sub("", p.get("BILL_NM") or "").strip(),
+            "PROPOSER": proposer,
+            # 처리의안·본회의 처리안건 둘 다 대표발의자 필드가 없어서 "OOO의원 등 N인"에서
+            # 뽑는다. 위원장·정부 제안은 계류의안과 마찬가지로 비워 둔다.
+            "RST_PROPOSER": rep.group(1) if rep else "",
+            "PROPOSE_DT": q.get("PROPOSE_DT") or p.get("PROPOSE_DT") or "",
+            "CURR_COMMITTEE": q.get("CURR_COMMITTEE") or p.get("COMMITTEE_NM") or "",
+            "COMMITTEE_DT": q.get("COMMITTEE_DT") or p.get("COMMITTEE_SUBMIT_DT") or "",
+            "CMT_PRESENT_DT": q.get("CMT_PRESENT_DT") or p.get("COMMITTEE_PRESENT_DT") or "",
+            "CMT_PROC_DT": q.get("CMT_PROC_DT") or p.get("COMMITTEE_PROC_DT") or "",
+            "CMT_PROC_RESULT_CD": q.get("CMT_PROC_RESULT_CD") or "",
+            "LAW_PRESENT_DT": q.get("LAW_PRESENT_DT") or p.get("LAW_PRESENT_DT") or "",
+            "LAW_PROC_DT": q.get("LAW_PROC_DT") or p.get("LAW_PROC_DT") or "",
+            "LAW_PROC_RESULT_CD": q.get("LAW_PROC_RESULT_CD") or "",
+            "LINK_URL": q.get("LINK_URL") or p.get("LINK_URL") or "",
+            "RGS_PROC_DT": p.get("RGS_PROC_DT") or "",
+            "RGS_RESULT": result,
+            "CURR_TRANS_DT": p.get("CURR_TRANS_DT") or "",
+            "ANNOUNCE_DT": p.get("ANNOUNCE_DT") or "",
+        })
+    print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중)")
+    return passed, plenary_ok and processed_ok
 
 
 PARTY_ABBR = {
@@ -607,7 +675,12 @@ def derive_stage_and_result(row):
     법사위가 부결/철회/폐기/대안반영으로 끝낸 건 그 자리가 최종 단계라 그대로
     "법사위 심사"에 남는다. 본회의 의결 이후(정부 이송/공포)는 이 API 응답에
     아예 없음 - "계류"(아직 안 끝난) 법안만 주는 API라 그 단계까지 간 법안은
-    애초에 여기 나오지 않기 때문."""
+    애초에 여기 나오지 않기 때문.
+
+    본회의 처리안건에서 더한 가결 법률안(fetch_passed_bills, RGS_PROC_DT가 있음)은
+    "공포" 단계로 두고, 공포일이 찍혔으면 결과 "공포", 아직이면 "정부이송"이다."""
+    if row.get("RGS_PROC_DT"):
+        return "공포", "공포" if row.get("ANNOUNCE_DT") else "정부이송"
     if row.get("LAW_PROC_RESULT_CD"):
         result = row["LAW_PROC_RESULT_CD"]
         if result in LAW_FORWARD_RESULTS:
@@ -645,10 +718,15 @@ def append_status_log(bills, prev_bills, fetch_complete, now_str):
     """
     if not prev_bills:
         return
+    # 본회의 가결 법률안("공포" 단계)을 처음 받아오는 실행에는 22대 가결 법안 전부가
+    # 한꺼번에 "신규"로 잡히므로, 직전 목록에 공포 단계가 하나도 없으면 그건 안 남긴다.
+    passed_backfill = not any(r.get("처리단계") == "공포" for r in prev_bills.values())
     entries = []
     for b in bills:
         prev = prev_bills.get(b["의안ID"])
         if prev is None:
+            if passed_backfill and b["처리단계"] == "공포":
+                continue
             kind, before = "신규", ""
         elif b["상태변경"]:
             kind, before = "상태변경", prev.get("처리상태", "")
@@ -801,6 +879,13 @@ def main():
             continue
         seen[bill_id] = row
 
+    # 본회의를 통과한 법안은 계류의안에서 빠지므로 따로 받아 "공포" 단계로 더한다.
+    # 혹시 계류의안에도 남아 있으면 본회의 쪽이 더 뒤 단계라 그걸로 덮는다.
+    passed_rows, passed_complete = fetch_passed_bills()
+    for row in passed_rows:
+        seen[row["BILL_ID"]] = row
+    fetch_complete = fetch_complete and passed_complete
+
     prev_bills = load_previous_bills()
     prev_status = {bid: r.get("처리상태", "") for bid, r in prev_bills.items()}
 
@@ -843,6 +928,10 @@ def main():
             "법사위회부일": row.get("LAW_PRESENT_DT", ""),
             "법사위처리일": row.get("LAW_PROC_DT", ""),
             "법사위결과": row.get("LAW_PROC_RESULT_CD", ""),
+            "본회의의결일": row.get("RGS_PROC_DT", ""),
+            "본회의결과": row.get("RGS_RESULT", ""),
+            "정부이송일": row.get("CURR_TRANS_DT", ""),
+            "공포일": row.get("ANNOUNCE_DT", ""),
             "상태변경": changed,
             "상세링크": row.get("LINK_URL", ""),
             "AI요약": prev_summaries.get(bill_id, ""),
