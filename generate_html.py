@@ -162,7 +162,10 @@ def load_decisions():
         ddf = pd.read_csv(path, dtype=str, keep_default_na=False)
     except Exception:
         return []
-    ddf = ddf.sort_values("날짜", ascending=False)
+    # 날짜가 "2026.10.1." 같은 문자열이라 그대로 정렬하면 "2026.9..."가
+    # "2026.10..."보다 앞에 온다 - 실제 날짜로 바꿔서 정렬한다.
+    ddf = ddf.sort_values("날짜", ascending=False, key=lambda s: pd.to_datetime(
+        s.str.strip().str.rstrip("."), format="%Y.%m.%d", errors="coerce"))
     return [
         {
             "kind": nz(row.get("구분"), ""),

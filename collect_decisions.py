@@ -33,7 +33,7 @@ import re
 import time
 import traceback
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 import yaml
@@ -55,10 +55,21 @@ WORKER_LINK_BASE = "https://news-dashboard-contract-checker.jshssysh.workers.dev
 
 # 의결서/판례는 뉴스보다 훨씬 적게 나오므로(일주일에 많아야 수십 건), news_list.csv와
 # 달리 보관기간 제한을 두지 않는다 - member_news.csv처럼 무기한 누적해도 GitHub의
-# 파일당 100MB 한도에 도달하는 데 몇 년은 걸릴 것으로 추정된다. 다만 "새로 뭘
-# 가져올지" 판단할 때는 아래 일수만큼만 최신순으로 훑는다(그 이전 것은 이미 지난
-# 실행에서 다 모았다고 가정).
+# 파일당 100MB 한도에 도달하는 데 몇 년은 걸릴 것으로 추정된다.
+# "새로 뭘 가져올지" 판단할 때는 결정일 기준 최근 N일만 보면 안 된다 - 법제처에는
+# 결정일보다 한참 늦게(몇 달~1년 넘게) 올라오는 결정문이 많아서, 올라왔을 땐
+# 이미 N일이 지나 영영 수집되지 않았다(2026-10-27 확인: 9월 의결서 상당수와
+# 2025년 결정일 의결서가 10월에야 공개돼 누락돼 있었음). 그래서 기본값으로는
+# 이미 쌓인 데이터가 시작되는 날짜(가장 오래된 결정일)까지 매번 다시 훑고, 그 중
+# 아직 없는 것만 추가한다 - 목록 조회는 페이지당 100건이라 몇 번 더 부르는 정도다.
+# 아래 일수는 데이터가 아직 없을 때(첫 실행)의 최소 범위다.
 LOOKBACK_DAYS = 30
+
+# 늦게 공개된 결정문이 한꺼번에 몰리면(밀린 것 재수집 포함) 한 실행에서 Gemini를
+# 너무 많이 불러 같은 날 뉴스 요약 할당량까지 잡아먹을 수 있어, 새 건 AI 요약은
+# 한 번에 이만큼만 한다(구분별로 따로). 남은 건은 목록에 안 넣으므로 다음 실행이
+# 자동으로 이어서 가져온다(최신 결정일부터 처리).
+NEW_PER_RUN_LIMIT = 40
 
 # Gemini 할당량이 회복된 뒤에도, AI요약이 비어있는 기존 건들을 한 실행에서 너무
 # 많이 재시도하면 곧바로 또 할당량을 다 써버릴 수 있어 한 번에 이만큼만 채운다.
@@ -386,15 +397,16 @@ def main():
               f"이번 실행({now.strftime('%a %H:%M')})은 건너뜁니다.")
         return
 
-    # 평소엔 LOOKBACK_DAYS(30일)만 보지만, 초기 백필처럼 더 오래된 것까지 한 번에
-    # 가져오고 싶을 때는 DECISIONS_LOOKBACK_DAYS로 넓힐 수 있다.
-    lookback = LOOKBACK_DAYS
+    # 일수를 직접 정하고 싶을 때(초기 백필로 더 오래된 것까지 가져오기 등)는
+    # DECISIONS_LOOKBACK_DAYS로 지정한다. 비워두면 아래에서 기존 데이터 시작일까지
+    # 훑도록 정한다(LOOKBACK_DAYS 위 주석 참고).
+    lookback_override = None
     override = os.environ.get("DECISIONS_LOOKBACK_DAYS", "").strip()
     if override:
         try:
-            lookback = int(override)
+            lookback_override = int(override)
         except ValueError:
-            print(f"[경고] DECISIONS_LOOKBACK_DAYS='{override}' 가 숫자가 아니라 기본값({LOOKBACK_DAYS}일)을 씁니다.")
+            print(f"[경고] DECISIONS_LOOKBACK_DAYS='{override}' 가 숫자가 아니라 기본 범위를 씁니다.")
 
     if LAW_API_OC == "test":
         print("[경고] LAW_GO_KR_OC가 설정되지 않아 데모키(test)로 호출합니다 - "
@@ -425,10 +437,35 @@ def main():
             if incomplete:
                 incomplete_rows.append(r)
 
+    def covered_days(is_prec):
+        """이미 쌓인 데이터 중 가장 오래된 결정일/선고일까지의 일수(없으면 LOOKBACK_DAYS)."""
+        if lookback_override is not None:
+            return lookback_override
+        if odf.empty:
+            return LOOKBACK_DAYS
+        dates = [parse_kr_date(v) for v in odf.loc[(odf["구분"] == "판례") == is_prec, "날짜"]]
+        dates = [d for d in dates if d]
+        if not dates:
+            return LOOKBACK_DAYS
+        return max(LOOKBACK_DAYS, (now.date() - min(dates)).days)
+
+    ftc_days, prec_days = covered_days(False), covered_days(True)
     keywords = load_law_keywords()
-    ftc_rows = fetch_ftc_list(days=lookback, max_pages=100)
-    prec_rows = fetch_prec_list(keywords, days=lookback, max_pages=50)
-    print(f"[법제처 수집] 의결서/재결서 {len(ftc_rows)}건, 판례 {len(prec_rows)}건 조회(최근 {lookback}일)")
+    ftc_rows = fetch_ftc_list(days=ftc_days, max_pages=100)
+    prec_rows = fetch_prec_list(keywords, days=prec_days, max_pages=50)
+    print(f"[법제처 수집] 의결서/재결서 {len(ftc_rows)}건(최근 {ftc_days}일), "
+          f"판례 {len(prec_rows)}건(최근 {prec_days}일) 조회")
+
+    # 이미 있는 건 빼고, 최신 결정일부터 한 실행에 NEW_PER_RUN_LIMIT건까지만 처리한다.
+    # 판례는 키워드별로 따로 검색해 합친 목록이라 날짜순으로 다시 정렬한다.
+    by_date_desc = lambda r: parse_kr_date(r["날짜"]) or date.min
+    ftc_rows = sorted((r for r in ftc_rows if (r["문서유형"], r["id"]) not in existing),
+                      key=by_date_desc, reverse=True)
+    prec_rows = sorted((r for r in prec_rows if ("판례", r["id"]) not in existing),
+                       key=by_date_desc, reverse=True)
+    print(f"[법제처 수집] 새 결정문: 의결서/재결서 {len(ftc_rows)}건, 판례 {len(prec_rows)}건"
+          f" (이번 실행은 구분별 최대 {NEW_PER_RUN_LIMIT}건)")
+    ftc_rows, prec_rows = ftc_rows[:NEW_PER_RUN_LIMIT], prec_rows[:NEW_PER_RUN_LIMIT]
 
     new_records = []
     # Gemini 무료 할당량을 한 번 초과하면 이 실행 안에서는 재시도해도 계속 429만
@@ -528,7 +565,9 @@ def main():
     else:
         combined = new_df
     combined = combined.drop_duplicates(subset=["구분", "id"], keep="last")
-    combined = combined.sort_values("날짜", ascending=False)
+    # 문자열 그대로 정렬하면 "2026.9..."가 "2026.10..."보다 앞에 와서 실제 날짜로 정렬한다.
+    combined = combined.sort_values("날짜", ascending=False,
+                                    key=lambda s: s.map(lambda v: parse_kr_date(v) or date.min))
     combined.to_csv(DECISION_LIST_PATH, index=False, encoding="utf-8-sig")
     added = len(new_records) - retried
     print(f"[법제처 수집 완료] 신규 {added}건 추가, AI요약 보완 {retried}건 → 누적 {len(combined)}건")
