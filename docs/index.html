@@ -411,6 +411,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cat-chip-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
 #billCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
+#billCommitteeChipRow button.active, #subLawMinistryRow button.active, #noticeMinistryRow button.active { white-space: normal; max-width: 100%; text-align: left; }
 
 .layout { display: flex; gap: 28px; align-items: flex-start; }
 .main-col { flex: 2.85 1 0; min-width: 0; }
@@ -887,6 +888,25 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 건수가 아랫줄로 내려간 단계 칸(2줄)과 "전체" 칸(1줄)의 높이가 달랐다 - 같은 높이로 늘린다 */
   .stage-flow-header, .stage-flow-compact { align-items: stretch; }
   .stage-flow-header .bill-step-arrow { align-self: center; }
+  /* 시행·입법예고까지 한 줄에 넣으면 375px에서 484px로 넘쳐 페이지가 좌우로 밀렸다 -
+     그 두 칸만 다음 줄로 내린다(국회 단계 다섯 칸은 그대로 한 줄). */
+  .stage-flow-header { flex-wrap: wrap; row-gap: 6px; }
+  .stage-flow-header .stage-flow-side { flex-basis: 100%; }
+  /* 국회 단계 다섯 칸은 "전체" 옆 남은 폭 안에 줄여 넣는다(줄바꿈 허용 때문에 통째로 내려가지 않게). */
+  .stage-flow-header #billStatusChipRow { flex: 1 1 0; min-width: 0; }
+  .stage-flow-side .bill-step-arrow { align-self: center; }
+  /* 신구조문 대비가 한 칸으로 쌓이면 맨 위 "개정 전/개정 후" 제목만으로는 어느 쪽인지
+     모른다 - 칸마다 꼬리표를 달고, "(생략)/(현행과 같음)" 줄은 개정 후 쪽만 남긴다. */
+  .sublaw-diff-grid .sublaw-diff-col { display: none; }
+  .sublaw-diff-grid > div:not(.sublaw-diff-col)::before { display: block; font-size: 0.78em; font-weight: 700; opacity: 0.55; }
+  .sublaw-diff-grid > div:nth-child(odd):not(.sublaw-diff-col)::before { content: '개정 전'; }
+  .sublaw-diff-grid > div:nth-child(even):not(.sublaw-diff-col)::before { content: '개정 후'; }
+  .sublaw-diff-grid > div.same:nth-child(odd) { display: none; }
+  .sublaw-diff-grid > div.same::before { content: none !important; }
+  /* 부처·법령 칩은 수십 개라 감싸면 화면 한가득이 된다 - 좁은 화면에서는 옆으로 밀어 보게 한다. */
+  #subLawMinistryRow, #subLawLawRow, #noticeMinistryRow, #noticeLawRow { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+  /* 시행예정·의견 접수 중 같은 상태 필터는 몇 개 안 되고 기본값이 오른쪽 끝이라, 밀어야 보이면 놓친다 - 감싼다. */
+  #subLawFilterRow, #noticeFilterRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
 
   /* ── 국회의원 카드 ── */
   /* 그냥 1fr이면 최소 폭이 내용(줄바꿈 안 하는 지역구 줄 등) 폭이 되어 카드가
@@ -1070,6 +1090,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <button id="billStageAllBtn" class="flow-plain committee-all-btn"></button>
           <span class="bill-step-arrow">▶</span>
           <div class="stage-flow-compact" id="billStatusChipRow"></div>
+          <div class="stage-flow-compact stage-flow-side" id="billSideChipRow"></div>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
       </div>
@@ -1252,7 +1273,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-28 07:23 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-28 07:35 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2774,7 +2795,20 @@ const COMMITTEE_ABBR = {
   "산업통상자원중소벤처기업위원회": "산자중기위", "보건복지위원회": "복지위",
   "기후에너지환경노동위원회": "기후노동위", "국토교통위원회": "국토위", "정보위원회": "정보위",
   "성평등가족위원회": "성평등가족위", "예산결산특별위원회": "예결위", "기후위기 특별위원회": "기후위기특위",
+  // 22대 전반기 이름(개편 전): 기획재정위 -> 재경위, 환경노동위 -> 기후노동위, 여성가족위 -> 성평등가족위.
+  "기획재정위원회": "기재위", "환경노동위원회": "환노위", "여성가족위원회": "여가위",
 };
+
+// 입법 탭 소관위 칩은 특별위원회를 한 칸("특별위")으로 묶는다 - 사건마다 이름이 다른
+// 특별위가 건수 1~6건짜리 긴 칩으로 줄줄이 붙어 칩 줄이 너무 길었다(2026-10-28 사용자 요청).
+const SPECIAL_COMMITTEE = '특별위원회';
+function billCommitteeKey(name) {
+  if (!name) return '(미정)';
+  return /특별\s*위원회$/.test(name) ? SPECIAL_COMMITTEE : name;
+}
+function billCommitteeLabel(key) {
+  return key === SPECIAL_COMMITTEE ? '특별위' : committeeAbbr(key);
+}
 function committeeAbbr(name) {
   if (!name) return name;
   if (COMMITTEE_ABBR[name]) return COMMITTEE_ABBR[name];
@@ -2807,6 +2841,7 @@ const COMMITTEE_PRIORITY = [
   "농림축산식품해양수산위원회", "문화체육관광위원회", "보건복지위원회",
   "국방위원회", "외교통일위원회", "국회운영위원회", "교육위원회",
   "성평등가족위원회", "정보위원회", "기후위기 특별위원회", "예산결산특별위원회",
+  "기획재정위원회", "환경노동위원회", "여성가족위원회", SPECIAL_COMMITTEE,
 ];
 function committeePriorityRank(name) {
   const idx = COMMITTEE_PRIORITY.indexOf(name);
@@ -3034,12 +3069,17 @@ function billOutcomeBucket(result) {
   return null;
 }
 
-function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect, allBtnId, currentTagId) {
+// keyFn: 칩 하나로 묶을 값(예: 특별위원회 여러 개 -> 하나), fullFn: 고른 칩과
+// 마우스 툴팁에 보일 풀네임(약칭 칩이라도 고르면 풀네임으로 바뀌어 휴대폰에서도 확인된다).
+function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, onSelect, allBtnId, currentTagId, keyFn, fullFn, titleFn) {
   displayFn = displayFn || (v => v);
+  keyFn = keyFn || (v => v || '(미정)');
+  fullFn = fullFn || (v => v);
+  titleFn = titleFn || fullFn;
   const bills = billView();
   const source = filterFn ? bills.filter(filterFn) : bills;
   const counts = {};
-  source.forEach(b => { const v = b[field] || '(미정)'; counts[v] = (counts[v]||0) + 1; });
+  source.forEach(b => { const v = keyFn(b[field]); counts[v] = (counts[v]||0) + 1; });
   if (filterFn && state[stateKey] !== '전체' && !(state[stateKey] in counts)) state[stateKey] = '전체';
   const sorter = sortFn || ((a,b) => counts[b]-counts[a]);
   const row = document.getElementById(elId);
@@ -3054,8 +3094,13 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
   // "전체"를 별도 버튼(allBtnId)으로 빼면 소관위원회 제목 옆에 붙여둘 수 있고,
   // 아래 칩 행에는 실제 위원회들만 남아 두 줄로 정리하기 쉬워진다.
   const values = allBtn ? Object.keys(counts).sort(sorter) : ['전체'].concat(Object.keys(counts).sort(sorter));
+  const chipText = (v, active) => `${escHtml(active ? fullFn(v) : displayFn(v))} ${counts[v]}`;
   const setActive = (val) => {
-    row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+    row.querySelectorAll('button').forEach(b => {
+      const on = b.dataset.val === val;
+      b.classList.toggle('active', on);
+      if (b.dataset.val !== '전체') b.textContent = chipText(b.dataset.val, on);
+    });
     if (allBtn) allBtn.classList.toggle('active', val === '전체');
   };
   const select = (val) => {
@@ -3067,8 +3112,8 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
     renderBillList();
   };
   row.innerHTML = values.map(v => {
-    const cnt = counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state[stateKey]===v?'active':''}">${displayFn(v)} ${cnt}</button>`;
+    if (v === '전체') return `<button data-val="전체" class="${state[stateKey]===v?'active':''}">전체 ${source.length}</button>`;
+    return `<button data-val="${escHtml(v)}" title="${escHtml(titleFn(v))}" class="${state[stateKey]===v?'active':''}">${chipText(v, state[stateKey]===v)}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => select(btn.dataset.val)));
   if (allBtn) {
@@ -3114,7 +3159,10 @@ function billMatchesNonDateFilters(b, starred) {
 function renderCommitteeChipRow() {
   const starred = getStarredBills();
   const filterFn = (b) => billMatchesGlobalFilters(b, starred);
-  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', committeeAbbr, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn', 'committeeCurrentTag');
+  // 특별위는 고르면 "특별위원회", 마우스를 올리면 묶인 특별위원회 이름을 줄마다 보여 준다.
+  const specials = [...new Set(billView().map(b => b.committee).filter(c => billCommitteeKey(c) === SPECIAL_COMMITTEE))];
+  const titleFn = k => k === SPECIAL_COMMITTEE ? specials.join('\n') : k;
+  renderBillChipRow('billCommitteeChipRow', 'committee', 'billCommittee', billCommitteeLabel, (a,b) => committeePriorityRank(a) - committeePriorityRank(b), filterFn, renderStageFlowRow, 'billCommitteeAllBtn', 'committeeCurrentTag', billCommitteeKey, k => k, titleFn);
 }
 
 // 입안 및 발의 -> 상임위 심사 -> 법사위 심사 -> 본회의 의결 흐름을 처리상태
@@ -3125,7 +3173,7 @@ function renderCommitteeChipRow() {
 function renderStageFlowRow() {
   const starred = getStarredBills();
   const source = billView().filter(b =>
-    (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesGlobalFilters(b, starred)
+    (state.billCommittee === '전체' || billCommitteeKey(b.committee) === state.billCommittee) && billMatchesGlobalFilters(b, starred)
   );
   // 기간(제안일 범위)이 걸려 있으면 "그 기간에 그 단계를 거쳐간 것"(중복 집계
   // 가능 - 한 법안이 기간 내에 상임위·법사위를 둘 다 거쳤으면 양쪽에 다 잡힘),
@@ -3136,7 +3184,7 @@ function renderStageFlowRow() {
   // 없는 기준으로 다시 추린 걸 단계별 날짜 판정(아래 stageCounts·세부결과 그리드
   // 둘 다)에 공통으로 쓴다.
   const noDateSource = hasPeriod ? billView().filter(b =>
-    (state.billCommittee === '전체' || b.committee === state.billCommittee) && billMatchesNonDateFilters(b, starred)
+    (state.billCommittee === '전체' || billCommitteeKey(b.committee) === state.billCommittee) && billMatchesNonDateFilters(b, starred)
   ) : null;
   const stageCounts = {};
   if (hasPeriod) {
@@ -3178,13 +3226,18 @@ function renderStageFlowRow() {
     stageChip('본회의 의결', '본회의'),
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('공포', '공포'),
+  ].join('');
+  const row = document.getElementById('billStatusChipRow');
+  row.innerHTML = compactHtml;
+  // 시행·입법예고는 국회 단계가 아니라 아래 목록을 바꾸는 칩이라 옆 칸에 따로 그린다
+  // (좁은 화면에서는 이 칸만 다음 줄로 내려간다).
+  const sideRow = document.getElementById('billSideChipRow');
+  sideRow.innerHTML = [
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('시행', '시행'),
     `<span class="bill-step-sep"></span>`,
     stageChip('입법예고', '입법예고'),
   ].join('');
-  const row = document.getElementById('billStatusChipRow');
-  row.innerHTML = compactHtml;
 
   const selectStage = (stage, result) => {
     state.billStage = stage;
@@ -3193,7 +3246,7 @@ function renderStageFlowRow() {
     renderStageFlowRow();
     renderBillList();
   };
-  row.querySelectorAll('button[data-stage]').forEach(btn => {
+  [...row.querySelectorAll('button[data-stage]'), ...sideRow.querySelectorAll('button[data-stage]')].forEach(btn => {
     // 제목 옆 ▼ 버튼을 없앴으므로, 고른 칸을 다시 누르는 것이 "접기"가 된다.
     btn.addEventListener('click', () => selectStage(
       state.billStage === btn.dataset.stage ? '전체' : btn.dataset.stage
@@ -3258,7 +3311,7 @@ function renderBillList() {
   }
   const starred = getStarredBills();
   const bills = billView();
-  let filtered = state.billCommittee === '전체' ? bills.slice() : bills.filter(b => (b.committee || '(미정)') === state.billCommittee);
+  let filtered = state.billCommittee === '전체' ? bills.slice() : bills.filter(b => billCommitteeKey(b.committee) === state.billCommittee);
   // 기간(제안일 범위)이 걸려 있으면 단계 필터는 "지금 그 단계에 머물러 있는 것"
   // 대신 "그 기간에 그 단계를 거쳐간 것"으로 본다(billStageMatchesInPeriod 주석
   // 참고) - 이 경우 날짜 제약이 이미 그 안에 포함되므로, 아래의 일반 제안일
@@ -3747,6 +3800,24 @@ function subLawKindMatches(r, kind) {
 // 법령별 칩의 묶음 이름 - 시행령·시행규칙은 모법 이름으로 모은다("하도급법 시행령" -> "하도급법").
 // 여러 법을 한꺼번에 고친 일괄개정(약칭 없는 "…등 N개 법령의 일부개정에 관한 …")은 한 칸으로 모은다.
 const SUB_LAW_BUNDLE = '일괄개정';
+// 칩 풀네임: 부처는 순서표의 정식 이름, 법령은 시행령·시행규칙을 뗀 법률 이름.
+function subLawMinistryFull(abbr) {
+  const hit = SUB_LAW_MINISTRY_ORDER.find(([, a]) => a === abbr);
+  return hit ? hit[0] : abbr;
+}
+function subLawLawFullMap(rows, groupFn) {
+  const map = {};
+  rows.forEach(r => {
+    const g = groupFn(r);
+    if (!map[g] && g !== SUB_LAW_BUNDLE) map[g] = (r.name || '').replace(/\s*시행(령|규칙)$/, '');
+  });
+  return map;
+}
+// 칩 하나: 고른 칩은 풀네임, 나머지는 약칭(툴팁은 언제나 풀네임).
+function subLawChip(attr, key, label, full, count, active) {
+  return `<button data-${attr}="${escHtml(key)}" title="${escHtml(full)}" class="${active ? 'active' : ''}">${escHtml(active ? full : label)} ${count}</button>`;
+}
+
 function subLawGroup(r) {
   if (!r.abbr && /\d+개 법(령|률)의 일부개정/.test(r.name || '')) return SUB_LAW_BUNDLE;
   return (r.abbr || r.name || '').replace(/\s*시행(령|규칙)$/, '');
@@ -3859,7 +3930,7 @@ function renderSubLawPanel() {
   const ministries = Object.keys(minCounts).sort((a, b) => subLawMinistryRank(a) - subLawMinistryRank(b) || a.localeCompare(b));
   const minRow = document.getElementById('subLawMinistryRow');
   minRow.innerHTML = [`<button data-min="전체" class="${subLawMinistry === '전체' ? 'active' : ''}">전체 ${byKindAll.length}</button>`,
-    ...ministries.map(m => `<button data-min="${escHtml(m)}" class="${subLawMinistry === m ? 'active' : ''}">${escHtml(m)} ${minCounts[m]}</button>`)].join('');
+    ...ministries.map(m => subLawChip('min', m, m, subLawMinistryFull(m), minCounts[m], subLawMinistry === m))].join('');
   minRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     subLawMinistry = subLawMinistry === btn.dataset.min ? '전체' : btn.dataset.min;
     subLawLaw = '전체';
@@ -3874,8 +3945,9 @@ function renderSubLawPanel() {
   const laws = Object.keys(lawCounts).sort((a, b) =>
     (a === SUB_LAW_BUNDLE) - (b === SUB_LAW_BUNDLE) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
   const lawRow = document.getElementById('subLawLawRow');
+  const lawFull = subLawLawFullMap(byKindOnly, subLawGroup);
   lawRow.innerHTML = [`<button data-law="전체" class="${subLawLaw === '전체' ? 'active' : ''}">전체 ${byKindOnly.length}</button>`,
-    ...laws.map(g => `<button data-law="${escHtml(g)}" class="${subLawLaw === g ? 'active' : ''}">${escHtml(g)} ${lawCounts[g]}</button>`)].join('');
+    ...laws.map(g => subLawChip('law', g, g, lawFull[g] || g, lawCounts[g], subLawLaw === g))].join('');
   lawRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     // 고른 법을 다시 누르면 전체로 돌아간다(단계 줄 칩과 같은 규칙).
     subLawLaw = subLawLaw === btn.dataset.law ? '전체' : btn.dataset.law;
@@ -3983,10 +4055,10 @@ function noticeItemHtml(r, today) {
   </div>`;
 }
 
-function noticeChipRow(el, counts, active, attr, order, onPick) {
+function noticeChipRow(el, counts, active, attr, order, onPick, fullFn) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   el.innerHTML = [`<button data-${attr}="전체" class="${active === '전체' ? 'active' : ''}">전체 ${total}</button>`,
-    ...order.map(k => `<button data-${attr}="${escHtml(k)}" class="${active === k ? 'active' : ''}">${escHtml(k)} ${counts[k]}</button>`)].join('');
+    ...order.map(k => subLawChip(attr, k, k, fullFn(k), counts[k], active === k))].join('');
   el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset[attr])));
 }
 
@@ -4001,17 +4073,18 @@ function renderNoticePanel() {
     noticeLaw = '전체';
     noticeShowAll = false;
     renderNoticePanel();
-  });
+  }, subLawMinistryFull);
   const byMin = noticeMinistry === '전체' ? NOTICE_DATA : NOTICE_DATA.filter(r => subLawMinistryOf(r) === noticeMinistry);
   const lawCounts = {};
   byMin.forEach(r => { const g = noticeGroup(r); lawCounts[g] = (lawCounts[g] || 0) + 1; });
   if (noticeLaw !== '전체' && !lawCounts[noticeLaw]) noticeLaw = '전체';
   const laws = Object.keys(lawCounts).sort((a, b) => lawCounts[b] - lawCounts[a] || a.localeCompare(b));
+  const noticeLawFull = subLawLawFullMap(byMin, noticeGroup);
   noticeChipRow(document.getElementById('noticeLawRow'), lawCounts, noticeLaw, 'law', laws, v => {
     noticeLaw = noticeLaw === v ? '전체' : v;
     noticeShowAll = false;
     renderNoticePanel();
-  });
+  }, k => noticeLawFull[k] || k);
   const byLaw = noticeLaw === '전체' ? byMin : byMin.filter(r => noticeGroup(r) === noticeLaw);
 
   const matches = (r, f) => f === '전체' || (f === '의견 접수 중' ? noticeOpen(r, today) : !!r.end && r.end < today);
