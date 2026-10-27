@@ -887,6 +887,25 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 건수가 아랫줄로 내려간 단계 칸(2줄)과 "전체" 칸(1줄)의 높이가 달랐다 - 같은 높이로 늘린다 */
   .stage-flow-header, .stage-flow-compact { align-items: stretch; }
   .stage-flow-header .bill-step-arrow { align-self: center; }
+  /* 시행·입법예고까지 한 줄에 넣으면 375px에서 484px로 넘쳐 페이지가 좌우로 밀렸다 -
+     그 두 칸만 다음 줄로 내린다(국회 단계 다섯 칸은 그대로 한 줄). */
+  .stage-flow-header { flex-wrap: wrap; row-gap: 6px; }
+  .stage-flow-header .stage-flow-side { flex-basis: 100%; }
+  /* 국회 단계 다섯 칸은 "전체" 옆 남은 폭 안에 줄여 넣는다(줄바꿈 허용 때문에 통째로 내려가지 않게). */
+  .stage-flow-header #billStatusChipRow { flex: 1 1 0; min-width: 0; }
+  .stage-flow-side .bill-step-arrow { align-self: center; }
+  /* 신구조문 대비가 한 칸으로 쌓이면 맨 위 "개정 전/개정 후" 제목만으로는 어느 쪽인지
+     모른다 - 칸마다 꼬리표를 달고, "(생략)/(현행과 같음)" 줄은 개정 후 쪽만 남긴다. */
+  .sublaw-diff-grid .sublaw-diff-col { display: none; }
+  .sublaw-diff-grid > div:not(.sublaw-diff-col)::before { display: block; font-size: 0.78em; font-weight: 700; opacity: 0.55; }
+  .sublaw-diff-grid > div:nth-child(odd):not(.sublaw-diff-col)::before { content: '개정 전'; }
+  .sublaw-diff-grid > div:nth-child(even):not(.sublaw-diff-col)::before { content: '개정 후'; }
+  .sublaw-diff-grid > div.same:nth-child(odd) { display: none; }
+  .sublaw-diff-grid > div.same::before { content: none !important; }
+  /* 부처·법령 칩은 수십 개라 감싸면 화면 한가득이 된다 - 좁은 화면에서는 옆으로 밀어 보게 한다. */
+  #subLawMinistryRow, #subLawLawRow, #noticeMinistryRow, #noticeLawRow { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+  /* 시행예정·의견 접수 중 같은 상태 필터는 몇 개 안 되고 기본값이 오른쪽 끝이라, 밀어야 보이면 놓친다 - 감싼다. */
+  #subLawFilterRow, #noticeFilterRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; }
 
   /* ── 국회의원 카드 ── */
   /* 그냥 1fr이면 최소 폭이 내용(줄바꿈 안 하는 지역구 줄 등) 폭이 되어 카드가
@@ -1070,6 +1089,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <button id="billStageAllBtn" class="flow-plain committee-all-btn"></button>
           <span class="bill-step-arrow">▶</span>
           <div class="stage-flow-compact" id="billStatusChipRow"></div>
+          <div class="stage-flow-compact stage-flow-side" id="billSideChipRow"></div>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
       </div>
@@ -3178,13 +3198,18 @@ function renderStageFlowRow() {
     stageChip('본회의 의결', '본회의'),
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('공포', '공포'),
+  ].join('');
+  const row = document.getElementById('billStatusChipRow');
+  row.innerHTML = compactHtml;
+  // 시행·입법예고는 국회 단계가 아니라 아래 목록을 바꾸는 칩이라 옆 칸에 따로 그린다
+  // (좁은 화면에서는 이 칸만 다음 줄로 내려간다).
+  const sideRow = document.getElementById('billSideChipRow');
+  sideRow.innerHTML = [
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('시행', '시행'),
     `<span class="bill-step-sep"></span>`,
     stageChip('입법예고', '입법예고'),
   ].join('');
-  const row = document.getElementById('billStatusChipRow');
-  row.innerHTML = compactHtml;
 
   const selectStage = (stage, result) => {
     state.billStage = stage;
@@ -3193,7 +3218,7 @@ function renderStageFlowRow() {
     renderStageFlowRow();
     renderBillList();
   };
-  row.querySelectorAll('button[data-stage]').forEach(btn => {
+  [...row.querySelectorAll('button[data-stage]'), ...sideRow.querySelectorAll('button[data-stage]')].forEach(btn => {
     // 제목 옆 ▼ 버튼을 없앴으므로, 고른 칸을 다시 누르는 것이 "접기"가 된다.
     btn.addEventListener('click', () => selectStage(
       state.billStage === btn.dataset.stage ? '전체' : btn.dataset.stage
