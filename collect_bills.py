@@ -266,7 +266,9 @@ def fetch_passed_bills():
     """본회의에서 가결된 22대 법률안을 계류의안과 같은 필드 모양으로 돌려준다.
 
     본회의 처리안건(의결일·정부이송일·공포일)을 기준으로, 처리의안에서 같은 의안ID의
-    상임위·법사위 정보를 덧붙인다. (행 목록, 둘 다 끝까지 받았는지)를 돌려준다.
+    상임위·법사위 정보를 덧붙인다. (행 목록, 대안에 흡수된 원안 행 목록, 둘 다 끝까지
+    받았는지)를 돌려준다. 흡수된 원안은 계류의안에서 빠져 법안 목록에 없으므로, 가결된
+    대안의 "반영된 법안"을 잇는 데만 쓴다(find_alt_bill_links의 extra_children).
     """
     plenary_rows, plenary_ok = fetch_all_rows(PLENARY_BILL_API, "본회의 처리안건", {"AGE": CURRENT_ERA_NO})
     processed_rows, processed_ok = fetch_all_rows(PROCESSED_BILL_API, "처리의안", {"AGE": CURRENT_ERA_NO})
@@ -303,8 +305,11 @@ def fetch_passed_bills():
             "CURR_TRANS_DT": p.get("CURR_TRANS_DT") or "",
             "ANNOUNCE_DT": p.get("ANNOUNCE_DT") or "",
         })
-    print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중)")
-    return passed, plenary_ok and processed_ok
+    absorbed = [q for q in processed_rows
+                if "대안반영" in (q.get("CMT_PROC_RESULT_CD") or "") + (q.get("PROC_RESULT_CD") or "")]
+    print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중)"
+          f" / 대안에 흡수된 원안 {len(absorbed)}건")
+    return passed, absorbed, plenary_ok and processed_ok
 
 
 PARTY_ABBR = {
@@ -625,10 +630,11 @@ def normalize_result(code):
 ALT_BILL_SUFFIX = "(대안)"
 
 
-def find_alt_bill_links(bills):
+def find_alt_bill_links(bills, extra_children=()):
     """bills(딕트 리스트, in-place)에서 대안반영가결/폐기된 원안에는
     대안의안ID/대안법안명/대안상세링크를, 그 대안 자신에는 반영된원안목록
-    (JSON 문자열)을 채운다."""
+    (JSON 문자열)을 채운다. extra_children은 목록에 없는 원안(같은 키 모양의
+    딕트) - 대안의 반영된원안목록에만 더해진다."""
     alt_index = {}
     for b in bills:
         name = b["법안명"]
@@ -637,15 +643,18 @@ def find_alt_bill_links(bills):
             alt_index[(b["소관위원회"], b["상임위처리일"], core)] = b
 
     alt_children = {}
-    for b in bills:
+    listed = {b["의안ID"] for b in bills}
+    extra = [c for c in extra_children if c["의안ID"] not in listed]
+    for b in [*bills, *extra]:
         if "대안반영" not in b["처리결과"]:
             continue
         alt = alt_index.get((b["소관위원회"], b["상임위처리일"], b["법안명"]))
         if not alt or alt["의안ID"] == b["의안ID"]:
             continue
-        b["대안의안ID"] = alt["의안ID"]
-        b["대안법안명"] = alt["법안명"]
-        b["대안상세링크"] = alt["상세링크"]
+        if b["의안ID"] in listed:
+            b["대안의안ID"] = alt["의안ID"]
+            b["대안법안명"] = alt["법안명"]
+            b["대안상세링크"] = alt["상세링크"]
         alt_children.setdefault(alt["의안ID"], []).append({
             "의안ID": b["의안ID"], "법안명": b["법안명"],
             "제안자": b["제안자"], "상세링크": b["상세링크"],
@@ -881,7 +890,7 @@ def main():
 
     # 본회의를 통과한 법안은 계류의안에서 빠지므로 따로 받아 "공포" 단계로 더한다.
     # 혹시 계류의안에도 남아 있으면 본회의 쪽이 더 뒤 단계라 그걸로 덮는다.
-    passed_rows, passed_complete = fetch_passed_bills()
+    passed_rows, absorbed_rows, passed_complete = fetch_passed_bills()
     for row in passed_rows:
         seen[row["BILL_ID"]] = row
     fetch_complete = fetch_complete and passed_complete
@@ -944,7 +953,16 @@ def main():
             "반영된원안목록": "",
         })
 
-    find_alt_bill_links(bills)
+    absorbed = [{
+        "의안ID": r.get("BILL_ID", ""),
+        "법안명": r.get("BILL_NAME", ""),
+        "제안자": r.get("PROPOSER", ""),
+        "소관위원회": r.get("CURR_COMMITTEE", ""),
+        "상임위처리일": r.get("CMT_PROC_DT", ""),
+        "처리결과": r.get("CMT_PROC_RESULT_CD") or r.get("PROC_RESULT_CD") or "",
+        "상세링크": r.get("LINK_URL", ""),
+    } for r in absorbed_rows if r.get("BILL_ID")]
+    find_alt_bill_links(bills, absorbed)
 
     # 전체 법안이 수만 건이라 전부 요약하면 무료 한도를 넘기므로, 최근 발의된 것 중
     # 아직 요약이 없는 법안만 대상으로 한다. 오래된 대기 법안은 요약 없이 남는다.
