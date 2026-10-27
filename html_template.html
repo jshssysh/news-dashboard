@@ -244,13 +244,13 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cart-preview-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 /* 입법 탭 "법령 공포·시행" 패널 - 법안 필터(sticky) 위에 두고, 접으면 제목 줄만 남는다. */
 .sublaw-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.sublaw-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0 !important; }
-.sublaw-toggle .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
+.sublaw-panel .panel-title { margin-bottom: 0; }
+#view-law:not(.sublaw-mode) #subLawPanel { display: none; }
+/* 법령에는 소관위·법안 쪽수가 없어서 "시행" 칩을 고른 동안은 숨긴다. */
+#view-law.sublaw-mode #committeeFilterSection, #view-law.sublaw-mode .bill-result-row,
+#view-law.sublaw-mode #billListArea { display: none; }
 .sublaw-filter-row { margin: 0; }
 .sublaw-filter-sep { width: 1px; align-self: stretch; background: var(--app-border); margin: 0 4px; }
-.sublaw-panel.collapsed .sublaw-body, .sublaw-panel.collapsed .sublaw-filter-row { display: none; }
-.sublaw-panel.collapsed .panel-title-row { margin-bottom: 0; }
-.sublaw-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
 .sublaw-item { padding: 8px 0; border-top: 1px solid var(--app-border); }
 .sublaw-item:first-child { border-top: none; padding-top: 0; }
 .sublaw-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 6px; }
@@ -995,16 +995,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
   <div id="view-law" class="view">
     <hr class="thin">
-    <div class="sidebar-panel sublaw-panel" id="subLawPanel">
-      <div class="panel-title-row">
-        <div class="panel-title sublaw-toggle" id="subLawToggle">법령 공포·시행<span class="current-tag" id="subLawCountTag"></span><span class="toggle-caret">▼</span></div>
-        <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
-      </div>
-      <div class="sublaw-body">
-        <div id="subLawListArea"><div class='info-box'>법령 공포·시행 목록을 불러오는 중…</div></div>
-        <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
-      </div>
-    </div>
     <div class="bill-filter-sticky">
       <div class="news-filter-row" id="billMainFilterRow">
         <h5 id="billSearchToggle">검색<span class="toggle-caret">▼</span></h5>
@@ -1016,6 +1006,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
             <option value="법사위 심사">법사위</option>
             <option value="본회의 의결">본회의</option>
             <option value="공포">공포</option>
+            <option value="시행">시행</option>
           </select>
           <select id="billPeriodSelect">
             <option value="all">전체</option>
@@ -1071,6 +1062,17 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
     </div>
     <div id="billListArea"></div>
+    <!-- 단계 줄의 "시행" 칩을 고르면 법안 목록 대신 이 패널이 보인다(#view-law.sublaw-mode). -->
+    <div class="sidebar-panel sublaw-panel" id="subLawPanel">
+      <div class="panel-title-row">
+        <div class="panel-title">법령 공포·시행<span class="current-tag" id="subLawCountTag"></span></div>
+        <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
+      </div>
+      <div class="sublaw-body">
+        <div id="subLawListArea"><div class='info-box'>법령 공포·시행 목록을 불러오는 중…</div></div>
+        <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
+      </div>
+    </div>
   </div>
 
   <div id="view-decision" class="view">
@@ -3096,7 +3098,9 @@ function renderStageFlowRow() {
   } else {
     source.forEach(b => { stageCounts[b.stage] = (stageCounts[b.stage] || 0) + 1; });
   }
-  if (state.billStage !== '전체' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
+  // "시행"은 법안 단계가 아니라 아래 목록을 법령 공포·시행 목록으로 바꾸는 칩이다.
+  if (subLawsLoaded) stageCounts['시행'] = SUB_LAW_DATA.length;
+  if (state.billStage !== '전체' && state.billStage !== '시행' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
   // 검색 줄의 단계 드롭다운(billStageSelect)도 같은 state.billStage를 보므로,
   // 흐름도 칩을 클릭해 바뀐 경우에도 드롭다운 표시값을 매번 맞춰준다.
   const stageSelectEl = document.getElementById('billStageSelect');
@@ -3124,6 +3128,8 @@ function renderStageFlowRow() {
     stageChip('본회의 의결', '본회의'),
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('공포', '공포'),
+    `<span class="bill-step-arrow">▶</span>`,
+    stageChip('시행', '시행'),
   ].join('');
   const row = document.getElementById('billStatusChipRow');
   row.innerHTML = compactHtml;
@@ -3184,6 +3190,12 @@ function renderBills() {
 }
 
 function renderBillList() {
+  const lawMode = state.billStage === '시행';
+  document.getElementById('view-law').classList.toggle('sublaw-mode', lawMode);
+  if (lawMode) {
+    if (subLawsLoaded) renderSubLawPanel();
+    return;
+  }
   const starred = getStarredBills();
   const bills = billView();
   let filtered = state.billCommittee === '전체' ? bills.slice() : bills.filter(b => (b.committee || '(미정)') === state.billCommittee);
@@ -3616,7 +3628,6 @@ const SUB_LAW_FILTERS = ['시행예정', '최근 시행', '직접 개정', '타�
 const SUB_LAW_KINDS = ['전체', '법률', '시행령·시행규칙'];
 const SUB_LAW_RECENT_DAYS = 30;
 const SUB_LAW_PREVIEW_COUNT = 5;
-const SUB_LAW_COLLAPSE_KEY = 'subLawPanelCollapsed';
 let subLawFilter = '시행예정';
 let subLawKind = '전체';
 let subLawShowAll = false;
@@ -3684,10 +3695,6 @@ function subLawItemHtml(r, today) {
   </div>`;
 }
 
-function applySubLawCollapse() {
-  document.getElementById('subLawPanel').classList.toggle('collapsed', readFlag(SUB_LAW_COLLAPSE_KEY));
-}
-
 function renderSubLawPanel() {
   const today = todayKstIso();
   const byKind = SUB_LAW_DATA.filter(r => subLawKindMatches(r, subLawKind));
@@ -3733,11 +3740,6 @@ document.getElementById('subLawMoreBtn').addEventListener('click', () => {
   subLawShowAll = !subLawShowAll;
   renderSubLawPanel();
 });
-document.getElementById('subLawToggle').addEventListener('click', () => {
-  writeFlag(SUB_LAW_COLLAPSE_KEY, !readFlag(SUB_LAW_COLLAPSE_KEY));
-  applySubLawCollapse();
-});
-applySubLawCollapse();
 
 let subLawsLoaded = false;
 let subLawsPromise = null;
@@ -3844,7 +3846,8 @@ function renderAll() {
     if (subLawsLoaded) {
       renderSubLawPanel();
     } else {
-      ensureSubLaws().then(() => { if (state.activeTab === '입법') renderSubLawPanel(); })
+      // 받고 나면 단계 줄의 "시행" 칩 건수도 다시 그린다(법안이 아직이면 법안 쪽 로딩이 그린다).
+      ensureSubLaws().then(() => { if (state.activeTab === '입법') { renderSubLawPanel(); if (billsLoaded) renderStageFlowRow(); } })
         .catch(() => {
           document.getElementById('subLawListArea').innerHTML =
             "<div class='info-box'>법령 공포·시행 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
