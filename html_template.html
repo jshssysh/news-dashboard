@@ -110,6 +110,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 /* 데스크톱은 제안자와 한 줄이라 "· "로 구분하고, 줄이 넘어가는 모바일에선
    줄머리에 가운뎃점이 오지 않게 뺀다(아래 미디어쿼리). */
 .bill-no::before { content: "· "; }
+/* 요약 팝업 안의 "의안 상세보기" 버튼은 팝업을 연 창(opener)을 쓰는데 noopener로 열어
+   동작하지 않으므로, 의안 상세 페이지로 가는 링크를 카드에 직접 둔다. */
+.bill-detail-link { font-size: 0.85em; opacity: 0.7; white-space: nowrap; margin-left: 6px; color: inherit; }
+.bill-detail-link:hover { opacity: 1; text-decoration: underline; }
 .bill-alt-link { color: #1565c0; text-decoration: none; font-weight: 600; margin-left: 2px; }
 .bill-alt-link:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) { .bill-alt-link { color: #7aa7e0; } }
@@ -3257,7 +3261,7 @@ function renderBillList() {
           <button class="star-btn ${isStarred?'starred':''}" data-id="${b.id}" title="즐겨찾기">${isStarred?'★':'☆'}</button>
           <span class="card-tags"><span class="chip-category">${b.category || '미분류'}</span></span>
           <a class="article-title bill-popup-link" href="${summaryLink}" data-url="${summaryLink}" title="${titleAttr}">${b.name || '(제목 없음)'}</a>
-          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer, b.repProposerAmbiguous)}${b.no?`<span class="bill-no">의안번호 ${b.no}</span>`:''}
+          ${proposerHtml(b.proposer||b.repProposer||'', b.repProposer, b.repProposerAmbiguous)}${b.no?`<span class="bill-no">의안번호 ${b.no}</span>`:''}<a class="bill-detail-link" href="https://likms.assembly.go.kr/bill/billDetail.do?billId=${encodeURIComponent(b.id)}" target="_blank" rel="noopener">의안 상세 ↗</a>
         </div>
         <div class="bill-stepper">${billStepperHtml(b)}</div>
         ${b.absorbedBills && b.absorbedBills.length ? billAltChildrenHtml(b) : ''}
