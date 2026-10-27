@@ -246,6 +246,13 @@ a.badge-skipped:hover { text-decoration: underline; }
 .sublaw-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .sublaw-panel .panel-title { margin-bottom: 0; }
 #view-law:not(.sublaw-mode) #subLawPanel { display: none; }
+#view-law:not(.notice-mode) #noticePanel { display: none; }
+#view-law.notice-mode #committeeFilterSection, #view-law.notice-mode .bill-result-row,
+#view-law.notice-mode #billListArea { display: none; }
+#noticeMinistryRow, #noticeLawRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; margin: 0 0 10px; }
+#noticeLawRow button { padding: 4px 9px; font-size: 0.78em; }
+.sublaw-source { font-size: 0.75em; opacity: 0.6; margin-top: 8px; }
+.bill-step-sep { width: 1px; align-self: stretch; background: var(--app-border); margin: 0 6px; }
 /* 법령에는 소관위·법안 쪽수가 없어서 "시행" 칩을 고른 동안은 숨긴다. */
 #view-law.sublaw-mode #committeeFilterSection, #view-law.sublaw-mode .bill-result-row,
 #view-law.sublaw-mode #billListArea { display: none; }
@@ -260,6 +267,28 @@ a.badge-skipped:hover { text-decoration: underline; }
 .sublaw-head .card-meta-inline { margin-left: 0; }
 .sublaw-rev { font-size: 0.8em; opacity: 0.7; }
 .sublaw-text { white-space: pre-line; }
+.sublaw-articles { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; font-size: 0.8em; }
+.sublaw-articles-label { opacity: 0.65; margin-right: 2px; }
+.sublaw-art, .sublaw-diff-toggle { border: 1px solid var(--app-border); background: transparent; color: inherit; border-radius: 999px; padding: 2px 8px; font-size: 1em; cursor: pointer; }
+.sublaw-art:hover, .sublaw-diff-toggle:hover { border-color: currentColor; }
+.sublaw-diff-toggle { margin-left: 4px; font-weight: 700; }
+.sublaw-diff { display: none; margin-bottom: 8px; font-size: 0.86em; }
+.sublaw-item.diff-open .sublaw-diff { display: block; }
+.sublaw-diff-art { border: 1px solid var(--app-border); border-radius: 8px; margin-top: 6px; overflow: hidden; }
+.sublaw-diff-art.flash { box-shadow: 0 0 0 2px #f59e0b; }
+.sublaw-diff-head { font-weight: 700; padding: 5px 8px; border-bottom: 1px solid var(--app-border); }
+.sublaw-diff-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.sublaw-diff-grid > div { padding: 3px 8px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
+.sublaw-diff-grid > div:nth-child(odd) { border-right: 1px solid var(--app-border); }
+.sublaw-diff-grid .sublaw-diff-col { font-size: 0.85em; opacity: 0.65; font-weight: 700; }
+.sublaw-diff-grid .same { opacity: 0.5; }
+.sublaw-diff mark.del { background: rgba(239, 68, 68, 0.2); color: inherit; text-decoration: line-through; text-decoration-color: rgba(239, 68, 68, 0.7); }
+.sublaw-diff mark.ins { background: rgba(34, 197, 94, 0.25); color: inherit; font-weight: 700; }
+.sublaw-diff-note { opacity: 0.65; margin-top: 4px; }
+@media (max-width: 640px) {
+  .sublaw-diff-grid { grid-template-columns: 1fr; }
+  .sublaw-diff-grid > div:nth-child(odd) { border-right: none; border-bottom: 1px dashed var(--app-border); }
+}
 .sublaw-text .sublaw-full { display: none; }
 .decision-summary-row.expanded .sublaw-text .sublaw-sum { display: none; }
 .decision-summary-row.expanded .sublaw-text .sublaw-full { display: inline; }
@@ -1009,6 +1038,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
             <option value="본회의 의결">본회의</option>
             <option value="공포">공포</option>
             <option value="시행">시행</option>
+            <option value="입법예고">입법예고</option>
           </select>
           <select id="billPeriodSelect">
             <option value="all">전체</option>
@@ -1076,6 +1106,20 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div id="subLawListArea"><div class='info-box'>법령 공포·시행 목록을 불러오는 중…</div></div>
         <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
       </div>
+    </div>
+    <!-- 단계 줄의 "입법예고" 칩을 고르면 법안 목록 대신 이 패널이 보인다(#view-law.notice-mode). -->
+    <div class="sidebar-panel sublaw-panel" id="noticePanel">
+      <div class="panel-title-row">
+        <div class="panel-title">입법예고<span class="current-tag" id="noticeCountTag"></span></div>
+        <div class="cat-chip-row sublaw-filter-row" id="noticeFilterRow"></div>
+      </div>
+      <div class="cat-chip-row sublaw-law-row" id="noticeMinistryRow"></div>
+      <div class="cat-chip-row sublaw-law-row" id="noticeLawRow"></div>
+      <div class="sublaw-body">
+        <div id="noticeListArea"><div class='info-box'>입법예고 목록을 불러오는 중…</div></div>
+        <button type="button" id="noticeMoreBtn" class="archive-toggle-link" style="display:none;"></button>
+      </div>
+      <div class="sublaw-source">국민참여입법센터(opinion.lawmaking.go.kr)의 정부 입법예고 중 이 목록의 부처·법령 것만 모았습니다. 의견 제출은 제목을 눌러 센터에서 하세요.</div>
     </div>
   </div>
 
@@ -1208,7 +1252,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-10-27 16:53 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-10-28 06:27 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -3104,7 +3148,9 @@ function renderStageFlowRow() {
   }
   // "시행"은 법안 단계가 아니라 아래 목록을 법령 공포·시행 목록으로 바꾸는 칩이다.
   if (subLawsLoaded) stageCounts['시행'] = SUB_LAW_DATA.length;
-  if (state.billStage !== '전체' && state.billStage !== '시행' && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
+  // "입법예고"도 같은 식으로 아래 목록을 바꾸는 칩이다(건수는 지금 의견 접수 중인 것).
+  if (noticesLoaded) stageCounts['입법예고'] = NOTICE_DATA.filter(r => noticeOpen(r, todayKstIso())).length;
+  if (state.billStage !== '전체' && !SIDE_LIST_STAGES.includes(state.billStage) && !(state.billStage in stageCounts)) { state.billStage = '전체'; state.billResult = '전체'; }
   // 검색 줄의 단계 드롭다운(billStageSelect)도 같은 state.billStage를 보므로,
   // 흐름도 칩을 클릭해 바뀐 경우에도 드롭다운 표시값을 매번 맞춰준다.
   const stageSelectEl = document.getElementById('billStageSelect');
@@ -3134,6 +3180,8 @@ function renderStageFlowRow() {
     stageChip('공포', '공포'),
     `<span class="bill-step-arrow">▶</span>`,
     stageChip('시행', '시행'),
+    `<span class="bill-step-sep"></span>`,
+    stageChip('입법예고', '입법예고'),
   ].join('');
   const row = document.getElementById('billStatusChipRow');
   row.innerHTML = compactHtml;
@@ -3193,11 +3241,19 @@ function renderBills() {
   renderBillList();
 }
 
+// 단계 줄에서 법안 목록 대신 다른 목록으로 바꾸는 칩들.
+const SIDE_LIST_STAGES = ['시행', '입법예고'];
 function renderBillList() {
   const lawMode = state.billStage === '시행';
+  const noticeMode = state.billStage === '입법예고';
   document.getElementById('view-law').classList.toggle('sublaw-mode', lawMode);
+  document.getElementById('view-law').classList.toggle('notice-mode', noticeMode);
   if (lawMode) {
     if (subLawsLoaded) renderSubLawPanel();
+    return;
+  }
+  if (noticeMode) {
+    if (noticesLoaded) renderNoticePanel();
     return;
   }
   const starred = getStarredBills();
@@ -3716,18 +3772,81 @@ function subLawItemHtml(r, today) {
     badges.push(`<span class="chip-tag-warn">시행 D+${isoDayDiff(today, recent)} (${recent})</span>`);
   }
   const full = r.revision === '타법개정' ? [r.summary, r.detail].filter(Boolean).join('\n') : (r.detail || r.summary);
-  return `<div class="sublaw-item">
+  const arts = r.articles || [];
+  const artsHtml = arts.length ? `<div class="sublaw-articles">
+      <span class="sublaw-articles-label">개정 조문</span>
+      ${arts.slice(0, SUB_LAW_ART_CHIPS).map(a => `<button type="button" class="sublaw-art" data-no="${escHtml(a.no)}" title="${escHtml(a.title)}">${escHtml(a.no)}</button>`).join('')}
+      ${arts.length > SUB_LAW_ART_CHIPS ? `<span class="sublaw-articles-label">외 ${arts.length - SUB_LAW_ART_CHIPS}개</span>` : ''}
+      <button type="button" class="sublaw-diff-toggle">신구조문 대비 ▼</button>
+    </div>
+    <div class="sublaw-diff"></div>` : '';
+  return `<div class="sublaw-item" data-mst="${escHtml(r.mst || '')}">
     <div class="sublaw-head">
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${escHtml(r.link)}" target="_blank">${escHtml(r.abbr || r.name)}</a>
       <span class="sublaw-rev">${escHtml(r.revision)}</span>
       <span class="card-meta-inline">공포 ${r.promulgated} · 시행 ${(r.effective || []).join(', ')}</span>
     </div>
+    ${artsHtml}
     <div class="decision-summary-row">
       <div class="summary-box-blue decision-summary-text sublaw-text"><span class="sublaw-sum">${escHtml(r.summary)}</span><span class="sublaw-full">${escHtml(full)}</span></div>
       <button type="button" class="decision-summary-toggle" title="개정 내용 펼치기/접기">▼</button>
     </div>
   </div>`;
+}
+
+// 신구조문 대비: 법제처 표시(<P>…</P>)를 개정 전은 지운 부분, 개정 후는 새로 넣은 부분으로 강조한다.
+const SUB_LAW_ART_CHIPS = 12;
+const SUB_LAW_SAME_ROW = /^\(?(생\s*략|현행과\s*같음)\)?$|\((생\s*략|현행과\s*같음)\)$/;
+function subLawDiffLine(text, cls) {
+  return escHtml(text || '').replace(/&lt;P&gt;/g, `<mark class="${cls}">`).replace(/&lt;\/P&gt;/g, '</mark>');
+}
+function subLawDiffHtml(articles) {
+  if (!articles || !articles.length) return "<div class='sublaw-diff-note'>신구조문 대비가 없습니다.</div>";
+  return articles.map(a => {
+    const cells = a.rows.map(([o, n]) => {
+      const same = SUB_LAW_SAME_ROW.test((n || '').replace(/<\/?P>/g, '').trim()) ? ' same' : '';
+      return `<div class="${same.trim()}">${subLawDiffLine(o, 'del')}</div><div class="${same.trim()}">${subLawDiffLine(n, 'ins')}</div>`;
+    }).join('');
+    return `<div class="sublaw-diff-art" data-no="${escHtml(a.no)}">
+      <div class="sublaw-diff-head">${escHtml(a.no || '조문')}${a.title ? ` (${escHtml(a.title)})` : ''}</div>
+      <div class="sublaw-diff-grid"><div class="sublaw-diff-col">개정 전</div><div class="sublaw-diff-col">개정 후</div>${cells}</div>
+    </div>`;
+  }).join('') + (articles[articles.length - 1].truncated
+    ? "<div class='sublaw-diff-note'>조문이 많아 앞부분만 보여 줍니다. 전체는 법령 이름을 눌러 법제처에서 보세요.</div>" : '');
+}
+
+let subLawDiffsPromise = null;
+function ensureSubLawDiffs() {
+  if (!subLawDiffsPromise) {
+    subLawDiffsPromise = loadJson('subordinate_law_diffs.json').catch(err => { subLawDiffsPromise = null; throw err; });
+  }
+  return subLawDiffsPromise;
+}
+
+// 조문 칩을 누르면 대비를 펼치고 그 조문으로 옮겨 간다. "신구조문 대비" 버튼은 펼침/접힘만 한다.
+function toggleSubLawDiff(item, no) {
+  const box = item.querySelector('.sublaw-diff');
+  const btn = item.querySelector('.sublaw-diff-toggle');
+  const open = no ? true : !item.classList.contains('diff-open');
+  item.classList.toggle('diff-open', open);
+  btn.textContent = open ? '신구조문 대비 ▲' : '신구조문 대비 ▼';
+  if (!open) return;
+  const focus = () => {
+    if (!no) return;
+    const target = [...box.querySelectorAll('.sublaw-diff-art')].find(el => el.dataset.no === no);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    target.classList.add('flash');
+    setTimeout(() => target.classList.remove('flash'), 1200);
+  };
+  if (box.dataset.loaded) { focus(); return; }
+  box.innerHTML = "<div class='sublaw-diff-note'>신구조문 대비를 불러오는 중…</div>";
+  ensureSubLawDiffs().then(all => {
+    box.innerHTML = subLawDiffHtml(all[item.dataset.mst]);
+    box.dataset.loaded = '1';
+    focus();
+  }).catch(() => { box.innerHTML = "<div class='sublaw-diff-note'>신구조문 대비를 불러오지 못했습니다.</div>"; });
 }
 
 function renderSubLawPanel() {
@@ -3796,6 +3915,9 @@ function renderSubLawPanel() {
   listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
     btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
   });
+  listEl.querySelectorAll('.sublaw-art, .sublaw-diff-toggle').forEach(btn => {
+    btn.addEventListener('click', () => toggleSubLawDiff(btn.closest('.sublaw-item'), btn.dataset.no || ''));
+  });
 
   const more = document.getElementById('subLawMoreBtn');
   more.style.display = filtered.length > SUB_LAW_PREVIEW_COUNT ? '' : 'none';
@@ -3817,6 +3939,123 @@ function ensureSubLaws() {
       .catch(err => { subLawsPromise = null; throw err; });
   }
   return subLawsPromise;
+}
+
+// ── 입법예고 (collect_legislative_notices.py) ─────────────────────────────
+// 기본은 "의견 접수 중"(마감 가까운 순). 부처 -> 법령 칩은 시행 목록과 같은 규칙으로 묶는다.
+let NOTICE_DATA = [];
+const NOTICE_FILTERS = ['의견 접수 중', '마감', '전체'];
+let noticeFilter = '의견 접수 중';
+let noticeMinistry = '전체';
+let noticeLaw = '전체';
+let noticeShowAll = false;
+
+function noticeOpen(r, today) {
+  return !!r.end && r.end >= today && (!r.start || r.start <= today);
+}
+// 시행 목록에 같은 법이 있으면 그 약칭(예: 공정거래법)으로 묶는다.
+function noticeGroup(r) {
+  const base = (r.name || '').replace(/\s*시행(령|규칙)$/, '');
+  const same = SUB_LAW_DATA.find(x => x.abbr && (x.name || '').replace(/\s*시행(령|규칙)$/, '') === base);
+  return same ? same.abbr.replace(/\s*시행(령|규칙)$/, '') : base;
+}
+
+function noticeItemHtml(r, today) {
+  const badges = [`<span class="chip-category">${escHtml(r.kind || '입법예고')}</span>`];
+  if (noticeOpen(r, today)) {
+    const left = isoDayDiff(r.end, today);
+    badges.push(`<span class="${left <= 7 ? 'chip-alert' : 'chip-tag-warn'}">의견 마감 D-${left} (${r.end})</span>`);
+  } else if (r.end && r.end < today) {
+    badges.push(`<span class="sublaw-rev">마감</span>`);
+  }
+  const full = r.detail || r.summary;
+  return `<div class="sublaw-item">
+    <div class="sublaw-head">
+      <span class="card-tags">${badges.join(' ')}</span>
+      <a class="article-title" href="${escHtml(r.link)}" target="_blank">${escHtml(r.name)}</a>
+      <span class="sublaw-rev">${escHtml(r.revision ? r.revision + '개정' : '').replace('제정개정', '제정').replace('폐지개정', '폐지')}</span>
+      <span class="card-meta-inline">${escHtml([r.ministry, r.dept].filter(Boolean).join(' '))} · 예고 ${r.start} ~ ${r.end}</span>
+    </div>
+    ${full ? `<div class="decision-summary-row">
+      <div class="summary-box-blue decision-summary-text sublaw-text"><span class="sublaw-sum">${escHtml(r.summary || full.slice(0, 200))}</span><span class="sublaw-full">${escHtml(full)}</span></div>
+      <button type="button" class="decision-summary-toggle" title="예고 내용 펼치기/접기">▼</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function noticeChipRow(el, counts, active, attr, order, onPick) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  el.innerHTML = [`<button data-${attr}="전체" class="${active === '전체' ? 'active' : ''}">전체 ${total}</button>`,
+    ...order.map(k => `<button data-${attr}="${escHtml(k)}" class="${active === k ? 'active' : ''}">${escHtml(k)} ${counts[k]}</button>`)].join('');
+  el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset[attr])));
+}
+
+function renderNoticePanel() {
+  const today = todayKstIso();
+  const minCounts = {};
+  NOTICE_DATA.forEach(r => { const m = subLawMinistryOf(r); minCounts[m] = (minCounts[m] || 0) + 1; });
+  if (noticeMinistry !== '전체' && !minCounts[noticeMinistry]) noticeMinistry = '전체';
+  const ministries = Object.keys(minCounts).sort((a, b) => subLawMinistryRank(a) - subLawMinistryRank(b) || a.localeCompare(b));
+  noticeChipRow(document.getElementById('noticeMinistryRow'), minCounts, noticeMinistry, 'min', ministries, v => {
+    noticeMinistry = noticeMinistry === v ? '전체' : v;
+    noticeLaw = '전체';
+    noticeShowAll = false;
+    renderNoticePanel();
+  });
+  const byMin = noticeMinistry === '전체' ? NOTICE_DATA : NOTICE_DATA.filter(r => subLawMinistryOf(r) === noticeMinistry);
+  const lawCounts = {};
+  byMin.forEach(r => { const g = noticeGroup(r); lawCounts[g] = (lawCounts[g] || 0) + 1; });
+  if (noticeLaw !== '전체' && !lawCounts[noticeLaw]) noticeLaw = '전체';
+  const laws = Object.keys(lawCounts).sort((a, b) => lawCounts[b] - lawCounts[a] || a.localeCompare(b));
+  noticeChipRow(document.getElementById('noticeLawRow'), lawCounts, noticeLaw, 'law', laws, v => {
+    noticeLaw = noticeLaw === v ? '전체' : v;
+    noticeShowAll = false;
+    renderNoticePanel();
+  });
+  const byLaw = noticeLaw === '전체' ? byMin : byMin.filter(r => noticeGroup(r) === noticeLaw);
+
+  const matches = (r, f) => f === '전체' || (f === '의견 접수 중' ? noticeOpen(r, today) : !!r.end && r.end < today);
+  const row = document.getElementById('noticeFilterRow');
+  row.innerHTML = NOTICE_FILTERS.map(f =>
+    `<button data-val="${f}" class="${noticeFilter === f ? 'active' : ''}">${f} ${byLaw.filter(r => matches(r, f)).length}</button>`).join('');
+  row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    noticeFilter = btn.dataset.val;
+    noticeShowAll = false;
+    renderNoticePanel();
+  }));
+  const openAll = NOTICE_DATA.filter(r => noticeOpen(r, today)).length;
+  document.getElementById('noticeCountTag').textContent = openAll ? `의견 접수 중 ${openAll}` : '';
+
+  let filtered = byLaw.filter(r => matches(r, noticeFilter));
+  // 접수 중은 마감 가까운 순, 나머지는 예고 시작일 순(데이터 순서) 그대로.
+  if (noticeFilter === '의견 접수 중') filtered = filtered.slice().sort((a, b) => a.end.localeCompare(b.end));
+  const items = noticeShowAll ? filtered : filtered.slice(0, SUB_LAW_PREVIEW_COUNT);
+  const listEl = document.getElementById('noticeListArea');
+  listEl.innerHTML = items.length ? items.map(r => noticeItemHtml(r, today)).join('')
+    : "<div class='info-box'>해당하는 입법예고가 없습니다.</div>";
+  listEl.querySelectorAll('.decision-summary-toggle').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.decision-summary-row').classList.toggle('expanded'));
+  });
+  const more = document.getElementById('noticeMoreBtn');
+  more.style.display = filtered.length > SUB_LAW_PREVIEW_COUNT ? '' : 'none';
+  more.textContent = noticeShowAll ? '접기' : `더보기 (${filtered.length - SUB_LAW_PREVIEW_COUNT}건 더)`;
+}
+
+document.getElementById('noticeMoreBtn').addEventListener('click', () => {
+  noticeShowAll = !noticeShowAll;
+  renderNoticePanel();
+});
+
+let noticesLoaded = false;
+let noticesPromise = null;
+function ensureNotices() {
+  if (noticesLoaded) return Promise.resolve();
+  if (!noticesPromise) {
+    noticesPromise = loadJson('legislative_notices.json')
+      .then(rows => { NOTICE_DATA = rows; noticesLoaded = true; })
+      .catch(err => { noticesPromise = null; throw err; });
+  }
+  return noticesPromise;
 }
 
 // ── 계약서 문구 검토 (Cloudflare Worker + Gemini, worker/ 참고) ──────────
@@ -3918,6 +4157,17 @@ function renderAll() {
           document.getElementById('subLawListArea').innerHTML =
             "<div class='info-box'>법령 공포·시행 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
         });
+    }
+    // 입법예고도 따로 받는다. 법령 칩 약칭은 시행 목록을 보므로 둘 다 받은 뒤 그린다.
+    if (!noticesLoaded) {
+      Promise.all([ensureNotices(), ensureSubLaws()]).then(() => {
+        if (state.activeTab !== '입법') return;
+        if (billsLoaded) renderStageFlowRow();
+        if (state.billStage === '입법예고') renderNoticePanel();
+      }).catch(() => {
+        document.getElementById('noticeListArea').innerHTML =
+          "<div class='info-box'>입법예고 목록을 불러오지 못했습니다. 새로고침 해주세요.</div>";
+      });
     }
     if (billsLoaded) {
       renderBills();
