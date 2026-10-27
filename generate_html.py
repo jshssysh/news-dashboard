@@ -230,8 +230,8 @@ def load_law_penalties():
 
 
 def load_subordinate_laws():
-    """collect_subordinate_laws.py가 받은 subordinate_law_list.csv(공정위 소관
-    법률·시행령·시행규칙의 공포 이력)를 읽는다. 입법 탭 "법령 공포·시행" 패널용.
+    """collect_subordinate_laws.py가 받은 subordinate_law_list.csv(공정위 소관 전체 +
+    다른 부처 주요 법령의 법률·시행령·시행규칙 공포 이력)를 읽는다. 입법 탭 "법령 공포·시행" 패널용.
     시행예정 여부는 날짜에 따라 바뀌므로 여기서 정하지 않고 화면이 오늘 날짜로 가른다."""
     path = "subordinate_law_list.csv"
     if not os.path.exists(path) or os.path.getsize(path) == 0:
@@ -246,6 +246,7 @@ def load_subordinate_laws():
             "name": nz(row.get("법령명"), ""),
             "abbr": nz(row.get("법령약칭"), ""),
             "kind": nz(row.get("법령종류"), ""),
+            "ministry": nz(row.get("소관부처"), ""),
             "revision": nz(row.get("제개정구분"), ""),
             "promulgated": nz(row.get("공포일자"), ""),
             "effective": [d for d in nz(row.get("시행일자"), "").split(";") if d],

@@ -30,6 +30,11 @@ target=eflaw에 nw=1,2,3(연혁+시행예정+현행)을 주면 과거 개정 이
 이유라 그대로 보여주면 엉뚱하다 - 개정문 부칙에서 이 법령을 고친 문단만
 잘라 보여준다.
 
+다른 부처 소관 법령은 부처 전체를 받으면 수백 개라 OTHER_MINISTRY_LAWS에 적은
+법령만 이름으로 검색해 받는다(lawSearch.do?query=법령명 - 비슷한 이름도 섞여 오므로
+"법령명 / 법령명 시행령 / 법령명 시행규칙"과 정확히 같은 것만 남긴다). 화면은
+소관부처명으로 "부처 -> 법령" 두 단계로 묶는다(2026-10-27 사용자 요청).
+
 공정위 직제(공정거래위원회와 그 소속기관 직제, 같은 시행규칙)는 내부 조직
 개편이라 기업이 지킬 규정이 아니므로 뺀다.
 
@@ -57,12 +62,42 @@ LAW_API_BASE = "https://www.law.go.kr/DRF"
 PUBLIC_LAW_LINK = "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq={mst}"
 
 FTC_ORG_CODE = "1130000"
+# 공정위 외에 공포·시행을 챙겨 볼 법령(법제처 정식 법령명). 부처 순서는 화면 쪽
+# (html_template.html SUB_LAW_MINISTRY_ORDER)이 정하고, 여기 순서는 상관없다.
+OTHER_MINISTRY_LAWS = [
+    # 고용노동부
+    "중대재해 처벌 등에 관한 법률", "산업안전보건법", "근로기준법",
+    "파견근로자 보호 등에 관한 법률", "건설근로자의 고용개선 등에 관한 법률",
+    # 금융위원회
+    "자본시장과 금융투자업에 관한 법률", "주식회사 등의 외부감사에 관한 법률",
+    # 법무부
+    "상법", "국제상거래에 있어서 외국공무원에 대한 뇌물방지법",
+    # 개인정보보호위원회
+    "개인정보 보호법",
+    # 국토교통부
+    "건설산업기본법", "건설기술 진흥법", "주택법", "도시 및 주거환경정비법", "건축법",
+    # 계약·외환·관세
+    "국가를 당사자로 하는 계약에 관한 법률", "지방자치단체를 당사자로 하는 계약에 관한 법률",
+    "외국환거래법", "관세법",
+    # 환경
+    "환경영향평가법", "건설폐기물의 재활용촉진에 관한 법률", "자원의 절약과 재활용촉진에 관한 법률",
+    "동물원 및 수족관의 관리에 관한 법률",
+    # 산업통상
+    "대외무역법", "해외자원개발 사업법", "신에너지 및 재생에너지 개발ㆍ이용ㆍ보급 촉진법",
+    "전기용품 및 생활용품 안전관리법", "제품안전기본법",
+    # 지식재산
+    "상표법", "디자인보호법",
+    # 문화체육관광부
+    "관광진흥법", "체육시설의 설치ㆍ이용에 관한 법률",
+    # 식품의약품안전처
+    "식품위생법",
+]
 # 공포일 기준 최근 2년만 보여준다(22대 국회 임기와 비슷한 범위).
 LOOKBACK_DAYS = 730
 EXCLUDE_NAME_KEYWORDS = ["직제"]
 
 CSV_COLUMNS = [
-    "법령일련번호", "법령ID", "법령명", "법령약칭", "법령종류", "제개정구분",
+    "법령일련번호", "법령ID", "법령명", "법령약칭", "법령종류", "소관부처", "제개정구분",
     "공포일자", "공포번호", "시행일자", "개정요약", "개정상세", "상세링크", "최종수집일",
 ]
 
@@ -108,13 +143,17 @@ def classify_kind(name, kind_name):
     return kind_name
 
 
-def fetch_history(cutoff, max_pages=15):
+def _name_key(name):
+    return re.sub(r"[\s·ㆍ・]", "", name or "")
+
+
+def fetch_history(cutoff, by_mst, search, name_filter=None, max_pages=15):
     """공포일자 내림차순으로 훑다가 한 페이지가 통째로 cutoff 이전이면 멈춘다.
-    MST별로 묶어 {mst: {...}}를 돌려준다."""
-    by_mst = {}
+    search는 org(부처 코드) 또는 query(법령명) 검색 조건, name_filter는 남길
+    법령명(공백 등 뺀 비교용 이름) 집합이다. 결과는 by_mst({mst: {...}})에 모은다."""
     for page in range(1, max_pages + 1):
         params = {
-            "OC": LAW_API_OC, "target": "eflaw", "type": "XML", "org": FTC_ORG_CODE,
+            "OC": LAW_API_OC, "target": "eflaw", "type": "XML", **search,
             "nw": "1,2,3", "sort": "ddes", "display": 100, "page": page,
         }
         res = get_law_api_with_retry(f"{LAW_API_BASE}/lawSearch.do", params)
@@ -129,6 +168,8 @@ def fetch_history(cutoff, max_pages=15):
             name = _t(law, "법령명한글")
             if any(k in name for k in EXCLUDE_NAME_KEYWORDS):
                 continue
+            if name_filter is not None and _name_key(name) not in name_filter:
+                continue
             mst = _t(law, "법령일련번호")
             entry = by_mst.setdefault(mst, {
                 "법령일련번호": mst,
@@ -136,6 +177,7 @@ def fetch_history(cutoff, max_pages=15):
                 "법령명": name,
                 "법령약칭": _t(law, "법령약칭명"),
                 "법령종류": classify_kind(name, _t(law, "법령구분명")),
+                "소관부처": _t(law, "소관부처명"),
                 "제개정구분": _t(law, "제개정구분명"),
                 "공포일자": promulgated,
                 "공포번호": _t(law, "공포번호"),
@@ -144,6 +186,22 @@ def fetch_history(cutoff, max_pages=15):
             entry["시행일자목록"].add(_t(law, "시행일자"))
         if max(_t(law, "공포일자") for law in items) < cutoff or len(items) < 100:
             break
+        time.sleep(0.2)
+
+
+def fetch_all_history(cutoff):
+    """공정위 소관 전체 + OTHER_MINISTRY_LAWS(법률과 그 시행령·시행규칙)를 받는다.
+    공정위 목록이 실패하면 예외를 그대로 올린다(전부 비면 저장하지 않으려고).
+    다른 부처 법령은 하나씩 실패해도 건너뛰고 나머지를 받는다."""
+    by_mst = {}
+    fetch_history(cutoff, by_mst, {"org": FTC_ORG_CODE})
+    for law_name in OTHER_MINISTRY_LAWS:
+        key = _name_key(law_name)
+        try:
+            fetch_history(cutoff, by_mst, {"query": law_name},
+                          name_filter={key, key + "시행령", key + "시행규칙"})
+        except Exception:
+            print(f"[법령 목록 조회 실패] {law_name}:\n{traceback.format_exc()}")
         time.sleep(0.2)
     return by_mst
 
@@ -261,7 +319,7 @@ def main():
 
     cutoff = (now - timedelta(days=LOOKBACK_DAYS)).strftime("%Y%m%d")
     try:
-        by_mst = fetch_history(cutoff)
+        by_mst = fetch_all_history(cutoff)
     except Exception:
         print(f"[시행령·시행규칙 목록 조회 실패] 기존 파일을 그대로 둡니다.\n{traceback.format_exc()}")
         return
