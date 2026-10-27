@@ -250,6 +250,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 #view-law.sublaw-mode #committeeFilterSection, #view-law.sublaw-mode .bill-result-row,
 #view-law.sublaw-mode #billListArea { display: none; }
 .sublaw-filter-row { margin: 0; }
+#subLawLawRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; margin: 0 0 10px; }
+#subLawLawRow button { padding: 4px 9px; font-size: 0.78em; }
 .sublaw-filter-sep { width: 1px; align-self: stretch; background: var(--app-border); margin: 0 4px; }
 .sublaw-item { padding: 8px 0; border-top: 1px solid var(--app-border); }
 .sublaw-item:first-child { border-top: none; padding-top: 0; }
@@ -1068,6 +1070,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="panel-title">법령 공포·시행<span class="current-tag" id="subLawCountTag"></span></div>
         <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
       </div>
+      <div class="cat-chip-row sublaw-law-row" id="subLawLawRow"></div>
       <div class="sublaw-body">
         <div id="subLawListArea"><div class='info-box'>법령 공포·시행 목록을 불러오는 중…</div></div>
         <button type="button" id="subLawMoreBtn" class="archive-toggle-link" style="display:none;"></button>
@@ -3630,6 +3633,7 @@ const SUB_LAW_RECENT_DAYS = 30;
 const SUB_LAW_PREVIEW_COUNT = 5;
 let subLawFilter = '시행예정';
 let subLawKind = '전체';
+let subLawLaw = '전체';
 let subLawShowAll = false;
 
 function escHtml(s) {
@@ -3659,6 +3663,14 @@ function subLawKindMatches(r, kind) {
   if (kind === '법률') return r.kind === '법률';
   if (kind === '시행령·시행규칙') return r.kind !== '법률';
   return true;
+}
+
+// 법령별 칩의 묶음 이름 - 시행령·시행규칙은 모법 이름으로 모은다("하도급법 시행령" -> "하도급법").
+// 여러 법을 한꺼번에 고친 일괄개정(약칭 없는 "…등 N개 법령의 일부개정에 관한 …")은 한 칸으로 모은다.
+const SUB_LAW_BUNDLE = '일괄개정';
+function subLawGroup(r) {
+  if (!r.abbr && /\d+개 법(령|률)의 일부개정/.test(r.name || '')) return SUB_LAW_BUNDLE;
+  return (r.abbr || r.name || '').replace(/\s*시행(령|규칙)$/, '');
 }
 
 function subLawMatches(r, filter, today) {
@@ -3697,7 +3709,23 @@ function subLawItemHtml(r, today) {
 
 function renderSubLawPanel() {
   const today = todayKstIso();
-  const byKind = SUB_LAW_DATA.filter(r => subLawKindMatches(r, subLawKind));
+  const byKindOnly = SUB_LAW_DATA.filter(r => subLawKindMatches(r, subLawKind));
+  const lawCounts = {};
+  byKindOnly.forEach(r => { const g = subLawGroup(r); lawCounts[g] = (lawCounts[g] || 0) + 1; });
+  if (subLawLaw !== '전체' && !lawCounts[subLawLaw]) subLawLaw = '전체';
+  // 건수 많은 법부터, 일괄개정은 맨 뒤.
+  const laws = Object.keys(lawCounts).sort((a, b) =>
+    (a === SUB_LAW_BUNDLE) - (b === SUB_LAW_BUNDLE) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
+  const lawRow = document.getElementById('subLawLawRow');
+  lawRow.innerHTML = [`<button data-law="전체" class="${subLawLaw === '전체' ? 'active' : ''}">전체 ${byKindOnly.length}</button>`,
+    ...laws.map(g => `<button data-law="${escHtml(g)}" class="${subLawLaw === g ? 'active' : ''}">${escHtml(g)} ${lawCounts[g]}</button>`)].join('');
+  lawRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    // 고른 법을 다시 누르면 전체로 돌아간다(단계 줄 칩과 같은 규칙).
+    subLawLaw = subLawLaw === btn.dataset.law ? '전체' : btn.dataset.law;
+    subLawShowAll = false;
+    renderSubLawPanel();
+  }));
+  const byKind = subLawLaw === '전체' ? byKindOnly : byKindOnly.filter(r => subLawGroup(r) === subLawLaw);
   const counts = {};
   SUB_LAW_FILTERS.forEach(f => { counts[f] = byKind.filter(r => subLawMatches(r, f, today)).length; });
   const upcomingAll = SUB_LAW_DATA.filter(r => subLawMatches(r, '시행예정', today)).length;
