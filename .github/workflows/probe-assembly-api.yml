@@ -1,0 +1,34 @@
+name: probe-assembly-api
+
+# 국회 열린국회정보 API 응답 구조 확인용 (probe_assembly_api.py 참고).
+# 회사 PC에서는 open.assembly.go.kr이 막혀 있어 Actions에서 수동으로 한 번 돌려
+# 로그만 본다. 아무것도 저장·커밋하지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      bill_name:
+        description: '공포까지 간 법안 예시를 찾을 법안명 일부(선택, 예: 자본시장). 비워두면 목록 앞부분만 찍는다.'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 환경 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 필수 라이브러리 설치
+        run: pip install requests
+
+      - name: 국회 API 응답 필드 확인
+        env:
+          ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
+          BILL_NAME: ${{ github.event.inputs.bill_name }}
+        run: python probe_assembly_api.py "$BILL_NAME"
