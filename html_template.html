@@ -393,6 +393,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .stage-flow-compact .flow-plain { display: inline-flex; align-items: center; gap: 4px; }
 .flow-plain:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
 .flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
+/* 칩 설명 줄: 마우스가 없는(툴팁이 안 뜨는) 화면에서만 보인다. */
+.chip-help { display: none; margin-top: 6px; font-size: 0.78em; line-height: 1.45; opacity: 0.75; }
+@media (hover: none) { .chip-help:not(:empty) { display: block; } }
 .flow-result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; margin-top: 10px; }
 .flow-result-grid button {
   border: 1px solid var(--app-border); background: var(--app-bg); border-radius: 6px; font-size: 0.78em;
@@ -1093,6 +1096,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <div class="stage-flow-compact stage-flow-side" id="billSideChipRow"></div>
         </div>
         <div class="filter-section-body" id="billStageGridArea"></div>
+        <div class="chip-help" id="billStageHelp"></div>
       </div>
       <div class="sidebar-panel cart-preview-panel" id="billCartPreviewPanel">
         <div class="panel-title-row">
@@ -1121,6 +1125,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="panel-title">법령 공포·시행<span class="current-tag" id="subLawCountTag"></span></div>
         <div class="cat-chip-row sublaw-filter-row" id="subLawFilterRow"></div>
       </div>
+      <div class="chip-help" id="subLawHelp"></div>
       <div class="cat-chip-row sublaw-law-row" id="subLawMinistryRow"></div>
       <div class="cat-chip-row sublaw-law-row" id="subLawLawRow"></div>
       <div class="sublaw-body">
@@ -1134,6 +1139,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div class="panel-title">입법예고<span class="current-tag" id="noticeCountTag"></span></div>
         <div class="cat-chip-row sublaw-filter-row" id="noticeFilterRow"></div>
       </div>
+      <div class="chip-help" id="noticeHelp"></div>
       <div class="cat-chip-row sublaw-law-row" id="noticeMinistryRow"></div>
       <div class="cat-chip-row sublaw-law-row" id="noticeLawRow"></div>
       <div class="sublaw-body">
@@ -2961,6 +2967,44 @@ function billAltChildrenHtml(b) {
 
 const STATUS_STAGE_ORDER = ["입안 및 발의", "상임위 심사", "법사위 심사", "본회의 의결", "공포"];
 const RESULT_STAGES = ["상임위 심사", "법사위 심사", "본회의 의결", "공포"]; // 세부 결과(원안가결/수정가결/폐기 등)가 나올 수 있는 단계
+// 칩 설명: 마우스를 올리면 툴팁으로, 마우스가 없는 휴대폰에서는 고른 칩의 설명이
+// 칩 줄 아래 한 줄로 보인다(.chip-help). 칩 이름만으로는 기준을 알기 어려워 달았다.
+const BILL_STAGE_HELP = {
+  '전체': '단계와 관계없이 지금 조건에 맞는 법안 전부',
+  '입안 및 발의': '의원이나 정부가 발의해 국회에 접수됐고, 아직 소관 상임위 심사 전',
+  '상임위 심사': '소관 상임위원회(소위원회 포함)에서 심사하는 단계',
+  '법사위 심사': '법제사법위원회가 다른 법과 맞는지, 문구가 바른지(체계·자구)를 보는 단계',
+  '본회의 의결': '국회 본회의에서 표결하는 단계',
+  '공포': '본회의를 통과해 정부로 보내졌고 대통령이 공포한 법률(관보 게재)',
+  '시행': '챙기는 법률·시행령·시행규칙이 언제 공포·시행되는지와 바뀐 조문',
+  '입법예고': '정부 부처가 법령을 바꾸기 전에 국민 의견을 받는 공고(국민참여입법센터)',
+};
+const BILL_RESULT_HELP = {
+  '심사중': '이 단계에서 아직 결과가 나지 않음',
+  '원안가결': '낸 내용 그대로 통과',
+  '수정가결': '일부 고쳐서 통과',
+  '대안가결': '위원회가 비슷한 법안들을 합쳐 만든 대안이 통과',
+  '대안반영가결': '위원회가 비슷한 법안들을 합쳐 만든 대안이 통과',
+  '위원회안가결': '위원회가 직접 낸 법안이 통과',
+  '번안가결': '한 번 의결한 내용을 다시 고쳐 의결(번안)',
+  '심사미료': '위원회 심사를 마치지 못함',
+  '대안반영폐기': '내용이 위원회 대안에 합쳐져 처리됐고, 이 법안 자체는 폐기(내용은 대안으로 살아 있음)',
+  '철회': '발의한 쪽이 스스로 거둬들임',
+  '폐기': '처리되지 못하고 없어짐(국회 임기 만료 등)',
+  '부결': '표결에서 통과되지 못함',
+  '정부이송': '본회의를 통과해 정부로 보내짐(대통령 공포 대기)',
+  '공포': '대통령이 공포함',
+};
+function helpAttr(map, key) {
+  const t = map[key];
+  return t ? ` title="${escHtml(t)}"` : '';
+}
+// 휴대폰용 설명 줄: 넘긴 설명을 한 줄씩(빈 것은 뺀다).
+function setChipHelp(id, texts) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = texts.filter(Boolean).map(t => `<div>${escHtml(t)}</div>`).join('');
+}
+
 const RESULT_ORDER = ["심사중", "원안가결", "수정가결", "대안반영가결", "대안반영폐기", "철회", "폐기", "부결", "정부이송", "공포"];
 function resultRank(v) {
   const idx = RESULT_ORDER.indexOf(v);
@@ -3213,7 +3257,7 @@ function renderStageFlowRow() {
     const cnt = stageCounts[stage];
     const isActive = state.billStage === stage;
     const cntHtml = cnt !== undefined ? `<span class="flow-cnt">${cnt}</span>` : '';
-    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}" title="${stage}"><span class="flow-label">${label}</span>${cntHtml}</button>`;
+    return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}"${helpAttr(BILL_STAGE_HELP, stage)}><span class="flow-label">${label}</span>${cntHtml}</button>`;
   };
 
   const compactHtml = [
@@ -3253,6 +3297,7 @@ function renderStageFlowRow() {
     ));
   });
   allBtn.textContent = `전체 ${source.length}`;
+  allBtn.title = BILL_STAGE_HELP['전체'];
   allBtn.classList.toggle('active', state.billStage === '전체');
   allBtn.onclick = () => selectStage('전체');
 
@@ -3275,13 +3320,18 @@ function renderStageFlowRow() {
     const results = Object.keys(resultCounts).sort((a,b) => resultRank(a) - resultRank(b));
     const grid = results.map(r => {
       const isActiveResult = state.billResult === r;
-      return `<button data-result="${r}" class="${isActiveResult?'active':''}">${r} (${resultCounts[r]})</button>`;
+      return `<button data-result="${r}" class="${isActiveResult?'active':''}"${helpAttr(BILL_RESULT_HELP, r)}>${r} (${resultCounts[r]})</button>`;
     }).join('');
     gridArea.innerHTML = `<div class="flow-result-grid">${grid}</div>`;
     gridArea.querySelectorAll('button[data-result]').forEach(btn => {
       btn.addEventListener('click', () => selectStage(state.billStage, btn.dataset.result));
     });
   }
+
+  setChipHelp('billStageHelp', state.billStage === '전체' ? [] : [
+    BILL_STAGE_HELP[state.billStage],
+    state.billResult !== '전체' && BILL_RESULT_HELP[state.billResult] ? `${state.billResult}: ${BILL_RESULT_HELP[state.billResult]}` : '',
+  ]);
 
   // (제목 줄을 없앴으므로 "현재 선택" 별도 표시는 필요 없다 - 칩 자체가 켜져 있다)
 }
@@ -3739,6 +3789,18 @@ document.getElementById('penaltyPageSizeSel').addEventListener('change', e => {
 let SUB_LAW_DATA = [];
 const SUB_LAW_FILTERS = ['시행예정', '최근 시행', '직접 개정', '타법개정', '전체'];
 const SUB_LAW_KINDS = ['전체', '법률', '시행령·시행규칙'];
+const SUB_LAW_KIND_HELP = {
+  '전체': '법률과 시행령·시행규칙 모두',
+  '법률': '국회가 만들고 고치는 법. 본회의 통과 → 정부 이송 → 대통령 공포 뒤, 정해진 날부터 시행',
+  '시행령·시행규칙': '법률이 맡긴 세부 내용을 정부가 정한 것(국회 표결 없음). 시행령(대통령령)은 소관 부처 안이 입법예고·법제처 심사·국무회의를 거쳐 대통령이 공포, 시행규칙(총리령·부령)은 소관 부처 장관이 법제처 심사를 거쳐 공포',
+};
+const SUB_LAW_FILTER_HELP = {
+  '시행예정': '직접 개정된 것 중 시행일이 아직 오지 않은 것(가까운 순)',
+  '최근 시행': '직접 개정된 것 중 최근 30일 안에 시행된 것',
+  '직접 개정': '그 법령 자체를 고치려고 한 개정',
+  '타법개정': '다른 법령이 바뀌면서 용어나 인용 조문만 따라 바뀐 것',
+  '전체': '개정 종류·시행일과 관계없이 모두',
+};
 const SUB_LAW_RECENT_DAYS = 30;
 const SUB_LAW_PREVIEW_COUNT = 5;
 let subLawFilter = '시행예정';
@@ -3962,10 +4024,14 @@ function renderSubLawPanel() {
 
   const row = document.getElementById('subLawFilterRow');
   row.innerHTML = SUB_LAW_KINDS.map(k =>
-      `<button data-kind="${k}" class="${subLawKind === k ? 'active' : ''}">${k}</button>`).join('')
+      `<button data-kind="${k}" class="${subLawKind === k ? 'active' : ''}"${helpAttr(SUB_LAW_KIND_HELP, k)}>${k}</button>`).join('')
     + '<span class="sublaw-filter-sep"></span>'
     + SUB_LAW_FILTERS.map(f =>
-      `<button data-val="${f}" class="${subLawFilter === f ? 'active' : ''}">${f} ${counts[f]}</button>`).join('');
+      `<button data-val="${f}" class="${subLawFilter === f ? 'active' : ''}"${helpAttr(SUB_LAW_FILTER_HELP, f)}>${f} ${counts[f]}</button>`).join('');
+  setChipHelp('subLawHelp', [
+    subLawKind !== '전체' ? `${subLawKind}: ${SUB_LAW_KIND_HELP[subLawKind]}` : '',
+    `${subLawFilter}: ${SUB_LAW_FILTER_HELP[subLawFilter]}`,
+  ]);
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     if (btn.dataset.kind) subLawKind = btn.dataset.kind;
     else subLawFilter = btn.dataset.val;
@@ -4017,6 +4083,11 @@ function ensureSubLaws() {
 // 기본은 "의견 접수 중"(마감 가까운 순). 부처 -> 법령 칩은 시행 목록과 같은 규칙으로 묶는다.
 let NOTICE_DATA = [];
 const NOTICE_FILTERS = ['의견 접수 중', '마감', '전체'];
+const NOTICE_FILTER_HELP = {
+  '의견 접수 중': '예고 기간 안이라 지금 의견을 낼 수 있는 것(마감 가까운 순)',
+  '마감': '예고 기간이 끝난 것(최근 180일까지 보관)',
+  '전체': '의견 접수 중과 마감 모두',
+};
 let noticeFilter = '의견 접수 중';
 let noticeMinistry = '전체';
 let noticeLaw = '전체';
@@ -4090,7 +4161,8 @@ function renderNoticePanel() {
   const matches = (r, f) => f === '전체' || (f === '의견 접수 중' ? noticeOpen(r, today) : !!r.end && r.end < today);
   const row = document.getElementById('noticeFilterRow');
   row.innerHTML = NOTICE_FILTERS.map(f =>
-    `<button data-val="${f}" class="${noticeFilter === f ? 'active' : ''}">${f} ${byLaw.filter(r => matches(r, f)).length}</button>`).join('');
+    `<button data-val="${f}" class="${noticeFilter === f ? 'active' : ''}"${helpAttr(NOTICE_FILTER_HELP, f)}>${f} ${byLaw.filter(r => matches(r, f)).length}</button>`).join('');
+  setChipHelp('noticeHelp', [`${noticeFilter}: ${NOTICE_FILTER_HELP[noticeFilter]}`]);
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     noticeFilter = btn.dataset.val;
     noticeShowAll = false;
