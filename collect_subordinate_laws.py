@@ -1,12 +1,15 @@
 """
 법제처 국가법령정보 Open API(target=eflaw, "시행일 법령")에서 공정거래위원회
-소관 시행령·시행규칙의 공포·시행 이력을 받아 subordinate_law_list.csv로 저장한다.
-입법 탭의 "시행령·시행규칙 개정" 패널이 이 파일을 보여준다.
+소관 법률·시행령·시행규칙의 공포·시행 이력을 받아 subordinate_law_list.csv로
+저장한다(파일명은 시행령·시행규칙만 받던 때 이름 그대로). 입법 탭의 "법령
+공포·시행" 패널이 이 파일을 보여준다.
 
 시행령·시행규칙은 국회를 거치지 않아서 collect_bills.py의 계류의안 API에는
 아예 안 나온다. 그래서 "공포된 것"만 법제처에서 따로 가져온다 - 입법예고·
 규제심사·국무회의 같은 공포 전 단계는 정리된 공개 API가 없어 다루지 않는다
-(2026-10-26 사용자와 확인).
+(2026-10-26 사용자와 확인). 법률도 본회의 의결 뒤에는 계류의안 목록에서
+빠져서 공포·시행일을 알 수 없으므로, 같은 목록에 섞여 오는 법률도 함께 담아
+"공포 -> 시행" 이행 점검 목록으로 쓴다(2026-10-27 사용자 요청).
 
 collect_law_penalties.py가 쓰는 target=law는 "현행" 한 건씩만 주지만,
 target=eflaw에 nw=1,2,3(연혁+시행예정+현행)을 주면 과거 개정 이력과 아직
@@ -17,7 +20,7 @@ target=eflaw에 nw=1,2,3(연혁+시행예정+현행)을 주면 과거 개정 이
 
 사용 API (www.law.go.kr/DRF, LAW_GO_KR_OC 필요 - collect_decisions.py와 동일):
 - lawSearch.do?target=eflaw&org=1130000&nw=1,2,3&sort=ddes: 공포일자 내림차순
-  목록. 법률도 섞여 오므로 법령구분명이 "법률"인 것은 버린다.
+  목록. 법률·대통령령·총리령이 섞여 온다.
 - lawService.do?target=eflaw&MST=<일련번호>&efYd=<시행일자>: 제개정이유·개정문.
   efYd를 빼면 XML 대신 오류 HTML이 온다(실측). 이유 원문에 이미 "◇ 주요내용
   가. 나. ..." 목록이 있어서 Gemini 요약 없이 그 제목만 뽑아 쓴다. 한 번
@@ -121,7 +124,7 @@ def fetch_history(cutoff, max_pages=15):
             break
         for law in items:
             promulgated = _t(law, "공포일자")
-            if promulgated < cutoff or _t(law, "법령구분명") == "법률":
+            if promulgated < cutoff:
                 continue
             name = _t(law, "법령명한글")
             if any(k in name for k in EXCLUDE_NAME_KEYWORDS):
@@ -292,7 +295,7 @@ def main():
 
     df = pd.DataFrame(rows, columns=CSV_COLUMNS).sort_values(["공포일자", "법령명"], ascending=[False, True])
     df.to_csv(SUBORDINATE_LAW_LIST_PATH, index=False, encoding="utf-8-sig")
-    print(f"[시행령·시행규칙 개정 수집 완료] {len(df)}건 (개정이유 새로 조회 {fetched}건) -> {SUBORDINATE_LAW_LIST_PATH}")
+    print(f"[법령 공포·시행 이력 수집 완료] {len(df)}건 (개정이유 새로 조회 {fetched}건) -> {SUBORDINATE_LAW_LIST_PATH}")
 
 
 if __name__ == "__main__":

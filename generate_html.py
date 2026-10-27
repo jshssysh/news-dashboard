@@ -227,7 +227,7 @@ def load_law_penalties():
 
 def load_subordinate_laws():
     """collect_subordinate_laws.py가 받은 subordinate_law_list.csv(공정위 소관
-    시행령·시행규칙의 공포 이력)를 읽는다. 입법 탭 "시행령·시행규칙 개정" 패널용.
+    법률·시행령·시행규칙의 공포 이력)를 읽는다. 입법 탭 "법령 공포·시행" 패널용.
     시행예정 여부는 날짜에 따라 바뀌므로 여기서 정하지 않고 화면이 오늘 날짜로 가른다."""
     path = "subordinate_law_list.csv"
     if not os.path.exists(path) or os.path.getsize(path) == 0:
@@ -664,7 +664,7 @@ def build():
         f"  {WARNINGS_JSON_PATH:<20} {warnings_bytes/1024:8.0f}KB (클러스터링 경고 {len(cluster_warnings)}건)\n"
         f"  {DECISIONS_JSON_PATH:<20} {decisions_bytes/1024:8.0f}KB (심·판결 {len(decisions)}건)\n"
         f"  {LAW_PENALTIES_JSON_PATH:<20} {law_penalties_bytes/1024:8.0f}KB (법령 벌칙/과징금 {len(law_penalties)}건)\n"
-        f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (시행령·시행규칙 개정 {len(subordinate_laws)}건)\n"
+        f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건)\n"
         f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
     )
 

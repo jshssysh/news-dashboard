@@ -140,7 +140,7 @@ jobs:
         run: |
           python collect_law_penalties.py
 
-      - name: 시행령·시행규칙 개정 이력 수집 (법제처 국가법령정보 Open API)
+      - name: 법률·시행령·시행규칙 공포·시행 이력 수집 (법제처 국가법령정보 Open API)
         # workflow_dispatch 입력은 10개가 한도라(이미 9개) 새 입력을 만들지 않고
         # [법령] 입력 두 개(skip_law_penalties / skip_law_penalties_wait)를 같이 쓴다.
         # 06시대 실행이 아니면 collect_subordinate_laws.py가 바로 종료한다.
@@ -179,7 +179,7 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv bill_list.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json docs/contract_law_corpus.json; do
+          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json docs/contract_law_corpus.json; do
             [ -f "$f" ] && git add "$f"
           done
           # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다

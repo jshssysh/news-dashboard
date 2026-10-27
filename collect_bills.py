@@ -20,6 +20,11 @@ API 자체엔 제안이유/주요내용(법안 본문) 필드가 없지만, likm
 수만 건이라 전부 요약하면 무료 등급 한도를 하루에 다 써버리므로, 최근
 RECENT_DAYS_FOR_SUMMARY일 이내 발의된 것만 요약 대상으로 한다.
 한 번 요약된 법안은 다음 실행부터 재사용한다(제안이유 자체는 안 바뀌므로).
+
+bill_list.csv는 매번 통째로 새로 쓰고 수집이 하루 여러 번 돌아서, "상태변경"
+칸은 직전 실행 대비 변동만 담고 몇 시간 뒤 지워진다. 그래서 신규 발의·상태변경·
+목록 제외(본회의 통과/철회/폐기 등으로 계류의안에서 빠짐)를 감지한 시각과 함께
+bill_status_log.csv에 덧붙여 쌓는다 - 주간·월간 변동은 이 파일에서 뽑는다.
 실행: python collect_bills.py
 """
 import json
@@ -40,6 +45,8 @@ KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
 BILL_LIST_PATH = "bill_list.csv"
+BILL_STATUS_LOG_PATH = "bill_status_log.csv"
+BILL_STATUS_LOG_COLUMNS = ["감지일시", "구분", "의안ID", "의안번호", "법안명", "소관위원회", "이전상태", "새상태"]
 MEMBER_LIST_PATH = "member_list.csv"
 
 # 인적사항 API는 역대 의원 3,300명을 모두 주는데, 이 대시보드는 22대 계류법안만
@@ -201,7 +208,11 @@ def get_assembly_api_with_retry(url, params, timeout=15, retries=2, retry_wait=1
 
 
 def fetch_all_pending_bills():
-    """계류의안 API로 국회 전체 계류 법안을 페이지 단위로 다 가져온다 (BILL_NAME 필터 없음)."""
+    """계류의안 API로 국회 전체 계류 법안을 페이지 단위로 다 가져온다 (BILL_NAME 필터 없음).
+
+    (결과 목록, 끝까지 다 받았는지)를 돌려준다. 중간 페이지에서 예외로 멈추면 뒷부분
+    법안이 빠진 채로 오는데, 이걸 "목록에서 빠졌다"로 기록하면 안 되기 때문이다.
+    """
     results = []
     p_index = 1
     while p_index <= 300:  # 안전장치: 무한 루프 방지 (최대 3만 건)
@@ -224,8 +235,8 @@ def fetch_all_pending_bills():
             time.sleep(0.1)
         except Exception as e:
             print(f"[계류의안 전체조회 예외] {p_index}페이지: {e}")
-            break
-    return results
+            return results, False
+    return results, True
 
 
 PARTY_ABBR = {
@@ -611,16 +622,65 @@ def derive_stage_and_result(row):
     return "입안 및 발의", ""
 
 
-def load_previous_status():
-    """직전 실행 결과(bill_list.csv)에서 {의안ID: 처리상태}를 읽어온다 (상태변경 감지용)."""
+def load_previous_bills():
+    """직전 실행 결과(bill_list.csv)를 {의안ID: 행(dict)}로 읽어온다.
+
+    상태변경 감지에는 처리상태만 쓰지만, 이번에 목록에서 빠진 법안은 이름·번호를
+    이번 응답에서 얻을 수 없으므로 변동 로그용으로 행 전체를 들고 있는다.
+    """
     if not os.path.exists(BILL_LIST_PATH):
         return {}
     try:
-        df = pd.read_csv(BILL_LIST_PATH)
-        return dict(zip(df["의안ID"], df["처리상태"]))
+        df = pd.read_csv(BILL_LIST_PATH, dtype=str, keep_default_na=False)
+        return {r["의안ID"]: r for r in df.to_dict("records")}
     except Exception as e:
         print(f"[이전 bill_list.csv 로드 실패] {e}")
         return {}
+
+
+def append_status_log(bills, prev_bills, fetch_complete, now_str):
+    """이번 실행에서 감지한 신규 발의/상태변경/목록 제외를 bill_status_log.csv에 덧붙인다.
+
+    직전 bill_list.csv가 없으면(첫 실행) 전부 "신규"로 찍히므로 아무것도 안 남긴다.
+    """
+    if not prev_bills:
+        return
+    entries = []
+    for b in bills:
+        prev = prev_bills.get(b["의안ID"])
+        if prev is None:
+            kind, before = "신규", ""
+        elif b["상태변경"]:
+            kind, before = "상태변경", prev.get("처리상태", "")
+        else:
+            continue
+        entries.append({
+            "감지일시": now_str, "구분": kind, "의안ID": b["의안ID"], "의안번호": b["의안번호"],
+            "법안명": b["법안명"], "소관위원회": b["소관위원회"], "이전상태": before, "새상태": b["처리상태"],
+        })
+    if fetch_complete:
+        current_ids = {b["의안ID"] for b in bills}
+        for bill_id, prev in prev_bills.items():
+            if bill_id in current_ids:
+                continue
+            # 계류의안 API는 본회의 의결 이후를 안 주므로 "왜" 빠졌는지(가결/부결/철회/
+            # 폐기)는 여기서 알 수 없다 - 새상태는 비워 둔다.
+            entries.append({
+                "감지일시": now_str, "구분": "목록제외", "의안ID": bill_id, "의안번호": prev.get("의안번호", ""),
+                "법안명": prev.get("법안명", ""), "소관위원회": prev.get("소관위원회", ""),
+                "이전상태": prev.get("처리상태", ""), "새상태": "",
+            })
+    else:
+        print("[변동 로그] 계류의안 조회가 중간에 끊겨 이번엔 목록 제외를 기록하지 않습니다.")
+    if not entries:
+        return
+    write_header = not os.path.exists(BILL_STATUS_LOG_PATH)
+    pd.DataFrame(entries, columns=BILL_STATUS_LOG_COLUMNS).to_csv(
+        BILL_STATUS_LOG_PATH, mode="a", header=write_header, index=False,
+        encoding="utf-8-sig" if write_header else "utf-8",
+    )
+    counts = Counter(e["구분"] for e in entries)
+    print(f"[변동 로그] {', '.join(f'{k} {v}건' for k, v in counts.items())} -> {BILL_STATUS_LOG_PATH}")
 
 
 def load_previous_summaries():
@@ -720,7 +780,7 @@ def main():
         print("[경고] ASSEMBLY_API_KEY가 없습니다 - 키 없이 호출을 시도합니다 (제한/실패 가능).")
 
     keywords_map = load_bill_keywords()
-    rows = fetch_all_pending_bills()
+    rows, fetch_complete = fetch_all_pending_bills()
     print(f"[계류의안 전체조회 완료] 총 {len(rows)}건")
 
     member_info, current_members = fetch_member_info()
@@ -741,7 +801,8 @@ def main():
             continue
         seen[bill_id] = row
 
-    prev_status = load_previous_status()
+    prev_bills = load_previous_bills()
+    prev_status = {bid: r.get("처리상태", "") for bid, r in prev_bills.items()}
 
     # 안전장치: API 장애/키 문제/일시적 오류 등으로 이번에 새로 가져온 건수가 기존 대비
     # 크게 줄었으면, 그 결과로 기존 bill_list.csv를 덮어쓰지 않고 그대로 둔다.
@@ -817,6 +878,7 @@ def main():
     df = pd.DataFrame(bills)
     df.to_csv(BILL_LIST_PATH, index=False, encoding="utf-8-sig")
     print(f"[입법 수집 완료] {len(bills)}건 -> {BILL_LIST_PATH}")
+    append_status_log(bills, prev_bills, fetch_complete, now_str)
 
 
 if __name__ == "__main__":
