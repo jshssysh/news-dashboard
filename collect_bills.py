@@ -52,6 +52,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').r
 KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
+BILL_VETOED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_vetoed.csv")
 BILL_LIST_PATH = "bill_list.csv"
 BILL_STATUS_LOG_PATH = "bill_status_log.csv"
 BILL_STATUS_LOG_COLUMNS = ["감지일시", "구분", "의안ID", "의안번호", "법안명", "소관위원회", "이전상태", "새상태"]
@@ -257,6 +258,14 @@ def fetch_all_pending_bills():
     return fetch_all_rows(PENDING_BILL_API, "계류의안")
 
 
+def load_vetoed_bill_nos():
+    """config/bill_vetoed.csv(의안번호,법안명)의 의안번호 집합. 파일이 없으면 빈 집합."""
+    if not os.path.exists(BILL_VETOED_PATH):
+        return set()
+    df = pd.read_csv(BILL_VETOED_PATH, dtype=str, encoding="utf-8-sig").fillna("")
+    return {n.strip() for n in df["의안번호"] if n.strip()}
+
+
 # 본회의 처리안건의 BILL_NM은 "…일부개정법률안(안상훈의원 등 11인)"처럼 제안자가
 # 붙어 오므로, 처리의안에서 이름을 못 얻었을 때 끝의 제안자 괄호를 떼어 쓴다.
 PROPOSER_SUFFIX_RE = re.compile(r"\((?:[^()]*의원(?: 등 \d+인)?|[^()]*위원장|정부)\)$")
@@ -273,13 +282,33 @@ def fetch_passed_bills():
     plenary_rows, plenary_ok = fetch_all_rows(PLENARY_BILL_API, "본회의 처리안건", {"AGE": CURRENT_ERA_NO})
     processed_rows, processed_ok = fetch_all_rows(PROCESSED_BILL_API, "처리의안", {"AGE": CURRENT_ERA_NO})
     processed = {r.get("BILL_ID"): r for r in processed_rows if r.get("BILL_ID")}
-    passed = []
+    pairs = []
     for p in plenary_rows:
         bill_id = p.get("BILL_ID")
         result = p.get("PROC_RESULT_CD") or ""
         if not bill_id or not p.get("RGS_PROC_DT") or "가결" not in result:
             continue
-        q = processed.get(bill_id, {})
+        pairs.append((p, processed.get(bill_id, {})))
+    # 본회의 처리안건에는 공포까지 간 법률안이 일부 아예 없다(2024-12-10 예산부수
+    # 세법 6건 등 9건, 국회 의안 목록과 대조해 확인 - 2026-10-30). 처리의안에는
+    # 가결로 들어 있으므로 거기서 채운다. 다만 처리의안은 거부권(재의요구) 뒤 재표결에서
+    # 폐기된 법안도 "원안가결" 그대로 두고, 이를 가를 필드가 없다(실측) - 그런 법안은
+    # config/bill_vetoed.csv에 의안번호로 적어 뺀다.
+    plenary_ids = {p.get("BILL_ID") for p in plenary_rows}
+    vetoed = load_vetoed_bill_nos()
+    promulgation_cutoff = (datetime.now(KST) - timedelta(days=30)).strftime("%Y-%m-%d")
+    supplemented = 0
+    for bill_id, q in processed.items():
+        if bill_id in plenary_ids or "가결" not in (q.get("PROC_RESULT_CD") or ""):
+            continue
+        if str(q.get("BILL_NO") or "") in vetoed or not q.get("PROC_DT"):
+            continue
+        pairs.append(({"RGS_PROC_DT": q["PROC_DT"], "PROC_RESULT_CD": q["PROC_RESULT_CD"], "SUPPLEMENTED": True}, q))
+        supplemented += 1
+    passed = []
+    for p, q in pairs:
+        bill_id = p.get("BILL_ID") or q.get("BILL_ID")
+        result = p.get("PROC_RESULT_CD") or ""
         proposer = q.get("PROPOSER") or p.get("PROPOSER") or ""
         rep = re.match(r"^(\S+?)의원", proposer)
         passed.append({
@@ -304,10 +333,15 @@ def fetch_passed_bills():
             "RGS_RESULT": result,
             "CURR_TRANS_DT": p.get("CURR_TRANS_DT") or "",
             "ANNOUNCE_DT": p.get("ANNOUNCE_DT") or "",
+            # 처리의안에서 채운 법안은 정부이송일·공포일이 없다. 헌법상 이송 15일 안에
+            # 공포하거나 재의요구해야 하므로, 의결 30일이 지났고 재의요구 목록에
+            # 없으면 공포된 것으로 본다(derive_stage_and_result).
+            "ASSUME_PROMULGATED": bool(p.get("SUPPLEMENTED")) and p["RGS_PROC_DT"] <= promulgation_cutoff,
         })
     absorbed = [q for q in processed_rows
                 if "대안반영" in (q.get("CMT_PROC_RESULT_CD") or "") + (q.get("PROC_RESULT_CD") or "")]
-    print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중)"
+    print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중,"
+          f" 처리의안에서 채운 {supplemented}건 포함, 재의요구 제외 목록 {len(vetoed)}건)"
           f" / 대안에 흡수된 원안 {len(absorbed)}건")
     return passed, absorbed, plenary_ok and processed_ok
 
@@ -689,7 +723,7 @@ def derive_stage_and_result(row):
     본회의 처리안건에서 더한 가결 법률안(fetch_passed_bills, RGS_PROC_DT가 있음)은
     "공포" 단계로 두고, 공포일이 찍혔으면 결과 "공포", 아직이면 "정부이송"이다."""
     if row.get("RGS_PROC_DT"):
-        return "공포", "공포" if row.get("ANNOUNCE_DT") else "정부이송"
+        return "공포", "공포" if row.get("ANNOUNCE_DT") or row.get("ASSUME_PROMULGATED") else "정부이송"
     if row.get("LAW_PROC_RESULT_CD"):
         result = row["LAW_PROC_RESULT_CD"]
         if result in LAW_FORWARD_RESULTS:
