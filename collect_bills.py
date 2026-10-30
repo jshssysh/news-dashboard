@@ -120,6 +120,7 @@ PROCESSED_BILL_API = "nzpltgfqabtcpsmai"  # 처리의안 (계류의안과 같은
 MEMBER_INFO_API = "ALLNAMEMBER"  # 국회의원 인적사항 (정당/선수/지역구)
 COMMITTEE_MEMBER_API = "nktulghcadyhmiqxi"  # 위원회 위원 명단 (JOB_RES_NM에 '위원장'/'간사'/'위원' 구분이 있음)
 BILL_SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
+LIKMS_BILL_STATUS_URL = "https://likms.assembly.go.kr/bill/bi/common/findBillDetail.do"
 
 # 전체 법안이 수만 건이라, 이 기간 이내 발의된 것만 AI 한줄요약을 만든다
 # (오래된 대기 법안은 법안명/상태/링크만 표시되고 요약은 "준비 중"으로 남음)
@@ -258,8 +259,24 @@ def fetch_all_pending_bills():
     return fetch_all_rows(PENDING_BILL_API, "계류의안")
 
 
+def fetch_likms_bill_status(bill_id):
+    """likms 상세 페이지가 쓰는 상세조회(findBillDetail.do)에서 재의요구 여부(reexamYn
+    "Y"/"N")·정부이송일(govTransDt)·공포일(announceDt)이 든 data를 받는다. 열린국회정보
+    API엔 재의요구 여부가 없다(probe_assembly_api.py로 확인, 2026-10-30). 실패하면 None."""
+    try:
+        res = requests.get(LIKMS_BILL_STATUS_URL, params={"billId": bill_id}, timeout=15)
+        data = res.json().get("data")
+        if isinstance(data, dict) and data.get("billId") == bill_id:
+            return data
+        print(f"[likms 상세조회 - 결과 없음] {bill_id}: {res.text[:200]}")
+    except Exception as e:
+        print(f"[likms 상세조회 예외] {bill_id}: {e}")
+    return None
+
+
 def load_vetoed_bill_nos():
-    """config/bill_vetoed.csv(의안번호,법안명)의 의안번호 집합. 파일이 없으면 빈 집합."""
+    """config/bill_vetoed.csv(의안번호,법안명,상태)의 의안번호 집합. likms 상세조회가
+    실패했을 때만 쓰는 예비 목록이다. 파일이 없으면 빈 집합."""
     if not os.path.exists(BILL_VETOED_PATH):
         return set()
     df = pd.read_csv(BILL_VETOED_PATH, dtype=str, encoding="utf-8-sig").fillna("")
@@ -292,18 +309,31 @@ def fetch_passed_bills():
     # 본회의 처리안건에는 공포까지 간 법률안이 일부 아예 없다(2024-12-10 예산부수
     # 세법 6건 등 9건, 국회 의안 목록과 대조해 확인 - 2026-10-30). 처리의안에는
     # 가결로 들어 있으므로 거기서 채운다. 다만 처리의안은 거부권(재의요구) 뒤 재표결에서
-    # 폐기된 법안도 "원안가결" 그대로 두고, 이를 가를 필드가 없다(실측) - 그런 법안은
-    # config/bill_vetoed.csv에 의안번호로 적어 뺀다.
+    # 폐기된 법안도 "원안가결" 그대로 두고, 이를 가를 필드가 없다(실측). 그래서 채울
+    # 후보(매번 30여 건)만 likms 상세조회(fetch_likms_bill_status)로 재의요구 여부와
+    # 정부이송일·공포일을 받는다. 조회가 안 되면 config/bill_vetoed.csv로 거른다.
     plenary_ids = {p.get("BILL_ID") for p in plenary_rows}
     vetoed = load_vetoed_bill_nos()
     promulgation_cutoff = (datetime.now(KST) - timedelta(days=30)).strftime("%Y-%m-%d")
-    supplemented = 0
+    supplemented, reexam_skipped, lookup_failed = 0, 0, 0
     for bill_id, q in processed.items():
-        if bill_id in plenary_ids or "가결" not in (q.get("PROC_RESULT_CD") or ""):
+        if bill_id in plenary_ids or "가결" not in (q.get("PROC_RESULT_CD") or "") or not q.get("PROC_DT"):
             continue
-        if str(q.get("BILL_NO") or "") in vetoed or not q.get("PROC_DT"):
+        status = fetch_likms_bill_status(bill_id)
+        time.sleep(0.2)
+        if status is None:
+            lookup_failed += 1
+            if str(q.get("BILL_NO") or "") in vetoed:
+                continue
+        elif status.get("reexamYn") == "Y":
+            reexam_skipped += 1
             continue
-        pairs.append(({"RGS_PROC_DT": q["PROC_DT"], "PROC_RESULT_CD": q["PROC_RESULT_CD"], "SUPPLEMENTED": True}, q))
+        pairs.append(({
+            "RGS_PROC_DT": q["PROC_DT"], "PROC_RESULT_CD": q["PROC_RESULT_CD"],
+            "CURR_TRANS_DT": (status or {}).get("govTransDt") or "",
+            "ANNOUNCE_DT": (status or {}).get("announceDt") or "",
+            "LOOKUP_FAILED": status is None,
+        }, q))
         supplemented += 1
     passed = []
     for p, q in pairs:
@@ -333,15 +363,16 @@ def fetch_passed_bills():
             "RGS_RESULT": result,
             "CURR_TRANS_DT": p.get("CURR_TRANS_DT") or "",
             "ANNOUNCE_DT": p.get("ANNOUNCE_DT") or "",
-            # 처리의안에서 채운 법안은 정부이송일·공포일이 없다. 헌법상 이송 15일 안에
-            # 공포하거나 재의요구해야 하므로, 의결 30일이 지났고 재의요구 목록에
-            # 없으면 공포된 것으로 본다(derive_stage_and_result).
-            "ASSUME_PROMULGATED": bool(p.get("SUPPLEMENTED")) and p["RGS_PROC_DT"] <= promulgation_cutoff,
+            # likms 조회가 실패해 공포일을 모르는 채로 채운 법안은, 헌법상 이송 15일 안에
+            # 공포하거나 재의요구해야 하므로 의결 30일이 지났으면 공포된 것으로 본다
+            # (derive_stage_and_result).
+            "ASSUME_PROMULGATED": bool(p.get("LOOKUP_FAILED")) and p["RGS_PROC_DT"] <= promulgation_cutoff,
         })
     absorbed = [q for q in processed_rows
                 if "대안반영" in (q.get("CMT_PROC_RESULT_CD") or "") + (q.get("PROC_RESULT_CD") or "")]
     print(f"[본회의 가결 법률안] {len(passed)}건 (본회의 처리안건 {len(plenary_rows)}건, 처리의안 {len(processed_rows)}건 중,"
-          f" 처리의안에서 채운 {supplemented}건 포함, 재의요구 제외 목록 {len(vetoed)}건)"
+          f" 처리의안에서 채운 {supplemented}건 포함, 재의요구라 뺀 {reexam_skipped}건,"
+          f" likms 조회 실패 {lookup_failed}건 - 실패분은 제외 목록 {len(vetoed)}건으로 거름)"
           f" / 대안에 흡수된 원안 {len(absorbed)}건")
     return passed, absorbed, plenary_ok and processed_ok
 
