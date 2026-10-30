@@ -325,7 +325,9 @@ def fetch_passed_bills():
             lookup_failed += 1
             if str(q.get("BILL_NO") or "") in vetoed:
                 continue
-        elif status.get("reexamYn") == "Y":
+        # 재의요구됐어도 공포일이 있으면 공포된 것이다 - 방송법 2200851은 reexamYn "Y"인데
+        # 국회 의안 목록엔 "공포"로 나온다(2026-10-30).
+        elif status.get("reexamYn") == "Y" and not status.get("announceDt"):
             reexam_skipped += 1
             continue
         pairs.append(({
