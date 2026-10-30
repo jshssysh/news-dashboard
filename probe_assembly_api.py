@@ -167,8 +167,30 @@ def probe_bill_details(bill_ids):
         for i, t in hits[:40]:
             around = " | ".join(lines[max(0, i - 1):i + 2])
             print(f"    {around[:200]}")
-        urls = sorted(set(re.findall(r"[\w/.-]+\.do", html)))
-        print(f"  페이지 안의 .do 주소: {', '.join(urls)}")
+        # 1차 확인(2026-10-30)에서 본문엔 "의결결과 원안가결"만 있고 공포·재의요구가
+        # 안 보였다 - 진행 상태는 스크립트가 따로 불러오는 듯해서, 스크립트 안에서
+        # 상태 문구·상세조회 주소가 나오는 곳과 그 주소를 직접 부른 응답을 찍는다.
+        scripts = " ".join(re.findall(r"(?is)<script\b[^>]*>(.*?)</script>", html))
+        for word in ("findBillDetail", "재의", "공포", "Detail.do", "ajax", "fetch("):
+            spots = [m.start() for m in re.finditer(re.escape(word), scripts)][:3]
+            for s in spots:
+                snippet = re.sub(r"\s+", " ", scripts[max(0, s - 250):s + 350])
+                print(f"  [스크립트 '{word}'] {snippet}")
+        for path in ("/bill/bi/common/findBillDetail.do", "/bi/common/findBillDetail.do"):
+            url = f"https://likms.assembly.go.kr{path}"
+            for method in ("POST", "GET"):
+                try:
+                    r = requests.request(method, url, data={"billId": bill_id} if method == "POST" else None,
+                                         params={"billId": bill_id} if method == "GET" else None, timeout=30)
+                except requests.exceptions.RequestException as e:
+                    print(f"  {method} {path}: 접속 실패 {type(e).__name__}")
+                    continue
+                out = re.sub(r"\s+", " ", r.text)
+                print(f"  {method} {path}: HTTP {r.status_code}, {r.headers.get('Content-Type', '')}, {len(r.text)}자")
+                print(f"    앞부분: {out[:1500]}")
+                for h in ("재의", "공포", "이송"):
+                    for m in list(re.finditer(h, out))[:3]:
+                        print(f"    ['{h}'] {out[max(0, m.start() - 150):m.start() + 150]}")
 
 
 def main():
@@ -176,7 +198,7 @@ def main():
     if bill_ids:
         probe_bill_details(bill_ids)
         return
-    bill_nos =[n.strip() for n in os.environ.get("BILL_NOS", "").split(",") if n.strip()]
+    bill_nos = [n.strip() for n in os.environ.get("BILL_NOS", "").split(",") if n.strip()]
     if bill_nos:
         scan_bill_nos(bill_nos)
         return
