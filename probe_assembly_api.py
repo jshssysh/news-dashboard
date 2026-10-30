@@ -12,11 +12,18 @@ probe-assembly-api.yml로 이 스크립트를 수동 실행해 로그로 확인�
 아래 서비스 ID 중 일부는 문서로 확인하지 못한 추정값이다 - 없는 ID면 오류 코드만
 찍히고 넘어간다.
 
+의안번호를 쉼표로 주면(BILL_NOS) 위 확인 대신 collect_bills.py가 쓰는 세 서비스를
+22대 전체로 끝까지 훑어서 그 의안번호의 행을 통째로 찍는다. 국회 의안 목록에는
+공포됐는데 bill_list.csv에 없는 법안이 왜 빠졌는지 보려는 용도다(2026-10-30).
+
 실행: python probe_assembly_api.py [법안명 일부(선택, 예: 자본시장)]
+      BILL_NOS=2203518,2203522 python probe_assembly_api.py
 """
 import json
 import os
 import sys
+import time
+from collections import Counter
 
 import requests
 
@@ -88,7 +95,54 @@ def show_rows(rows, limit=2):
     print("      " + json.dumps(rows[0], ensure_ascii=False))
 
 
+# collect_bills.py와 같은 서비스·파라미터. 계류의안은 대수 파라미터 없이 부른다.
+SCAN_SERVICES = [
+    ("nwbqublzajtcqpdae", "계류의안", {}),
+    ("nwbpacrgavhjryiph", "본회의 처리안건 - 법률안", {"AGE": "22"}),
+    ("nzpltgfqabtcpsmai", "처리의안", {"AGE": "22"}),
+]
+
+
+def scan_bill_nos(bill_nos):
+    for service_id, label, extra in SCAN_SERVICES:
+        print(f"\n===== {service_id} ({label}) 전체 훑기 =====")
+        rows, p_index = [], 1
+        while p_index <= 300:
+            try:
+                status, payload, raw = call(service_id, {**extra, "pIndex": p_index}, p_size=100)
+            except requests.exceptions.RequestException as e:
+                print(f"  {p_index}페이지: 접속 실패 {type(e).__name__}")
+                break
+            total, result, page = split_payload(payload, service_id)
+            if p_index == 1:
+                print(f"  HTTP {status}, 결과 {result or '-'}, 총 {total}건")
+            if not page:
+                break
+            rows.extend(page)
+            if len(page) < 100:
+                break
+            p_index += 1
+            time.sleep(0.1)
+        print(f"  받은 행 {len(rows)}건")
+        for key in ("PROC_RESULT_CD", "CMT_PROC_RESULT_CD", "LAW_PROC_RESULT_CD"):
+            if rows and key in rows[0]:
+                print(f"  {key} 값별 건수: {dict(Counter(r.get(key) or '' for r in rows))}")
+        found = {}
+        for r in rows:
+            if str(r.get("BILL_NO", "")) in bill_nos:
+                found.setdefault(str(r["BILL_NO"]), []).append(r)
+        for no in bill_nos:
+            hits = found.get(no, [])
+            print(f"  [{no}] {len(hits)}건")
+            for r in hits:
+                print("      " + json.dumps(r, ensure_ascii=False))
+
+
 def main():
+    bill_nos = [n.strip() for n in os.environ.get("BILL_NOS", "").split(",") if n.strip()]
+    if bill_nos:
+        scan_bill_nos(bill_nos)
+        return
     name_filter = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip() else ""
     if not ASSEMBLY_API_KEY:
         print("[경고] ASSEMBLY_API_KEY가 없습니다 - 키 없이 호출합니다(샘플 건수만 오거나 실패할 수 있음).")
