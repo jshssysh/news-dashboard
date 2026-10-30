@@ -18,9 +18,11 @@ probe-assembly-api.yml로 이 스크립트를 수동 실행해 로그로 확인�
 
 실행: python probe_assembly_api.py [법안명 일부(선택, 예: 자본시장)]
       BILL_NOS=2203518,2203522 python probe_assembly_api.py
+      BILL_IDS=PRC_xxx,ARC_xxx python probe_assembly_api.py  (likms 의안 상세 페이지 확인)
 """
 import json
 import os
+import re
 import sys
 import time
 from collections import Counter
@@ -138,8 +140,43 @@ def scan_bill_nos(bill_nos):
                 print("      " + json.dumps(r, ensure_ascii=False))
 
 
+LIKMS_DETAIL_URL = "https://likms.assembly.go.kr/bill/billDetail.do"
+DETAIL_HINTS = ("재의", "공포", "정부이송", "이송", "부결", "가결", "진행", "단계")
+
+
+def probe_bill_details(bill_ids):
+    """likms 의안 상세 페이지에서 거부권(재의요구)과 공포를 가를 문구가 있는지 본다.
+    처리의안 API로는 둘이 똑같이 '원안가결'이라 구분이 안 된다(2026-10-30 실측).
+    페이지가 자바스크립트로 내용을 채울 수 있어서, 상태 문구 줄과 함께 페이지가
+    부르는 .do 주소도 찍는다."""
+    for bill_id in bill_ids:
+        print(f"\n===== likms 상세 {bill_id} =====")
+        try:
+            res = requests.get(LIKMS_DETAIL_URL, params={"billId": bill_id}, timeout=30)
+        except requests.exceptions.RequestException as e:
+            print(f"  접속 실패 {type(e).__name__}")
+            continue
+        html = res.text
+        print(f"  HTTP {res.status_code}, {len(html)}자")
+        body = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", html)
+        text = re.sub(r"<[^>]+>", "\n", body)
+        lines = [re.sub(r"\s+", " ", t).strip() for t in text.splitlines()]
+        lines = [t for t in lines if t]
+        hits = [(i, t) for i, t in enumerate(lines) if any(h in t for h in DETAIL_HINTS)]
+        print(f"  상태 문구 줄 {len(hits)}개 (앞뒤 한 줄씩)")
+        for i, t in hits[:40]:
+            around = " | ".join(lines[max(0, i - 1):i + 2])
+            print(f"    {around[:200]}")
+        urls = sorted(set(re.findall(r"[\w/.-]+\.do", html)))
+        print(f"  페이지 안의 .do 주소: {', '.join(urls)}")
+
+
 def main():
-    bill_nos = [n.strip() for n in os.environ.get("BILL_NOS", "").split(",") if n.strip()]
+    bill_ids = [n.strip() for n in os.environ.get("BILL_IDS", "").split(",") if n.strip()]
+    if bill_ids:
+        probe_bill_details(bill_ids)
+        return
+    bill_nos =[n.strip() for n in os.environ.get("BILL_NOS", "").split(",") if n.strip()]
     if bill_nos:
         scan_bill_nos(bill_nos)
         return

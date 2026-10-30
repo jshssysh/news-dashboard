@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: ''
+      bill_ids:
+        description: '의안ID(PRC_…/ARC_…)를 쉼표로 넣으면 likms 의안 상세 페이지의 상태 문구를 찍는다. 넣으면 위 두 확인은 건너뛴다.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   probe:
@@ -37,4 +42,5 @@ jobs:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           BILL_NAME: ${{ github.event.inputs.bill_name }}
           BILL_NOS: ${{ github.event.inputs.bill_nos }}
+          BILL_IDS: ${{ github.event.inputs.bill_ids }}
         run: python probe_assembly_api.py "$BILL_NAME"
