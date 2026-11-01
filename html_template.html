@@ -2492,6 +2492,22 @@ function newsMatchesGlobalFilters(r) {
   return true;
 }
 
+// "주말간" - 예전에는 "보는 날짜 + 앞 2일(수집일 기준)"이라 월요일 아침에 열면 금요일이
+// 빠지고 월요일 06시 수집분만 들어가 숫자가 크게 줄었다(사용자 지적, 2026-11-02).
+// 이제는 언제 열든 보는 날짜 기준 가장 가까운 금~일(진행 중인 주말이면 그 주말)에
+// 발행된 기사로 고정한다. "날짜 지정"과 같은 이유로 발행일(pub_ts)로 거른다.
+function weekendBounds(dateStr) {
+  const [y, m, d] = (dateStr || '').split('/').map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  // getDay(): 일0 월1 … 금5 토6 - 기준일에서 며칠 전이 금요일인지
+  const back = (base.getDay() + 2) % 7;
+  const fri = new Date(base.getFullYear(), base.getMonth(), base.getDate() - back);
+  const sun = new Date(fri.getFullYear(), fri.getMonth(), fri.getDate() + 2);
+  const pad = n => String(n).padStart(2, '0');
+  const ymd = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  return { from: ymd(fri), to: ymd(sun), label: `${fri.getMonth() + 1}/${fri.getDate()}(금)~${sun.getMonth() + 1}/${sun.getDate()}(일)` };
+}
+
 function scopedRows() {
   if (state.period === 'custom') {
     // 시작/끝 날짜를 둘 다 고르기 전에는(달력 하나만 찍은 상태) 아무것도 안 보여준다.
@@ -2512,6 +2528,14 @@ function scopedRows() {
     });
   }
   if (state.period === 0) return isViewingLatestDate() ? todayRollingWindowRows() : dailyRows();
+  if (state.period === 2) {
+    const { from, to, label } = weekendBounds(state.currentDate);
+    document.querySelector('#periodSelect option[value="2"]').title = label;
+    return NEWS_DATA.filter(r => {
+      const pubDate = (r.pub_ts || '').slice(0, 10);
+      return pubDate && pubDate >= from && pubDate <= to;
+    });
+  }
   const idx = allDates.indexOf(state.currentDate);
   const startIdx = Math.max(0, idx - state.period);
   const rangeSet = new Set(allDates.slice(startIdx, idx + 1));
