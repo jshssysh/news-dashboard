@@ -1606,9 +1606,12 @@ def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None
         print(f"[보관 기간 정리 예외 - 이번엔 건너뜀] {e}")
         combined_df = combined_df.drop(columns=["dt"], errors="ignore")
 
-    # 임베딩으로 이슈가 정해진 기사는 이슈명 단어 병합에서 뺀다(그 결과를 덮어쓰지 않게)
-    merge_links = set(new_df["기사링크"].dropna()) - (embedded_links or set())
-    combined_df = apply_issue_merge(combined_df, new_links=merge_links)
+    # 임베딩으로 이슈가 정해진 기사도 이슈명 병합을 거친다. 처음엔 임베딩 결과를 덮어쓰지
+    # 않으려고 뺐는데, 같은 사건을 두 각도로 쓴 기사들이 유사도 기준선 바로 아래로 갈리면
+    # (11/02 '서울중수청 하도급법 위반 사업자 송치' 13건 / '서울중수청 하도급법 위반 송치' 11건)
+    # 이름이 거의 같아도 합쳐 줄 단계가 없었다. 이슈명 병합은 이제 같은 당사자끼리·최근 3일
+    # 이슈로만 붙이므로(교차 뿌리 병합 꺼짐) 임베딩 결과를 엉뚱하게 바꿀 위험이 작다.
+    combined_df = apply_issue_merge(combined_df, new_links=set(new_df["기사링크"].dropna()))
     # 사람이 정한 정정이 자동 병합보다 우선한다(정정 대상 기사가 이번에 다시 수집된 경우 대비)
     combined_df = apply_news_overrides(combined_df)
 
