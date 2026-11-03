@@ -3582,7 +3582,8 @@ function renderDecisionKindChipRow() {
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.decisionKind = btn.dataset.val;
     state.decisionPage = 1;
-    renderDecisionList();
+    // 목록만 다시 그리면 칩의 active 표시와 헤더 태그가 그대로 남는다 - 칩 줄도 함께 다시 그린다.
+    renderDecisions();
   }));
 }
 
@@ -3703,7 +3704,7 @@ function renderPenaltyKindChipRow() {
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.penaltyKind = btn.dataset.val;
     state.penaltyPage = 1;
-    renderPenaltyList();
+    renderLawPenalties();
   }));
 }
 
@@ -3723,7 +3724,7 @@ function renderPenaltyLawChipRow() {
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.penaltyLaw = btn.dataset.val;
     state.penaltyPage = 1;
-    renderPenaltyList();
+    renderLawPenalties();
   }));
 }
 
