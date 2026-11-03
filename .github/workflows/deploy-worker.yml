@@ -1,4 +1,4 @@
-name: deploy-contract-checker-worker
+name: "[배포] 계약 검토 Worker 배포"
 
 # worker/ 안이 바뀔 때만 돌린다 - 매번(하루 5번) 도는 daily.yml과 별개로,
 # 이 Worker 코드가 바뀔 때만 Cloudflare에 재배포하면 된다.

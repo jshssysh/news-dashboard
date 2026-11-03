@@ -1,6 +1,6 @@
 """정답 데이터(eval/labels_*.csv 전부)로 뉴스 필터를 시험한다.
 
-GitHub Actions의 "뉴스 필터 평가" 워크플로가 실행한다(회사 PC에는 Gemini 키가 없음).
+GitHub Actions의 "[평가] 뉴스 필터 - 채점" 워크플로가 실행한다(회사 PC에는 Gemini 키가 없음).
 뉴스 데이터는 건드리지 않고, 결과만 eval/results/latest.md(요약)와 latest.csv(기사별
 점수)로 저장한다 - 워크플로가 이 두 파일만 커밋한다.
 

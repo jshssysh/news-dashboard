@@ -1,4 +1,4 @@
-name: probe-assembly-api
+name: "[점검] 국회 API 응답 확인"
 
 # 국회 열린국회정보 API 응답 구조 확인용 (probe_assembly_api.py 참고).
 # 회사 PC에서는 open.assembly.go.kr이 막혀 있어 Actions에서 수동으로 한 번 돌려
