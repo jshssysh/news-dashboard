@@ -1,0 +1,53 @@
+# 뉴스 필터 평가 - 본문: 최근 기사 표본으로 네이버 발췌문과 기사 본문 앞부분(400자)을 각각 넣어
+# 요약·점수를 비교한다(수집에는 적용 안 함). Actions 탭에서 Run workflow로만 실행하고,
+# 결과 파일 eval/results/body_latest.md만 커밋한다.
+name: 뉴스 필터 평가 - 본문
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eval-body
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 환경 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 필수 라이브러리 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 발췌문 vs 본문 앞부분 요약 비교
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          python eval/run_body_eval.py
+
+      - name: 평가 결과 커밋
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add eval/results
+          if git diff --staged --quiet; then exit 0; fi
+          git commit -m "뉴스 필터 본문 시험 결과"
+          # 뉴스 수집 봇이 그사이 커밋했을 수 있으니 받아와서 올린다(결과 파일만 바꾸므로 충돌 없음)
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1
