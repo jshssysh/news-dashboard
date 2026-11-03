@@ -1,6 +1,6 @@
 """이슈 묶기 방식 비교: 정답 쌍(eval/merge_pairs_*.csv)으로 "두 이슈가 같은 사건인가"를 잰다.
 
-GitHub Actions "뉴스 필터 평가 - 묶기" 워크플로가 실행한다. 쌍 파일에는 이슈명과 정답만
+GitHub Actions "[평가] 뉴스 필터 - 묶기" 워크플로가 실행한다. 쌍 파일에는 이슈명과 정답만
 있고(30KB 업로드 제한), 각 이슈의 기사 제목은 Actions에 있는 news_list.csv에서 채운다.
 결과는 eval/results/merge_latest.md로 저장한다.
 

@@ -1,7 +1,7 @@
-# 뉴스 필터 평가 - 묶기: 정답 쌍(eval/merge_pairs_*.csv)으로 이슈 묶기 방식(이슈명 규칙·임베딩·
+# [평가] 뉴스 필터 - 묶기: 정답 쌍(eval/merge_pairs_*.csv)으로 이슈 묶기 방식(이슈명 규칙·임베딩·
 # 칸 나누기·Gemini 직접 판정)을 비교한다. Actions 탭에서 Run workflow로만 실행하고,
 # 결과 파일 eval/results/merge_latest.md만 커밋한다.
-name: 뉴스 필터 평가 - 묶기
+name: "[평가] 뉴스 필터 - 묶기"
 
 on:
   workflow_dispatch:
