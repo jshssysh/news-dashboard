@@ -1070,7 +1070,14 @@ def build_article_vocab_merge_mapping(df):
 # 최근 이슈 대표 기사를 실행마다 다시 임베딩했는데, 수집 1회에 약 1,900건이라 무료 한도
 # (429)에 걸려 10/15 18:01·10/16 06:01 두 번 모두 임베딩 없이 처리됐다. 이제 새 기사와
 # 캐시에 없는 최근 이슈 대표 기사만 임베딩한다(캐시가 비어 있는 첫 실행만 많음).
-EMBED_GROUP_THRESHOLD = 0.85
+# 0.85에서 낮춤(2026-11-03): 한 달치 정답 쌍 160개(eval/merge_pairs_20261103.csv) 평가에서
+# 0.85는 같은 사건의 69%만 묶었고, 0.80은 93%를 묶으면서 다른 사건은 46쌍 중 1쌍(2%)만
+# 묶었다 - Gemini에 직접 물어본 결과(96%·2%)와 거의 같다(eval/results/merge_latest.md).
+EMBED_GROUP_THRESHOLD = 0.80
+# 번짐 방지: 기사가 붙을수록 이슈 중심이 넓어져 주제 전체를 끌어들이는 일이 있었다(10월
+# '김남근의원 주계약자 공동도급 발의'에 건설협회 행사 기사가 붙음). 이슈의 처음 기사(출발점)와도
+# 이만큼은 비슷해야 붙인다.
+EMBED_ANCHOR_MIN = 0.75
 EMBED_RECENT_ISSUE_DAYS = 3
 EMBED_MIN_SCORE = 6
 EMBED_MAX_REPS_PER_RUN = 300  # 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한
@@ -1177,32 +1184,43 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
         print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
         return None
 
-    names, sums = [], []
+    names, sums, anchors = [], [], []
     if not hist.empty:
-        for issue, g in hist[hist["기사링크"].isin(cache)].groupby("대표이슈"):
+        for issue, g in hist[hist["기사링크"].isin(cache)].sort_values("수집일자").groupby("대표이슈"):
             names.append(issue)
             sums.append(np.sum([cache[l][0] for l in g["기사링크"]], axis=0))
+            anchors.append(cache[g["기사링크"].iloc[0]][0])  # 가장 먼저 수집된 기사
     n_recent = len(names)
     cents = [s / np.linalg.norm(s) for s in sums]
-    mapping, attached, created = {}, 0, 0
+    mapping, attached, created, blocked = {}, 0, 0, 0
     for x in items:
         v = cache[x["link"]][0]
-        sims = [float(np.dot(v, c)) for c in cents]
-        best_i = int(np.argmax(sims)) if sims else -1
-        if best_i >= 0 and sims[best_i] >= EMBED_GROUP_THRESHOLD:
+        best_i, best_sim, near_miss = -1, -1.0, False
+        for i, c in enumerate(cents):
+            sim = float(np.dot(v, c))
+            if sim < EMBED_GROUP_THRESHOLD or sim <= best_sim:
+                continue
+            if float(np.dot(v, anchors[i])) < EMBED_ANCHOR_MIN:
+                near_miss = True  # 중심과는 가깝지만 출발점과 너무 다름 - 번짐으로 보고 막는다
+                continue
+            best_i, best_sim = i, sim
+        if best_i >= 0:
             mapping[x["link"]] = names[best_i]
             sums[best_i] = sums[best_i] + v
             cents[best_i] = sums[best_i] / np.linalg.norm(sums[best_i])
             attached += best_i < n_recent
         else:
+            blocked += near_miss
             names.append(x["group_title"])
             sums.append(v.copy())
             cents.append(v.copy())
+            anchors.append(v.copy())
             mapping[x["link"]] = x["group_title"]
             created += 1
     EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, "
                                  f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
-                                 f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 기존 방식으로 넘김 {len(skipped)}건)")
+                                 f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 번짐 방지로 막음 {blocked}건, "
+                                 f"기존 방식으로 넘김 {len(skipped)}건)")
     print(f"[임베딩 묶기] 모델 {model} - {EMBED_LAST_RESULT['text']}")
     return mapping
 
