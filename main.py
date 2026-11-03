@@ -1083,6 +1083,29 @@ EMBED_GROUP_THRESHOLD = 0.80
 # '김남근의원 주계약자 공동도급 발의'에 건설협회 행사 기사가 붙음). 이슈의 처음 기사(출발점)와도
 # 이만큼은 비슷해야 붙인다.
 EMBED_ANCHOR_MIN = 0.75
+# 글자 겹침 확인: 기사 제목의 글자 2-gram 중 붙일 이슈의 기사 제목들에도 있는 비율이 이 값 이상이어야
+# 붙인다. 11/03 12:01 남양유업 장학금 기사 11건이 '신세계 친족 독립경영 지분 조정'에 붙었는데
+# (그날 임베딩 일부 실패, 원인 미확정) 두 쪽 제목 겹침은 0.00~0.04였다. 한 달치 정답 쌍에서
+# 0.10 기준은 같은 사건 기사의 4%만 막았다.
+EMBED_TITLE_OVERLAP_MIN = 0.10
+EMBED_ATTACH_LOG_PATH = "embed_attach_log.csv"  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
+EMBED_ATTACH_LOG_DAYS = 14
+
+
+def _title_bigrams(title):
+    c = re.sub(r"[^가-힣A-Za-z0-9]", "", re.sub(r"\[[^\]]*\]", "", str(title)))
+    return {c[i:i + 2] for i in range(len(c) - 1)}
+
+
+def _save_attach_log(rows):
+    try:
+        new = pd.DataFrame(rows, columns=["수집일자", "기사링크", "제목", "이슈", "결과", "중심 유사도", "출발점 유사도", "제목 겹침"])
+        if os.path.exists(EMBED_ATTACH_LOG_PATH):
+            new = pd.concat([pd.read_csv(EMBED_ATTACH_LOG_PATH, encoding="utf-8-sig"), new], ignore_index=True)
+        cutoff = (datetime.now(KST) - timedelta(days=EMBED_ATTACH_LOG_DAYS)).strftime("%Y-%m-%d")
+        new[new["수집일자"].astype(str) >= cutoff].to_csv(EMBED_ATTACH_LOG_PATH, index=False, encoding="utf-8-sig")
+    except Exception as e:
+        print(f"[임베딩 묶기 기록 예외 - 건너뜀] {e}")
 EMBED_RECENT_ISSUE_DAYS = 3
 EMBED_MIN_SCORE = 6
 EMBED_MAX_REPS_PER_RUN = 300  # 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한
@@ -1189,42 +1212,60 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
         print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
         return None
 
-    names, sums, anchors = [], [], []
+    names, sums, anchors, grams = [], [], [], []
     if not hist.empty:
         for issue, g in hist[hist["기사링크"].isin(cache)].sort_values("수집일자").groupby("대표이슈"):
             names.append(issue)
             sums.append(np.sum([cache[l][0] for l in g["기사링크"]], axis=0))
             anchors.append(cache[g["기사링크"].iloc[0]][0])  # 가장 먼저 수집된 기사
+            grams.append(set().union(*[_title_bigrams(x) for x in g["제목"].drop_duplicates().head(10)]))
     n_recent = len(names)
     cents = [s / np.linalg.norm(s) for s in sums]
-    mapping, attached, created, blocked = {}, 0, 0, 0
+    mapping, attached, created, blocked, blocked_text, log = {}, 0, 0, 0, 0, []
     for x in items:
         v = cache[x["link"]][0]
-        best_i, best_sim, near_miss = -1, -1.0, False
+        xg = _title_bigrams(x["title"])
+        best_i, best_sim, best_anchor, best_overlap, near_miss, text_miss = -1, -1.0, 0.0, 0.0, False, False
         for i, c in enumerate(cents):
             sim = float(np.dot(v, c))
             if sim < EMBED_GROUP_THRESHOLD or sim <= best_sim:
                 continue
-            if float(np.dot(v, anchors[i])) < EMBED_ANCHOR_MIN:
+            anchor_sim = float(np.dot(v, anchors[i]))
+            if anchor_sim < EMBED_ANCHOR_MIN:
                 near_miss = True  # 중심과는 가깝지만 출발점과 너무 다름 - 번짐으로 보고 막는다
                 continue
-            best_i, best_sim = i, sim
+            overlap = len(xg & grams[i]) / max(len(xg), 1)
+            if overlap < EMBED_TITLE_OVERLAP_MIN:
+                text_miss = True  # 벡터는 가깝다는데 제목 글자가 거의 안 겹침 - 다른 사건으로 보고 막는다
+                continue
+            best_i, best_sim, best_anchor, best_overlap = i, sim, anchor_sim, overlap
         if best_i >= 0:
             mapping[x["link"]] = names[best_i]
             sums[best_i] = sums[best_i] + v
             cents[best_i] = sums[best_i] / np.linalg.norm(sums[best_i])
+            grams[best_i] |= xg
             attached += best_i < n_recent
+            log.append((x["ts"], x["link"], x["title"], names[best_i],
+                        "기존 이슈에 붙음" if best_i < n_recent else "이번 묶음에 붙음",
+                        round(best_sim, 3), round(best_anchor, 3), round(best_overlap, 3)))
         else:
             blocked += near_miss
+            blocked_text += text_miss and not near_miss
             names.append(x["group_title"])
             sums.append(v.copy())
             cents.append(v.copy())
             anchors.append(v.copy())
+            grams.append(set(xg))
             mapping[x["link"]] = x["group_title"]
             created += 1
+            log.append((x["ts"], x["link"], x["title"], x["group_title"],
+                        "새 묶음" + (" (번짐 방지)" if near_miss else "") + (" (제목 겹침 부족)" if text_miss else ""),
+                        "", "", ""))
+    _save_attach_log(log)
     EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, "
                                  f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
                                  f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 번짐 방지로 막음 {blocked}건, "
+                                 f"제목 겹침 부족으로 막음 {blocked_text}건, "
                                  f"기존 방식으로 넘김 {len(skipped)}건)")
     print(f"[임베딩 묶기] 모델 {model} - {EMBED_LAST_RESULT['text']}")
     return mapping
