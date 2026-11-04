@@ -292,7 +292,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 #noticeLawRow button { padding: 4px 9px; font-size: 0.78em; }
 .sublaw-source { font-size: 0.75em; opacity: 0.6; margin-top: 8px; }
 /* 법령 탭(법령 모아보기) - 입법예고 패널과 같은 칩 규칙, 법령 하나당 카드 하나. */
-#lawListMinistryRow, #lawListLawRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; margin: 0 0 10px; }
+#lawListMinistryRow, #lawListLawRow, #lawListKindRow { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; padding-bottom: 0; margin: 0 0 10px; }
 #lawListLawRow button { padding: 4px 9px; font-size: 0.78em; }
 #lawListPanel .news-filter-row { margin-bottom: 10px; }
 .lawlist-label { font-size: 0.74em; font-weight: 700; opacity: 0.6; margin: 2px 0 4px; }
@@ -312,7 +312,18 @@ a.badge-skipped:hover { text-decoration: underline; }
 .lawsearch-title { font-weight: 700; font-size: 0.92em; }
 .lawsearch-title .chip-category { font-size: 0.72em; padding: 1px 6px; margin-right: 4px; }
 .lawsearch-snippet { font-size: 0.84em; opacity: 0.85; margin-top: 3px; line-height: 1.55; }
-.lawsearch-snippet mark.ins { background: rgba(250, 204, 21, 0.35); color: inherit; font-weight: 700; padding: 0 1px; border-radius: 2px; }
+.lawfull-open { font-size: 0.78em; margin-left: 6px; padding: 0 2px; }
+.lawlist-stmd { font-size: 0.78em; font-weight: 700; color: var(--app-primary); margin-left: 6px; white-space: nowrap; }
+.news-modal.lawfull-modal { max-width: 820px; max-height: 88vh; }
+.lawfull-modal .news-modal-head .chip-category { font-size: 0.72em; padding: 1px 6px; }
+.lawfull-src { font-size: 0.82em; color: var(--app-primary); margin-left: 6px; white-space: nowrap; }
+.lawfull-body { position: relative; }
+.lawfull-art { padding: 10px 8px; border-top: 1px solid var(--app-border); border-radius: 6px; }
+.lawfull-art:first-child { border-top: none; }
+.lawfull-art.target { background: rgba(250, 204, 21, 0.14); box-shadow: inset 3px 0 0 #e0a500; }
+.lawfull-art-head { font-weight: 700; font-size: 0.9em; margin-bottom: 4px; }
+.lawfull-art-text { font-size: 0.86em; line-height: 1.7; white-space: pre-line; }
+.lawfull-art-text mark.ins, .lawsearch-snippet mark.ins { background: rgba(250, 204, 21, 0.35); color: inherit; font-weight: 700; padding: 0 1px; border-radius: 2px; }
 .bill-step-sep { width: 1px; align-self: stretch; background: var(--app-border); margin: 0 6px; }
 /* 법령에는 소관위·법안 쪽수가 없어서 "시행" 칩을 고른 동안은 숨긴다. */
 #view-law.sublaw-mode #committeeFilterSection, #view-law.sublaw-mode .bill-result-row,
@@ -1204,11 +1215,12 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="sidebar-panel sublaw-panel" id="lawListPanel">
       <div class="panel-title-row">
         <div class="panel-title">법령 모아보기<span class="help-tip" data-help-key="lawlist" role="button" tabindex="0" aria-label="법령 모아보기 기준">?</span><span class="current-tag" id="lawListCountTag"></span></div>
-        <div class="cat-chip-row sublaw-filter-row" id="lawListKindRow"></div>
       </div>
       <div class="news-filter-row"><input type="text" id="lawListSearch" placeholder="조문·법령명에서 검색 (예: 공시 과태료)"></div>
+      <!-- 부처 -> 법 -> 종류 순: 법을 고르면 그 법의 법률·시행령·시행규칙·행정규칙이 한데 보인다. -->
       <div class="cat-chip-row sublaw-law-row" id="lawListMinistryRow"></div>
       <div class="cat-chip-row sublaw-law-row" id="lawListLawRow"></div>
+      <div class="cat-chip-row sublaw-law-row" id="lawListKindRow"></div>
       <div class="sublaw-body">
         <div id="lawSearchArea"></div>
         <div id="lawListArea"><div class='info-box'>법령 목록을 불러오는 중…</div></div>
@@ -1320,7 +1332,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-05 07:22 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-05 07:57 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -4273,6 +4285,7 @@ const LAW_LIST_KINDS = ['전체', '법률', '시행령·시행규칙', '행정�
 const LAW_LIST_KIND_HELP = { ...SUB_LAW_KIND_HELP,
   '행정규칙': '법령이 맡긴 세부 기준을 부처가 정한 고시·예규·지침 등(공정위 것만, 내부 운영용 훈령은 뺌)' };
 const LAW_SEARCH_PREVIEW = 20;
+const LAW_RULE_ETC = '기타 행정규칙';
 let lawListKind = '전체', lawListMinistry = '전체', lawListLaw = '전체', lawListQuery = '', lawListShowAll = false;
 let lawSearchShowAll = false;
 let LAW_META = { laws: [], rules: [], lawFiles: {}, updated: '' };
@@ -4284,6 +4297,7 @@ HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규
 · 카드 요약: 가장 최근 직접 개정의 개정 이유·주요 내용(최근 2년 안의 개정만). 행정규칙은 제·개정 이유
 · 개정 이력: 개정마다 공포일·시행일, 요약, 신구조문 대비
 · 별표·서식: 법제처에 올라온 파일(PDF·한글)
+· 법령체계도·조문 체계도: 법제처 화면에서 상위법·하위법·위임 행정규칙 관계를 봅니다
 · 소관 부처가 여럿이면 순서표에서 앞선 부처 하나로 묶습니다(공정위가 가장 앞)
 · 순서: 가장 최근 개정(발령)된 것부터`;
 
@@ -4307,6 +4321,18 @@ function ensureLawTexts() {
 
 const lawCurrentLink = name => 'https://www.law.go.kr/법령/' + encodeURIComponent(name);
 const ruleLink = name => 'https://www.law.go.kr/행정규칙/' + encodeURIComponent(name);
+// 법제처 법령체계도(상위법·하위법·위임 행정규칙)와 조문 체계도. lsiSeq는 법령일련번호(MST).
+const lawStmdLink = mst => `https://www.law.go.kr/LSW/lsStmdInfoP.do?lsiSeq=${encodeURIComponent(mst)}&ancYnChk=0`;
+function joStmdLink(mst, no) {
+  const m = /^제(\d+)조(?:의(\d+))?/.exec(no || '');
+  if (!mst || !m) return '';
+  return `https://www.law.go.kr/LSW/joStmdInfoP.do?lsiSeq=${encodeURIComponent(mst)}&joNo=${m[1].padStart(4, '0')}&joBrNo=${(m[2] || '0').padStart(2, '0')}`;
+}
+function lawMstOf(name) {
+  if (!lawMstByName) lawMstByName = Object.fromEntries((LAW_META.laws || []).map(l => [l.name, l.mst]));
+  return lawMstByName[name] || '';
+}
+let lawMstByName = null;
 function lawKindLabel(name, kind) {
   const n = (name || '').replace(/\s/g, '');
   return n.endsWith('시행령') ? '시행령' : n.endsWith('시행규칙') ? '시행규칙' : (kind || '법률');
@@ -4337,9 +4363,14 @@ function lawListGroups() {
     groups.push({ type: 'law', name: l.name, rows: [], latest: null, pick: null, abbr: l.abbr, date: '',
       ministry: subLawMinistryOf(fake), group: subLawGroup(fake), kind });
   });
+  // 행정규칙은 근거 법률(r.law, generate_html.py가 제1조의 「법령명」으로 찾음)의 칩에 같이 묶는다.
+  // 그 법률 카드의 묶음 이름(약칭)과 부처를 그대로 따라가서, 법 칩 하나에 법률·시행령·고시가 함께 나온다.
+  const lawGroupByName = {};
+  groups.forEach(g => { if (!lawGroupByName[g.name]) lawGroupByName[g.name] = g; });
   (LAW_META.rules || []).forEach(r => {
+    const base = r.law && lawGroupByName[r.law];
     groups.push({ type: 'rule', name: r.name, rule: r, date: r.issued || '', kind: r.kind,
-      ministry: subLawMinistryOf(r), group: r.kind || '행정규칙' });
+      ministry: base ? base.ministry : subLawMinistryOf(r), group: base ? base.group : LAW_RULE_ETC });
   });
   return groups.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
 }
@@ -4385,6 +4416,7 @@ function lawListCardHtml(g, today) {
     <div class="sublaw-head">
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${escHtml(href)}" target="_blank" rel="noopener" title="${bundle ? '개정 공포문 보기' : '법제처 현행법 보기'}">${escHtml(title)}</a>
+      ${!bundle && lawMstOf(name) ? `<a class="lawlist-stmd" href="${escHtml(lawStmdLink(lawMstOf(name)))}" target="_blank" rel="noopener" title="법제처 법령체계도: 상위법·하위법·위임 행정규칙">법령체계도</a>` : ''}
       <span class="card-meta-inline">${escHtml(subLawMinistryFull(g.ministry))}${latest ? ` · 최근 공포 ${latest.promulgated}` : ''}</span>
     </div>
     ${body}
@@ -4426,9 +4458,11 @@ const LAW_SEARCH_KIND_RANK = { '법률': 0, '시행령': 1, '대통령령': 1, '
 function lawSearchWords(q) {
   return [...new Set(q.trim().toLowerCase().split(/\s+/).filter(w => w.length >= 1))];
 }
+let lawSearchScope = null;  // 고른 부처·법의 법령·행정규칙 이름 집합(null이면 전체)
 function lawSearch(words, kind) {
   const hits = [];
   (LAW_TEXTS || []).forEach(doc => {
+    if (lawSearchScope && !lawSearchScope.has(doc.name)) return;
     const docKind = doc.t === 'rule' ? '행정규칙' : lawKindLabel(doc.name, doc.kind);
     if (kind !== '전체' && !lawListKindMatches({ type: doc.t, kind: docKind }, kind)) return;
     const nameHay = `${doc.name} ${doc.abbr || ''}`.toLowerCase();
@@ -4476,14 +4510,59 @@ function renderLawSearchResults(box, q) {
   const hits = lawSearch(words, lawListKind);
   const shown = lawSearchShowAll ? hits.slice(0, 200) : hits.slice(0, LAW_SEARCH_PREVIEW);
   box.innerHTML = `<div class="lawsearch-head">조문 검색 <b>${fmtN(hits.length)}</b>건${hits.length > 200 && lawSearchShowAll ? ' (앞 200건)' : ''}</div>`
-    + (shown.length ? shown.map(h => `<div class="lawsearch-hit">
+    + (shown.length ? shown.map((h, i) => `<div class="lawsearch-hit">
         <div class="lawsearch-title"><span class="chip-category">${escHtml(h.docKind)}</span>
-          <a href="${escHtml(lawHitLink(h))}" target="_blank" rel="noopener">${escHtml(h.doc.abbr || h.doc.name)} ${escHtml(h.no)}${h.title ? `(${escHtml(h.title)})` : ''}</a></div>
+          <a href="${escHtml(lawHitLink(h))}" target="_blank" rel="noopener">${escHtml(h.doc.abbr || h.doc.name)} ${escHtml(h.no)}${h.title ? `(${escHtml(h.title)})` : ''}</a>
+          <button type="button" class="archive-toggle-link lawfull-open" data-i="${i}" title="이 법령 전체를 열고 이 조문으로 이동">전체 법령</button>${
+          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}</div>
         <div class="lawsearch-snippet">${lawSnippet(h.text || '', words)}</div>
       </div>`).join('') : "<div class='info-box'>단어가 모두 들어간 조문이 없습니다.</div>")
     + (hits.length > LAW_SEARCH_PREVIEW ? `<button type="button" class="archive-toggle-link lawsearch-more">${lawSearchShowAll ? '접기' : `더보기 (${fmtN(Math.min(hits.length, 200) - LAW_SEARCH_PREVIEW)}건 더)`}</button>` : '');
   const more = box.querySelector('.lawsearch-more');
   if (more) more.addEventListener('click', () => { lawSearchShowAll = !lawSearchShowAll; renderLawSearchResults(box, q); });
+  box.querySelectorAll('.lawfull-open').forEach(btn => btn.addEventListener('click', () => {
+    const h = shown[Number(btn.dataset.i)];
+    openLawFullModal(h.doc, h.no, words);
+  }));
+}
+
+// "전체 법령" 창: 법제처 전체 법령 화면은 주소로 조문 위치를 받지 않아서(조문 번호를 주면 그 조문만
+// 따로 연다, 2026-11-05 확인) 받아 둔 조문 전문(law_texts.json)으로 법령 전체를 그리고 그 조문으로 옮겨 간다.
+function lawFullText(text, words) {
+  // 항(①…)·호(1. 2.)마다 줄을 바꿔 읽기 쉽게 한다.
+  let t = escHtml(text).replace(/\s(?=[①-⑳])/g, '\n').replace(/\s(?=\d{1,2}\.\s)/g, '\n  ');
+  (words || []).map(escHtml).sort((a, b) => b.length - a.length).forEach(w => {
+    t = t.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark class="ins">${m}</mark>`);
+  });
+  return t;
+}
+function openLawFullModal(doc, targetNo, words) {
+  const kind = doc.t === 'rule' ? '행정규칙' : lawKindLabel(doc.name, doc.kind);
+  const href = doc.t === 'rule' ? ruleLink(doc.name) : lawCurrentLink(doc.name);
+  const items = (doc.a || []).map(([no, title, text], i) => `<div class="lawfull-art${no === targetNo ? ' target' : ''}" data-i="${i}">
+      <div class="lawfull-art-head">${escHtml(no)}${title ? ` (${escHtml(title)})` : ''}</div>
+      <div class="lawfull-art-text">${lawFullText(text || '(서식 - 본문은 법제처 파일로 보세요)', words)}</div>
+    </div>`).join('');
+  const overlay = document.createElement('div');
+  overlay.className = 'news-modal-backdrop';
+  overlay.innerHTML = `<div class="news-modal lawfull-modal" role="dialog" aria-label="${escHtml(doc.name)} 전체">
+      <div class="news-modal-head"><span class="chip-category">${escHtml(kind)}</span><b>${escHtml(doc.name)}</b>
+        <a class="lawfull-src" href="${escHtml(href)}" target="_blank" rel="noopener">법제처 원문</a>${
+        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}
+        <button class="news-modal-close" title="닫기">✕</button></div>
+      <div class="news-modal-body lawfull-body">${items || '<div class="info-box">조문이 없습니다.</div>'}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('.news-modal-close').addEventListener('click', close);
+  const target = overlay.querySelector('.lawfull-art.target');
+  if (target) {
+    const body = overlay.querySelector('.lawfull-body');
+    body.scrollTop = target.offsetTop - 8;  // .lawfull-body가 position:relative라 offsetTop은 창 본문 기준
+  }
 }
 
 function renderLawListPanel() {
@@ -4492,20 +4571,15 @@ function renderLawListPanel() {
   const groupsAll = lawListGroups();
   // 카드는 띄어 쓴 단어가 모두 이름·개정 내용 어딘가에 들어 있으면 남긴다(조문 검색과 같은 규칙).
   const qWords = lawSearchWords(q);
-  const all = groupsAll.filter(g => {
+  const cardMatches = g => {
     if (!qWords.length) return true;
     const hay = [g.name, g.abbr, ...(g.rows || []).flatMap(r => [r.summary, r.detail]), g.rule && g.rule.reason]
       .map(t => (t || '').toLowerCase()).join(' ');
     return qWords.every(w => hay.includes(w));
-  });
-  const byKindAll = all.filter(g => lawListKindMatches(g, lawListKind));
-
-  document.getElementById('lawListKindRow').innerHTML = LAW_LIST_KINDS.map(k =>
-    `<button data-kind="${k}" class="${lawListKind === k ? 'active' : ''}"${helpAttr(LAW_LIST_KIND_HELP, k)}>${k}</button>`).join('');
-  document.querySelectorAll('#lawListKindRow button').forEach(btn => btn.addEventListener('click', () => {
-    lawListKind = btn.dataset.kind; lawListShowAll = false; lawSearchShowAll = false; renderLawListPanel();
-  }));
-
+  };
+  // 부처 -> 법 -> 종류 순으로 좁힌다. 건수는 각 줄이 그 위 줄까지 고른 범위 안에서 센 법령·행정규칙 수
+  // (검색어와 상관없이 고정 - 칩으로 범위를 고른 뒤 그 안에서 조문을 찾게 한다).
+  const byKindAll = groupsAll;
   const minCounts = {};
   byKindAll.forEach(g => { minCounts[g.ministry] = (minCounts[g.ministry] || 0) + 1; });
   if (lawListMinistry !== '전체' && !minCounts[lawListMinistry]) lawListMinistry = '전체';
@@ -4519,25 +4593,34 @@ function renderLawListPanel() {
   const lawCounts = {};
   byMin.forEach(g => { lawCounts[g.group] = (lawCounts[g.group] || 0) + 1; });
   if (lawListLaw !== '전체' && !lawCounts[lawListLaw]) lawListLaw = '전체';
-  const isRuleGroup = k => byMin.some(g => g.type === 'rule' && g.group === k);
-  // 건수 많은 법부터, 행정규칙 종류(고시·예규 등)와 일괄개정은 뒤로.
+  const isTail = k => k === SUB_LAW_BUNDLE || k === LAW_RULE_ETC;
+  // 건수 많은 법부터, 일괄개정·기타 행정규칙은 뒤로.
   const laws = Object.keys(lawCounts).sort((a, b) =>
-    (a === SUB_LAW_BUNDLE) - (b === SUB_LAW_BUNDLE) || isRuleGroup(a) - isRuleGroup(b) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
+    isTail(a) - isTail(b) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
   const lawFull = subLawLawFullMap(byMin.filter(g => g.type === 'law').map(g => ({ name: g.name, abbr: g.abbr })), subLawGroup);
   noticeChipRow(document.getElementById('lawListLawRow'), lawCounts, lawListLaw, 'law', laws, v => {
     lawListLaw = lawListLaw === v ? '전체' : v; lawListShowAll = false; renderLawListPanel();
-  }, k => lawFull[k] || (isRuleGroup(k) ? `행정규칙(${k})` : k));
+  }, k => lawFull[k] || (k === LAW_RULE_ETC ? '근거 법률을 찾지 못한 행정규칙(내부 운영 규정 등)' : k));
 
-  const list = lawListLaw === '전체' ? byMin : byMin.filter(g => g.group === lawListLaw);
+  const byLaw = lawListLaw === '전체' ? byMin : byMin.filter(g => g.group === lawListLaw);
+  const kindCounts = Object.fromEntries(LAW_LIST_KINDS.map(k => [k, byLaw.filter(g => lawListKindMatches(g, k)).length]));
+  if (lawListKind !== '전체' && !kindCounts[lawListKind]) lawListKind = '전체';
+  document.getElementById('lawListKindRow').innerHTML = LAW_LIST_KINDS.filter(k => k === '전체' || kindCounts[k]).map(k =>
+    `<button data-kind="${k}" class="${lawListKind === k ? 'active' : ''}"${helpAttr(LAW_LIST_KIND_HELP, k)}>${k} ${fmtN(kindCounts[k])}</button>`).join('');
+  document.querySelectorAll('#lawListKindRow button').forEach(btn => btn.addEventListener('click', () => {
+    lawListKind = btn.dataset.kind; lawListShowAll = false; lawSearchShowAll = false; renderLawListPanel();
+  }));
+  const scoped = byLaw.filter(g => lawListKindMatches(g, lawListKind));
+  const list = scoped.filter(cardMatches);
   const nLaw = groupsAll.filter(g => g.type === 'law').length, nRule = groupsAll.length - nLaw;
   document.getElementById('lawListCountTag').textContent = `법령 ${fmtN(nLaw)}개${nRule ? ` · 행정규칙 ${fmtN(nRule)}개` : ''}`;
   const items = lawListShowAll ? list : list.slice(0, LAW_LIST_PREVIEW_COUNT);
+  // 조문 검색도 고른 부처·법 안에서만 찾는다(종류는 lawSearch가 거른다).
+  lawSearchScope = (lawListMinistry === '전체' && lawListLaw === '전체') ? null : new Set(byLaw.map(g => g.name));
   renderLawSearchResults(document.getElementById('lawSearchArea'), lawListQuery);
   const listEl = document.getElementById('lawListArea');
-  // 검색 중에 이름·개정 내용으로 걸린 카드가 없으면 조문 검색 결과만 보이게 카드 칸과 칩 줄을 비운다.
-  const searchOnly = q && !byKindAll.length;
-  ['lawListMinistryRow', 'lawListLawRow'].forEach(id => { if (searchOnly) document.getElementById(id).innerHTML = ''; });
-  listEl.innerHTML = searchOnly ? '' : (q ? `<div class="lawsearch-head">이름·개정 내용에 단어가 모두 든 법령 ${fmtN(list.length)}개</div>` : '')
+  // 검색 중에 이름·개정 내용으로 걸린 카드가 없으면 조문 검색 결과만 보이게 카드 칸을 비운다.
+  listEl.innerHTML = (q && !list.length) ? '' : (q ? `<div class="lawsearch-head">이름·개정 내용에 단어가 모두 든 법령 ${fmtN(list.length)}개</div>` : '')
     + (items.length ? items.map(g => lawListCardHtml(g, today)).join('') : "<div class='info-box'>해당하는 법령이 없습니다.</div>");
   bindSubLawItems(listEl);
   listEl.querySelectorAll('.lawlist-files-toggle').forEach(btn => btn.addEventListener('click', () => {
