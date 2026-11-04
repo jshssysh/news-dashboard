@@ -432,49 +432,15 @@ a.badge-skipped:hover { text-decoration: underline; }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
-/* "수집 현황" 패널 접기 - 예전엔 모바일 전용이었는데, 데스크톱에서도 접어두고
-   싶다는 요청(2026-09-14)으로 화면 폭과 무관하게 항상 켜둔다. */
 .sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px;
   display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .sidebar-panel .panel-title .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
 .sidebar-panel .panel-title .current-tag { display: inline; }
-.sidebar-panel.side-collapsed #sidebarBars { display: none; }
-.sidebar-panel.side-collapsed .panel-title { margin-bottom: 0; }
-.sidebar-panel.side-collapsed { padding: 10px 14px; }
-.sidebar-panel.side-collapsed .toggle-caret { transform: rotate(-90deg); }
-.kw-row { margin-bottom: 18px; }
-.kw-row:last-child { margin-bottom: 0; }
-.kw-row-total .kw-label { font-size: 0.9em; }
-.kw-row-total .sentiment-track { height: 16px; }
-hr.kw-divider { border: none; border-top: 1px dashed var(--app-border); margin: 0 0 16px; }
-.kw-row .kw-label { font-size: 0.84em; font-weight: 700; margin-bottom: 7px; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
-.kw-label-clickable { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: background-color .15s var(--ease); }
-.kw-label-clickable:hover { background-color: rgba(128,128,128,0.12); }
-.kw-total { opacity: 0.6; font-weight: 500; }
-.cnt-neg { color: #e05353; font-weight: 700; }
-.cnt-neu { color: #d99a2b; font-weight: 700; }
-.cnt-pos { color: #43a047; font-weight: 700; }
-.cnt-fail { color: #9c4dcc; font-weight: 700; opacity: 0.85; }
 /* 클러스터링이 비정상으로 커져서 그 이슈의 오늘 기사를 저장하지 않고 건너뛴 카테고리 표시.
    마우스를 올리면(title) 어떤 이슈에 몇 건이 몰렸는지 짧게 보인다. */
 .cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
 /* 법안 제안자 옆 - 22대 안에서도 동명이인이라 정당/지역구를 못 정한 경우(cat-warn과 같은 스타일) */
 .proposer-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
-/* 막대 안에 건수/비율 글자(약 10px)를 넣는데 막대가 8px이라 글자가 위아래로
-   삐져나와 겹쳐 보였다 - 모바일에서 쓰던 높이(14/16px)를 데스크톱에도 쓴다. */
-.sentiment-track { display: flex; width: 100%; height: 14px; border-radius: 8px; overflow: visible; background-color: rgba(128,128,128,0.18); }
-.sentiment-seg {
-    display: flex; align-items: center; justify-content: center; font-size: 0.76em; font-weight: 700; white-space: nowrap;
-    -webkit-text-stroke: 3px var(--app-secondary-bg); paint-order: stroke fill; transition: width .3s var(--ease), filter .15s var(--ease);
-    text-shadow: -1px -1px 0 var(--app-secondary-bg), 1px -1px 0 var(--app-secondary-bg), -1px 1px 0 var(--app-secondary-bg), 1px 1px 0 var(--app-secondary-bg), 0 0 4px var(--app-secondary-bg);
-    cursor: pointer;
-}
-.sentiment-seg:hover { filter: brightness(1.15); }
-.sentiment-seg:first-child { border-radius: 8px 0 0 8px; }
-.sentiment-seg:last-child { border-radius: 0 8px 8px 0; }
-.sentiment-neg { background-color: #e05353; color: #e05353; }
-.sentiment-neu { background-color: #e0a940; color: #d99a2b; }
-.sentiment-pos { background-color: #4caf82; color: #43a047; }
 
 .pagination-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 10px; flex-wrap: nowrap; }
 .pg-top select { flex-shrink: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 4px 3px; font-size: 0.78em; }
@@ -783,7 +749,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .reason-box .reason-chip { font-size: 0.7em; padding: 2px 6px; margin-right: 0; white-space: nowrap; }
   .reason-box .reason-label { font-size: 0.66em; margin-right: 0; flex-shrink: 0; }
 
-  /* ── 카테고리별 수집 현황을 "카테고리별 주요뉴스"와 결과줄 사이로 올린다 ──
+  /* ── 오른쪽 칸(담기 미리보기)을 "카테고리별 주요뉴스"와 결과줄 사이로 올린다 ──
      패널은 .layout 안(오른쪽 칼럼), 결과줄은 #newsFilterSticky 안이라 부모가 서로 달라
      order만으로는 순서를 바꿀 수 없다. 두 래퍼를 display:contents로 녹여서 안의
      요소들이 모두 #view-news의 flex 아이템이 되게 한 뒤 순서를 다시 잡는다.
@@ -804,25 +770,18 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 순서를 바꾸고 나면 원래 자리 기준으로 넣었던 구분선은 의미가 없다 */
   #newsFilterSticky hr.thin { display: none; }
 
-  /* 패널 접기 스타일 자체는 이제 화면 폭과 무관하게 기본 스타일(위쪽)에 있다 -
-     여기 남는 건 모바일에서만 다른 부분(아래, 제목 두 개를 한 줄로 합치는 것)뿐. */
-
-  /* "카테고리별 주요뉴스"/"카테고리별 수집 현황" 두 접기 제목을 각자 한 줄씩
-     따로 차지하지 않고 좌우로 나란히 붙인다(사용자 요청) - 두 제목이 서로
-     다른 부모(.news-filter-row / .sidebar-panel) 밑에 있어 CSS만으로는 줄을
-     합칠 수 없어서, 모바일일 때만 JS가 두 제목 요소를 이 공유 래퍼로 실제로
-     옮겨 담는다(#mobileSectionToggleRow 생성 스크립트 참고, 데스크톱은 원본
-     구조 그대로 안 건드림). 옮겨진 뒤에는 원래 부모의 클래스(news-collapsed/
-     side-collapsed)에 의존하던 캐럿 회전·여백 규칙이 안 먹으므로, 제목
-     요소 자신에게 직접 붙이는 is-collapsed 클래스로 대신한다. */
+  /* "검색" 접기 제목 줄. 예전엔 "수집 현황" 제목과 좌우로 나란히 붙이려고 모바일일 때
+     JS가 제목을 이 공유 래퍼로 옮겼다(#mobileSectionToggleRow 생성 스크립트 참고).
+     수집 현황 패널은 2026-11-04에 없앴고 "검색"만 남았다. 옮겨진 뒤에는 원래 부모의
+     클래스(news-collapsed)에 의존하던 캐럿 회전 규칙이 안 먹으므로, 제목 요소 자신에게
+     직접 붙이는 is-collapsed 클래스로 대신한다. */
   #mobileSectionToggleRow { order: 2; display: flex; gap: 10px; margin-bottom: 10px; }
   #mobileSectionToggleRow > * { flex: 1 1 0; min-width: 0; margin: 0 !important; padding: 0; cursor: pointer;
     display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
   #mobileSectionToggleRow .toggle-caret { display: inline; flex-shrink: 0; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #mobileSectionToggleRow .current-tag { display: none; }
-  #newsFilterToggle.is-collapsed .toggle-caret,
-  #sidebarToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  #newsFilterToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
 
   /* 입법 탭: "검색"▶ 토글 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 한 줄에서
      같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"과 "제안일"이
@@ -874,8 +833,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #billBucketFilterSection.collapsed,
   #memberCommitteeFilterSection.collapsed { display: none; }
 
-  /* 화면이 넓어 막대가 기니 줄 간격을 줄인다(막대 높이는 기본 규칙과 같음) */
-  .kw-row { margin-bottom: 14px; }
 
   /* ── 처리상태 흐름을 좁은 화면에서도 한 줄로 ──
      칸 5개 + 화살표 4개를 폭 안에 넣으려면 이름 옆에 건수를 나란히 못 둔다.
@@ -1028,11 +985,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
-        <div class="sidebar-panel" id="sidebarPanel">
-          <!-- 모바일에서는 이 제목이 접기 버튼이 된다(데스크톱에서는 그냥 제목) -->
-          <div class="panel-title" id="sidebarToggle">수집 현황<span class="toggle-caret">▼</span><span class="current-tag" id="sidebarCurrentTag"></span></div>
-          <div id="sidebarBars"></div>
-        </div>
         <div class="sidebar-panel cart-preview-panel" id="cartPreviewPanel">
           <div class="panel-title-row">
             <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
@@ -1431,7 +1383,7 @@ function syncCartButtonsFor(id) {
   document.querySelectorAll(`.cart-inline-btn[data-cart-id="${CSS.escape(id)}"]`).forEach(updateCartInlineBtn);
 }
 
-// 뉴스 탭 사이드바("수집 현황" 밑)·입법 탭("전체▶입안▶상임위..." 흐름과
+// 뉴스 탭 오른쪽 칸·입법 탭("전체▶입안▶상임위..." 흐름과
 // 법안 목록 사이)에 지금까지 담은 항목을 간단히 보여주고, 여기서도 바로
 // 뺄 수 있게 한다(사용자 요청, 2026-09-14 - 애초에 따로 있던 "장바구니" 탭은
 // 이 미리보기 두 곳으로 충분하다고 판단해 없앴다). 두 탭 다 같은 내용을
@@ -2678,70 +2630,9 @@ function renderNewsView(dr, allGroups) {
   });
 
   renderMainList(scoped, allGroups);
-
-  // 이 패널도 카테고리 칩/목록과 같은 기준(중복 제외한 이슈 그룹)으로 센다.
-  // 예전엔 원본 행(dr)을 세서 "전체 1753건"인데 칩은 "전체 728"로 어긋났다.
-  const panelRows = scopedGroups;
-  const dailyCatCounts = {};
-  panelRows.forEach(r => { dailyCatCounts[r.category] = (dailyCatCounts[r.category]||0) + 1; });
-  const renderKwRow = (catValue, rows, extraClass) => {
-    const neg = rows.filter(r => r.sentiment==='부정').length;
-    const neu = rows.filter(r => r.sentiment==='중립').length;
-    const pos = rows.filter(r => r.sentiment==='긍정').length;
-    const fail = rows.filter(r => r.sentiment==='판단 실패').length;
-    const totalS = neg+neu+pos;
-    let negPct=0, neuPct=0, posPct=0;
-    if (totalS > 0) { negPct = Math.round(neg/totalS*100); posPct = Math.round(pos/totalS*100); neuPct = 100-negPct-posPct; }
-    // 막대 안에 "577(33%)"처럼 건수와 비율을 함께 넣는다(좁은 칸은 글자를 생략).
-    const seg = (pct, cnt, cls, sentiment) => pct > 0
-      ? `<div class="sentiment-seg ${cls}" style="width:${pct}%;" data-cat="${catValue}" data-sentiment="${sentiment}" title="${catValue} · ${sentiment} ${cnt}건(${pct}%)">${pct >= 18 ? cnt+'('+pct+'%)' : (pct >= 9 ? cnt : '')}</div>`
-      : '';
-    const failTag = fail > 0
-      ? ` <span class="cnt-fail kw-label-clickable" data-cat="${catValue}" data-sentiment="판단 실패" title="${catValue} · 실패만 보기">실패 ${fail}</span>`
-      : '';
-    const warnEntries = catValue !== '전체' && warnedCategories[catValue];
-    const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
-    return `<div class="kw-row ${extraClass||''}"><div class="kw-label"><span class="kw-label-clickable" data-cat="${catValue}" title="${catValue} 카테고리로 이동">${catValue}${warnHtml} <span class="kw-total">${rows.length}건</span></span>${failTag}</div>
-      <div class="sentiment-track">${seg(negPct,neg,'sentiment-neg','부정')}${seg(neuPct,neu,'sentiment-neu','중립')}${seg(posPct,pos,'sentiment-pos','긍정')}</div></div>`;
-  };
-  let sidebarHtml = panelRows.length ? renderKwRow('전체', panelRows, 'kw-row-total') + '<hr class="kw-divider">' : '';
-  // 건수 많은 순이 아니라, 위 "카테고리별 주요뉴스" 칩과 같은 순서(NEWS_CATEGORY_ORDER)로 맞춘다.
-  Object.keys(dailyCatCounts).sort((a,b) => newsCategoryRank(a) - newsCategoryRank(b)).forEach(cat => {
-    sidebarHtml += renderKwRow(cat, panelRows.filter(r => r.category === cat));
-  });
-  // 접었을 때 제목 옆에 지금 보고 있는 카테고리를 남긴다.
-  // 카테고리 칩만 눌렀을 때는 이 함수가 다시 안 돌기 때문에, 건수 표를 밖에 넘겨
-  // renderMainList 에서도 같은 표시를 갱신할 수 있게 해둔다.
-  sidebarTagCounts = dailyCatCounts;
-  updateSidebarTag();
-  const sidebarEl = document.getElementById('sidebarBars');
-  sidebarEl.innerHTML = sidebarHtml;
-
-  const applySidebarFilter = (cat, sentiment) => {
-    state.selectedCategory = cat;
-    state.sentiment = sentiment || '';
-    state.page = 1;
-    chipRow.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.cat === state.selectedCategory));
-    document.getElementById('sentimentSelect').value = state.sentiment;
-    syncSentimentSelectWidth();
-    renderMainList(scoped, allGroups);
-  };
-  sidebarEl.querySelectorAll('.kw-label-clickable, .sentiment-seg').forEach(el => {
-    el.addEventListener('click', () => applySidebarFilter(el.dataset.cat, el.dataset.sentiment || ''));
-  });
-}
-
-// "카테고리별 수집 현황"을 접었을 때 제목 옆에 남길 현재 선택 표시
-let sidebarTagCounts = {};
-function updateSidebarTag() {
-  const el = document.getElementById('sidebarCurrentTag');
-  if (!el) return;
-  el.textContent = state.selectedCategory === '전체'
-    ? '' : `${state.selectedCategory} ${sidebarTagCounts[state.selectedCategory] || 0}`;
 }
 
 function renderMainList(scoped, allGroups) {
-  updateSidebarTag();
   let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
   filtered = filtered.filter(newsMatchesGlobalFilters);
   let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
@@ -2777,7 +2668,7 @@ function renderMainList(scoped, allGroups) {
       const isOpen = !!state.openIssues[issueKey];
       // 긍정/부정/중립 배지는 뺐다(2026-10-19) - 논조가 카테고리에 거의 따라붙어서
       // (공정거래 68% 부정, 상생 78%·ESG 87% 긍정) 카드마다 새로 알려주는 게 적었다.
-      // 논조 필터와 수집 현황 막대는 그대로 둔다. "판단 실패"는 논조가 아니라 AI
+      // 논조 필터는 그대로 둔다(수집 현황 막대는 2026-11-04에 패널째 없앴다). "판단 실패"는 논조가 아니라 AI
       // 분석이 안 된 기사라는 표시라 그때만 남긴다.
       let tags = g.sentiment === '판단 실패' ? `<span class="badge-fail">판단 실패</span> ` : '';
       tags += `<span class="chip-category">${g.category}</span>`;
@@ -4580,9 +4471,8 @@ document.getElementById('pageSizeSel').addEventListener('change', e => {
   renderAll();
 });
 
-// 모바일 전용 접기 세 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
-const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed',
-      SIDE_COLLAPSE_KEY = 'sidebarCollapsed';
+// 모바일 전용 접기 두 가지. 접힌 상태는 브라우저에 기억시켜 새로고침해도 유지한다.
+const STAT_COLLAPSE_KEY = 'statsCollapsed', NEWS_COLLAPSE_KEY = 'newsFilterCollapsed';
 function readFlag(key) { try { return localStorage.getItem(key) === '1'; } catch(e) { return false; } }
 function writeFlag(key, on) { try { localStorage.setItem(key, on ? '1' : '0'); } catch(e) {} }
 
@@ -4594,7 +4484,7 @@ document.getElementById('statToggleBtn').addEventListener('click', () => {
 });
 
 // 모바일에서 두 제목을 한 줄로 합칠 때(아래 참고) 원래 부모(#newsFilterSticky/
-// #sidebarPanel)에서 떨어져 나가므로, 그 부모의 클래스에 기대던 캐럿 회전
+// .news-filter-row)에서 떨어져 나가므로, 그 부모의 클래스에 기대던 캐럿 회전
 // 규칙이 안 먹는다 - 제목 요소 자신에게도 is-collapsed를 똑같이 붙여서
 // 어디로 옮겨지든 항상 맞게 표시되게 한다.
 const newsFilterSticky = document.getElementById('newsFilterSticky');
@@ -4606,17 +4496,6 @@ newsFilterToggleEl.addEventListener('click', () => {
   const on = newsFilterSticky.classList.toggle('news-collapsed');
   newsFilterToggleEl.classList.toggle('is-collapsed', on);
   writeFlag(NEWS_COLLAPSE_KEY, on);
-});
-
-const sidebarPanel = document.getElementById('sidebarPanel');
-const sidebarToggleEl = document.getElementById('sidebarToggle');
-const sideCollapsedInit = readFlag(SIDE_COLLAPSE_KEY);
-sidebarPanel.classList.toggle('side-collapsed', sideCollapsedInit);
-sidebarToggleEl.classList.toggle('is-collapsed', sideCollapsedInit);
-sidebarToggleEl.addEventListener('click', () => {
-  const on = sidebarPanel.classList.toggle('side-collapsed');
-  sidebarToggleEl.classList.toggle('is-collapsed', on);
-  writeFlag(SIDE_COLLAPSE_KEY, on);
 });
 
 // 모바일에서는 서로 다른 부모 밑에 있는 제목·토글들을 공유 행 하나로 옮겨 한 줄에
@@ -4638,9 +4517,9 @@ const NARROW_MQ = (() => { try { return window.matchMedia('(max-width: 800px)');
 const isNarrowNow = () => !!(NARROW_MQ && NARROW_MQ.matches);
 const mobileRows = [];
 
-// 뉴스 탭: "검색"/"수집 현황" 두 접기 제목을 좌우로 나란히.
+// 뉴스 탭: "검색" 접기 제목. 옆에 있던 "수집 현황"은 패널과 함께 없앴다(2026-11-04).
 mobileRows.push(mobileRow('mobileSectionToggleRow', document.querySelector('.news-filter-row'),
-  [newsFilterToggleEl, sidebarToggleEl]));
+  [newsFilterToggleEl]));
 
 // 입법 탭: "검색"▶ 하나로 단계·기간 셀렉트·☆ 즐겨찾기·검색창까지 한 줄로 합쳐서 같이
 // 접었다 펼친다. "소관위"는 이 줄에 넣지 않고 원래 필터-섹션에 그대로 둔다.
