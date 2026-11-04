@@ -1332,7 +1332,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-05 07:57 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-05 08:23 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -4013,7 +4013,18 @@ const SUB_LAW_MINISTRY_ORDER = [
 ];
 const SUB_LAW_MINISTRY_ABBR = Object.fromEntries(SUB_LAW_MINISTRY_ORDER);
 // 여러 부처 공동 소관("재정경제부,조달청")이면 순서표에서 가장 앞선 부처 하나로 묶는다.
+// 여러 부처 공동 소관인데 순서표 규칙(공정위 우선)으로 묶으면 엉뚱해지는 법은 주무 부처를 적어 둔다.
+// 중대재해처벌법은 법제처 소관부처에 7개 부처가 가나다순으로 나오는데 실제 주무는 고용노동부다(2026-11-05).
+// 건설폐기물법은 국토부·기후에너지환경부 공동인데 폐기물 관리가 본체라 기후에너지환경부가 주무다.
+// 나머지 공동 소관(국가계약법→재경부, 동물원수족관법·신재생에너지법→기후에너지환경부, 제조물책임법→공정위)은
+// 순서표 규칙으로도 주무 부처에 맞게 묶인다(2026-11-05 전부 확인).
+const LAW_PRIMARY_MINISTRY = {
+  '중대재해 처벌 등에 관한 법률': '고용노동부',
+  '건설폐기물의 재활용촉진에 관한 법률': '기후에너지환경부',
+};
 function subLawMinistryOf(r) {
+  const primary = LAW_PRIMARY_MINISTRY[(r.name || '').replace(/\s*시행(령|규칙)$/, '')];
+  if (primary) return SUB_LAW_MINISTRY_ABBR[primary] || primary;
   const names = (r.ministry || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!names.length) return '기타';
   const abbrs = names.map(n => SUB_LAW_MINISTRY_ABBR[n] || n);
@@ -4298,8 +4309,9 @@ HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규
 · 개정 이력: 개정마다 공포일·시행일, 요약, 신구조문 대비
 · 별표·서식: 법제처에 올라온 파일(PDF·한글)
 · 법령체계도·조문 체계도: 법제처 화면에서 상위법·하위법·위임 행정규칙 관계를 봅니다
+· 3단 비교: 법제처 화면에서 법률·시행령·시행규칙 조문을 나란히 봅니다(조문 위치로는 바로 가지 않음)
 · 소관 부처가 여럿이면 순서표에서 앞선 부처 하나로 묶습니다(공정위가 가장 앞)
-· 순서: 가장 최근 개정(발령)된 것부터`;
+· 순서: 같은 법끼리 붙여 법률 → 시행령 → 시행규칙 → 행정규칙, 법끼리는 가장 최근 개정(발령)된 법부터`;
 
 function ensureLawMeta() {
   if (lawMetaLoaded) return Promise.resolve();
@@ -4333,6 +4345,8 @@ function lawMstOf(name) {
   return lawMstByName[name] || '';
 }
 let lawMstByName = null;
+// 법제처 3단비교(법률·시행령·시행규칙을 나란히). 시행령·시행규칙도 그 법률 이름으로 연다.
+const lawThreeLink = name => 'https://www.law.go.kr/법령/3단비교/' + encodeURIComponent((name || '').replace(/\s*시행(령|규칙)$/, ''));
 function lawKindLabel(name, kind) {
   const n = (name || '').replace(/\s/g, '');
   return n.endsWith('시행령') ? '시행령' : n.endsWith('시행규칙') ? '시행규칙' : (kind || '법률');
@@ -4372,7 +4386,17 @@ function lawListGroups() {
     groups.push({ type: 'rule', name: r.name, rule: r, date: r.issued || '', kind: r.kind,
       ministry: base ? base.ministry : subLawMinistryOf(r), group: base ? base.group : LAW_RULE_ETC });
   });
-  return groups.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
+  // 같은 법 묶음(법률 + 시행령 + 시행규칙 + 그 법의 행정규칙)은 붙여서 법률 → 시행령 → 시행규칙 →
+  // 행정규칙 순으로 보인다. 묶음끼리는 묶음 안에서 가장 최근에 개정(발령)된 날짜 순.
+  const groupDate = {};
+  groups.forEach(g => { if (!groupDate[g.group] || g.date > groupDate[g.group]) groupDate[g.group] = g.date; });
+  const tier = g => g.type === 'rule' ? 3 : (LAW_SEARCH_KIND_RANK[g.kind] ?? 2);
+  const alone = g => g.group === SUB_LAW_BUNDLE || g.group === LAW_RULE_ETC;  // 서로 다른 법이 모인 칸은 날짜 순 그대로
+  return groups.sort((a, b) => {
+    const ka = alone(a) ? a.date : groupDate[a.group], kb = alone(b) ? b.date : groupDate[b.group];
+    return kb.localeCompare(ka) || (alone(a) || alone(b) ? 0 : a.group.localeCompare(b.group) || tier(a) - tier(b))
+      || b.date.localeCompare(a.date) || a.name.localeCompare(b.name);
+  });
 }
 
 function lawFilesHtml(files) {
@@ -4514,7 +4538,8 @@ function renderLawSearchResults(box, q) {
         <div class="lawsearch-title"><span class="chip-category">${escHtml(h.docKind)}</span>
           <a href="${escHtml(lawHitLink(h))}" target="_blank" rel="noopener">${escHtml(h.doc.abbr || h.doc.name)} ${escHtml(h.no)}${h.title ? `(${escHtml(h.title)})` : ''}</a>
           <button type="button" class="archive-toggle-link lawfull-open" data-i="${i}" title="이 법령 전체를 열고 이 조문으로 이동">전체 법령</button>${
-          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}</div>
+          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}${
+          h.doc.t === 'law' ? `<a class="lawlist-stmd" href="${escHtml(lawThreeLink(h.doc.name))}" target="_blank" rel="noopener" title="법제처 3단비교: 법률·시행령·시행규칙 조문을 나란히">3단 비교</a>` : ''}</div>
         <div class="lawsearch-snippet">${lawSnippet(h.text || '', words)}</div>
       </div>`).join('') : "<div class='info-box'>단어가 모두 들어간 조문이 없습니다.</div>")
     + (hits.length > LAW_SEARCH_PREVIEW ? `<button type="button" class="archive-toggle-link lawsearch-more">${lawSearchShowAll ? '접기' : `더보기 (${fmtN(Math.min(hits.length, 200) - LAW_SEARCH_PREVIEW)}건 더)`}</button>` : '');
@@ -4548,7 +4573,8 @@ function openLawFullModal(doc, targetNo, words) {
   overlay.innerHTML = `<div class="news-modal lawfull-modal" role="dialog" aria-label="${escHtml(doc.name)} 전체">
       <div class="news-modal-head"><span class="chip-category">${escHtml(kind)}</span><b>${escHtml(doc.name)}</b>
         <a class="lawfull-src" href="${escHtml(href)}" target="_blank" rel="noopener">법제처 원문</a>${
-        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}
+        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}${
+        doc.t === 'law' ? `<a class="lawfull-src" href="${escHtml(lawThreeLink(doc.name))}" target="_blank" rel="noopener">3단 비교</a>` : ''}
         <button class="news-modal-close" title="닫기">✕</button></div>
       <div class="news-modal-body lawfull-body">${items || '<div class="info-box">조문이 없습니다.</div>'}</div>
     </div>`;
