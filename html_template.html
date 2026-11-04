@@ -313,6 +313,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .lawsearch-title .chip-category { font-size: 0.72em; padding: 1px 6px; margin-right: 4px; }
 .lawsearch-snippet { font-size: 0.84em; opacity: 0.85; margin-top: 3px; line-height: 1.55; }
 .lawfull-open { font-size: 0.78em; margin-left: 6px; padding: 0 2px; }
+.lawlist-stmd { font-size: 0.78em; font-weight: 700; color: var(--app-primary); margin-left: 6px; white-space: nowrap; }
 .news-modal.lawfull-modal { max-width: 820px; max-height: 88vh; }
 .lawfull-modal .news-modal-head .chip-category { font-size: 0.72em; padding: 1px 6px; }
 .lawfull-src { font-size: 0.82em; color: var(--app-primary); margin-left: 6px; white-space: nowrap; }
@@ -4296,6 +4297,7 @@ HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규
 · 카드 요약: 가장 최근 직접 개정의 개정 이유·주요 내용(최근 2년 안의 개정만). 행정규칙은 제·개정 이유
 · 개정 이력: 개정마다 공포일·시행일, 요약, 신구조문 대비
 · 별표·서식: 법제처에 올라온 파일(PDF·한글)
+· 법령체계도·조문 체계도: 법제처 화면에서 상위법·하위법·위임 행정규칙 관계를 봅니다
 · 소관 부처가 여럿이면 순서표에서 앞선 부처 하나로 묶습니다(공정위가 가장 앞)
 · 순서: 가장 최근 개정(발령)된 것부터`;
 
@@ -4319,6 +4321,18 @@ function ensureLawTexts() {
 
 const lawCurrentLink = name => 'https://www.law.go.kr/법령/' + encodeURIComponent(name);
 const ruleLink = name => 'https://www.law.go.kr/행정규칙/' + encodeURIComponent(name);
+// 법제처 법령체계도(상위법·하위법·위임 행정규칙)와 조문 체계도. lsiSeq는 법령일련번호(MST).
+const lawStmdLink = mst => `https://www.law.go.kr/LSW/lsStmdInfoP.do?lsiSeq=${encodeURIComponent(mst)}&ancYnChk=0`;
+function joStmdLink(mst, no) {
+  const m = /^제(\d+)조(?:의(\d+))?/.exec(no || '');
+  if (!mst || !m) return '';
+  return `https://www.law.go.kr/LSW/joStmdInfoP.do?lsiSeq=${encodeURIComponent(mst)}&joNo=${m[1].padStart(4, '0')}&joBrNo=${(m[2] || '0').padStart(2, '0')}`;
+}
+function lawMstOf(name) {
+  if (!lawMstByName) lawMstByName = Object.fromEntries((LAW_META.laws || []).map(l => [l.name, l.mst]));
+  return lawMstByName[name] || '';
+}
+let lawMstByName = null;
 function lawKindLabel(name, kind) {
   const n = (name || '').replace(/\s/g, '');
   return n.endsWith('시행령') ? '시행령' : n.endsWith('시행규칙') ? '시행규칙' : (kind || '법률');
@@ -4402,6 +4416,7 @@ function lawListCardHtml(g, today) {
     <div class="sublaw-head">
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${escHtml(href)}" target="_blank" rel="noopener" title="${bundle ? '개정 공포문 보기' : '법제처 현행법 보기'}">${escHtml(title)}</a>
+      ${!bundle && lawMstOf(name) ? `<a class="lawlist-stmd" href="${escHtml(lawStmdLink(lawMstOf(name)))}" target="_blank" rel="noopener" title="법제처 법령체계도: 상위법·하위법·위임 행정규칙">법령체계도</a>` : ''}
       <span class="card-meta-inline">${escHtml(subLawMinistryFull(g.ministry))}${latest ? ` · 최근 공포 ${latest.promulgated}` : ''}</span>
     </div>
     ${body}
@@ -4498,7 +4513,8 @@ function renderLawSearchResults(box, q) {
     + (shown.length ? shown.map((h, i) => `<div class="lawsearch-hit">
         <div class="lawsearch-title"><span class="chip-category">${escHtml(h.docKind)}</span>
           <a href="${escHtml(lawHitLink(h))}" target="_blank" rel="noopener">${escHtml(h.doc.abbr || h.doc.name)} ${escHtml(h.no)}${h.title ? `(${escHtml(h.title)})` : ''}</a>
-          <button type="button" class="archive-toggle-link lawfull-open" data-i="${i}" title="이 법령 전체를 열고 이 조문으로 이동">전체 법령</button></div>
+          <button type="button" class="archive-toggle-link lawfull-open" data-i="${i}" title="이 법령 전체를 열고 이 조문으로 이동">전체 법령</button>${
+          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}</div>
         <div class="lawsearch-snippet">${lawSnippet(h.text || '', words)}</div>
       </div>`).join('') : "<div class='info-box'>단어가 모두 들어간 조문이 없습니다.</div>")
     + (hits.length > LAW_SEARCH_PREVIEW ? `<button type="button" class="archive-toggle-link lawsearch-more">${lawSearchShowAll ? '접기' : `더보기 (${fmtN(Math.min(hits.length, 200) - LAW_SEARCH_PREVIEW)}건 더)`}</button>` : '');
@@ -4531,7 +4547,8 @@ function openLawFullModal(doc, targetNo, words) {
   overlay.className = 'news-modal-backdrop';
   overlay.innerHTML = `<div class="news-modal lawfull-modal" role="dialog" aria-label="${escHtml(doc.name)} 전체">
       <div class="news-modal-head"><span class="chip-category">${escHtml(kind)}</span><b>${escHtml(doc.name)}</b>
-        <a class="lawfull-src" href="${escHtml(href)}" target="_blank" rel="noopener">법제처 원문</a>
+        <a class="lawfull-src" href="${escHtml(href)}" target="_blank" rel="noopener">법제처 원문</a>${
+        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}
         <button class="news-modal-close" title="닫기">✕</button></div>
       <div class="news-modal-body lawfull-body">${items || '<div class="info-box">조문이 없습니다.</div>'}</div>
     </div>`;
