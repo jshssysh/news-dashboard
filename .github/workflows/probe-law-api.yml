@@ -1,8 +1,8 @@
 name: "[점검] 법제처 API 응답 확인"
 
 # 법제처 Open API(행정규칙·별표서식·위임 행정규칙) 응답 구조 확인용 (probe_law_api.py 참고).
-# 회사 PC에는 OC 키가 없어 응답을 볼 수 없으므로 Actions에서 수동으로 한 번 돌려
-# 로그만 본다. 아무것도 저장·커밋하지 않는다.
+# 회사 PC에는 OC 키가 없어 응답을 볼 수 없고 Actions 로그 화면도 막혀 있으므로, 출력을
+# eval/results/probe_law_api.txt로 커밋해 저장소 파일로 읽는다(그 파일 하나만 커밋한다).
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +11,9 @@ on:
         required: false
         type: string
         default: ''
+
+permissions:
+  contents: write
 
 jobs:
   probe:
@@ -31,4 +34,20 @@ jobs:
         env:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           LAW_NAME: ${{ github.event.inputs.law_name }}
-        run: python probe_law_api.py "$LAW_NAME"
+          PYTHONIOENCODING: utf-8
+        run: |
+          mkdir -p eval/results
+          python probe_law_api.py "$LAW_NAME" 2>&1 | tee eval/results/probe_law_api.txt
+
+      - name: 확인 결과 커밋
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add eval/results/probe_law_api.txt
+          if git diff --staged --quiet; then exit 0; fi
+          git commit -m "법제처 API 응답 확인 결과"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1
