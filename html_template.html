@@ -2567,7 +2567,11 @@ function warningTooltip(entries) {
 // 이름으로 며칠씩 남는다(10/28~11/4 이슈 2126개 중 312개가 여러 날). 기간·검색·논조
 // 필터와 무관하게 날짜 기준으로만 계산한다(필터를 걸 때마다 순위가 바뀌면 "평소보다
 // 늘었다"는 뜻이 흐려진다). '인사'·'기타'는 뺀다(인사는 화면에서도 일부러 뒤로 미는 분야).
-const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7;
+// 중요도(관련도) 7 이상 기사가 하나라도 있는 이슈만 올린다(2026-11-04). 6은 상생 기사의
+// 75%, 노동·ESG의 약 75~80%가 받는 "느슨하게 관련" 점수라, 이 기준이 없으면 '한튀르키예
+// 경제 협력'·'KB국민은행 대부업이자지원' 같은 일반 경제 기사가 기사 수만으로 위를 차지했다.
+// 7 이상 기준으로도 상생 이슈 14%, 노동·ESG 이슈 약 10%는 남는다(최근 30일).
+const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7, TREND_MIN_IMPORTANCE = 7;
 const TREND_EXCLUDE = new Set(['인사', '기타']);
 const trendCache = {};
 function computeTrends(cur) {
@@ -2579,15 +2583,16 @@ function computeTrends(cur) {
   NEWS_DATA.forEach(r => {
     if (!r.issue || TREND_EXCLUDE.has(r.category)) return;
     if (r.date === cur) {
-      const t = today[r.issue] || (today[r.issue] = { n: 0, cats: {} });
+      const t = today[r.issue] || (today[r.issue] = { n: 0, cats: {}, maxImp: 0 });
       t.n++;
+      t.maxImp = Math.max(t.maxImp, Number(r.importance) || 0);
       t.cats[r.category] = (t.cats[r.category] || 0) + 1;
     } else if (prevSet.has(r.date)) {
       past[r.issue] = (past[r.issue] || 0) + 1;
     }
   });
   const days = Math.max(1, prev.length);
-  const items = prev.length ? Object.keys(today).map(issue => {
+  const items = prev.length ? Object.keys(today).filter(issue => today[issue].maxImp >= TREND_MIN_IMPORTANCE).map(issue => {
     const t = today[issue];
     // 같은 이슈가 날마다 다른 분야로 갈리기도 해서(지배구조/공정거래) 가장 많은 쪽을 쓴다.
     const cat = Object.keys(t.cats).sort((a, b) => t.cats[b] - t.cats[a])[0];
