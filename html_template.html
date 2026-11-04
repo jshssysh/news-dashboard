@@ -4309,6 +4309,7 @@ HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규
 · 개정 이력: 개정마다 공포일·시행일, 요약, 신구조문 대비
 · 별표·서식: 법제처에 올라온 파일(PDF·한글)
 · 법령체계도·조문 체계도: 법제처 화면에서 상위법·하위법·위임 행정규칙 관계를 봅니다
+· 3단 비교: 법제처 화면에서 법률·시행령·시행규칙 조문을 나란히 봅니다(조문 위치로는 바로 가지 않음)
 · 소관 부처가 여럿이면 순서표에서 앞선 부처 하나로 묶습니다(공정위가 가장 앞)
 · 순서: 같은 법끼리 붙여 법률 → 시행령 → 시행규칙 → 행정규칙, 법끼리는 가장 최근 개정(발령)된 법부터`;
 
@@ -4344,6 +4345,8 @@ function lawMstOf(name) {
   return lawMstByName[name] || '';
 }
 let lawMstByName = null;
+// 법제처 3단비교(법률·시행령·시행규칙을 나란히). 시행령·시행규칙도 그 법률 이름으로 연다.
+const lawThreeLink = name => 'https://www.law.go.kr/법령/3단비교/' + encodeURIComponent((name || '').replace(/\s*시행(령|규칙)$/, ''));
 function lawKindLabel(name, kind) {
   const n = (name || '').replace(/\s/g, '');
   return n.endsWith('시행령') ? '시행령' : n.endsWith('시행규칙') ? '시행규칙' : (kind || '법률');
@@ -4535,7 +4538,8 @@ function renderLawSearchResults(box, q) {
         <div class="lawsearch-title"><span class="chip-category">${escHtml(h.docKind)}</span>
           <a href="${escHtml(lawHitLink(h))}" target="_blank" rel="noopener">${escHtml(h.doc.abbr || h.doc.name)} ${escHtml(h.no)}${h.title ? `(${escHtml(h.title)})` : ''}</a>
           <button type="button" class="archive-toggle-link lawfull-open" data-i="${i}" title="이 법령 전체를 열고 이 조문으로 이동">전체 법령</button>${
-          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}</div>
+          h.doc.t === 'law' && joStmdLink(h.doc.mst, h.no) ? `<a class="lawlist-stmd" href="${escHtml(joStmdLink(h.doc.mst, h.no))}" target="_blank" rel="noopener" title="법제처 조문 체계도: 이 조문의 위임·인용 관계">조문 체계도</a>` : ''}${
+          h.doc.t === 'law' ? `<a class="lawlist-stmd" href="${escHtml(lawThreeLink(h.doc.name))}" target="_blank" rel="noopener" title="법제처 3단비교: 법률·시행령·시행규칙 조문을 나란히">3단 비교</a>` : ''}</div>
         <div class="lawsearch-snippet">${lawSnippet(h.text || '', words)}</div>
       </div>`).join('') : "<div class='info-box'>단어가 모두 들어간 조문이 없습니다.</div>")
     + (hits.length > LAW_SEARCH_PREVIEW ? `<button type="button" class="archive-toggle-link lawsearch-more">${lawSearchShowAll ? '접기' : `더보기 (${fmtN(Math.min(hits.length, 200) - LAW_SEARCH_PREVIEW)}건 더)`}</button>` : '');
@@ -4569,7 +4573,8 @@ function openLawFullModal(doc, targetNo, words) {
   overlay.innerHTML = `<div class="news-modal lawfull-modal" role="dialog" aria-label="${escHtml(doc.name)} 전체">
       <div class="news-modal-head"><span class="chip-category">${escHtml(kind)}</span><b>${escHtml(doc.name)}</b>
         <a class="lawfull-src" href="${escHtml(href)}" target="_blank" rel="noopener">법제처 원문</a>${
-        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}
+        doc.t === 'law' && doc.mst ? `<a class="lawfull-src" href="${escHtml(lawStmdLink(doc.mst))}" target="_blank" rel="noopener">법령체계도</a>` : ''}${
+        doc.t === 'law' ? `<a class="lawfull-src" href="${escHtml(lawThreeLink(doc.name))}" target="_blank" rel="noopener">3단 비교</a>` : ''}
         <button class="news-modal-close" title="닫기">✕</button></div>
       <div class="news-modal-body lawfull-body">${items || '<div class="info-box">조문이 없습니다.</div>'}</div>
     </div>`;
