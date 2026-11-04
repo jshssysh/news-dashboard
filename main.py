@@ -1093,13 +1093,29 @@ EMBED_ANCHOR_MIN = 0.75
 # (그날 임베딩 일부 실패, 원인 미확정) 두 쪽 제목 겹침은 0.00~0.04였다. 한 달치 정답 쌍에서
 # 0.10 기준은 같은 사건 기사의 4%만 막았다.
 EMBED_TITLE_OVERLAP_MIN = 0.10
+EMBED_TITLE_GRAM_TITLES = 10  # 이슈 제목 글자를 모으는 제목 수(처음 수집된 것부터)
 EMBED_ATTACH_LOG_PATH = "embed_attach_log.csv"  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
 EMBED_ATTACH_LOG_DAYS = 14
 
 
+# 제목 겹침을 셀 때 빼는 흔한 말. 이슈명 병합에서 쓰는 NON_SPECIFIC_ISSUE_WORDS(공정위·위반·제재·
+# 인수 등)에 기사 제목에 자주 붙는 말을 더했다. 실측 2026-11-05: '대한항공 기내식 인수 승인'에
+# 네이버파이낸셜·두나무 기업결합 기사가 "기업결합·공정위·심사"만 겹쳐 붙었고, 11/03에는 대기업
+# 공시의무 과태료 가중 기사 약 60건이 "공정위·위반·과태료"로 '공정위 과징금 패소 논란'에 붙었다.
+# 이 말들을 빼고 다시 재 보니 지난 2주 붙은 기사 532건 중 35건이 0.10 아래로 떨어졌는데 거의 다
+# 잘못 붙은 기사였다(금융지주 지배구조에 붙은 개별 금융사 인사 기사 등).
+TITLE_OVERLAP_STOPWORDS = (NON_SPECIFIC_ISSUE_WORDS | {
+    "기업결합", "결합", "심사", "승인", "전원회의", "단독", "속보", "종합", "만에", "최대", "최초",
+    "결론", "신고", "과태료", "부과", "기준", "가중", "반복", "시행", "개정", "발표", "이달", "오늘",
+})
+_TITLE_STOPWORD_RE = re.compile("|".join(sorted(map(re.escape, TITLE_OVERLAP_STOPWORDS), key=len, reverse=True)))
+
+
 def _title_bigrams(title):
-    c = re.sub(r"[^가-힣A-Za-z0-9]", "", re.sub(r"\[[^\]]*\]", "", str(title)))
-    return {c[i:i + 2] for i in range(len(c) - 1)}
+    """제목 글자 2-gram. 흔한 말(TITLE_OVERLAP_STOPWORDS)을 지운 뒤 남은 조각 안에서만 만든다
+    (지운 자리를 건너 이어 붙이면 없던 2-gram이 생긴다)."""
+    t = _TITLE_STOPWORD_RE.sub(" ", re.sub(r"\[[^\]]*\]", "", str(title)))
+    return {p[i:i + 2] for p in re.split(r"[^가-힣A-Za-z0-9]+", t) for i in range(len(p) - 1)}
 
 
 def _save_attach_log(rows):
@@ -1217,13 +1233,15 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
         print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
         return None
 
-    names, sums, anchors, grams = [], [], [], []
+    names, sums, anchors, grams, gram_n = [], [], [], [], []
     if not hist.empty:
         for issue, g in hist[hist["기사링크"].isin(cache)].sort_values("수집일자").groupby("대표이슈"):
             names.append(issue)
             sums.append(np.sum([cache[l][0] for l in g["기사링크"]], axis=0))
             anchors.append(cache[g["기사링크"].iloc[0]][0])  # 가장 먼저 수집된 기사
-            grams.append(set().union(*[_title_bigrams(x) for x in g["제목"].drop_duplicates().head(10)]))
+            first = g["제목"].drop_duplicates().head(EMBED_TITLE_GRAM_TITLES)
+            grams.append(set().union(*[_title_bigrams(x) for x in first]))
+            gram_n.append(len(first))
     n_recent = len(names)
     cents = [s / np.linalg.norm(s) for s in sums]
     mapping, attached, created, blocked, blocked_text, log = {}, 0, 0, 0, 0, []
@@ -1248,7 +1266,12 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             mapping[x["link"]] = names[best_i]
             sums[best_i] = sums[best_i] + v
             cents[best_i] = sums[best_i] / np.linalg.norm(sums[best_i])
-            grams[best_i] |= xg
+            # 이슈의 비교용 제목 글자는 처음 EMBED_TITLE_GRAM_TITLES개 제목까지만 늘린다. 붙는 기사마다
+            # 늘리면 한 번 잘못 붙은 기사의 글자로 다음 기사가 또 붙어, 다른 사건이 줄줄이 따라 들어온다
+            # (11/03 공시 과태료 기사 약 60건이 이렇게 '공정위 과징금 패소 논란'에 붙었다).
+            if gram_n[best_i] < EMBED_TITLE_GRAM_TITLES:
+                grams[best_i] |= xg
+                gram_n[best_i] += 1
             attached += best_i < n_recent
             log.append((x["ts"], x["link"], x["title"], names[best_i],
                         "기존 이슈에 붙음" if best_i < n_recent else "이번 묶음에 붙음",
@@ -1261,6 +1284,7 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             cents.append(v.copy())
             anchors.append(v.copy())
             grams.append(set(xg))
+            gram_n.append(1)
             mapping[x["link"]] = x["group_title"]
             created += 1
             log.append((x["ts"], x["link"], x["title"], x["group_title"],
