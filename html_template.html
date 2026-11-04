@@ -4013,7 +4013,12 @@ const SUB_LAW_MINISTRY_ORDER = [
 ];
 const SUB_LAW_MINISTRY_ABBR = Object.fromEntries(SUB_LAW_MINISTRY_ORDER);
 // 여러 부처 공동 소관("재정경제부,조달청")이면 순서표에서 가장 앞선 부처 하나로 묶는다.
+// 여러 부처 공동 소관인데 순서표 규칙(공정위 우선)으로 묶으면 엉뚱해지는 법은 주무 부처를 적어 둔다.
+// 중대재해처벌법은 법제처 소관부처에 7개 부처가 가나다순으로 나오는데 실제 주무는 고용노동부다(2026-11-05).
+const LAW_PRIMARY_MINISTRY = { '중대재해 처벌 등에 관한 법률': '고용노동부' };
 function subLawMinistryOf(r) {
+  const primary = LAW_PRIMARY_MINISTRY[(r.name || '').replace(/\s*시행(령|규칙)$/, '')];
+  if (primary) return SUB_LAW_MINISTRY_ABBR[primary] || primary;
   const names = (r.ministry || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!names.length) return '기타';
   const abbrs = names.map(n => SUB_LAW_MINISTRY_ABBR[n] || n);
