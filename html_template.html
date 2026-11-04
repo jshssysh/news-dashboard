@@ -957,7 +957,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
          기간 필터를 반영해 바뀐다(2026-09-17). -->
     <div class="signal-box" id="signalBox">
       <div class="signal-box-head">
-        <span class="signal-tag" title="검색어·카테고리 칩·기간(시간창) 조건에 맞는 기사 중 중요도 상위 3건을 보여줍니다. 논조 필터는 반영되지 않습니다.">주요 내용</span>
+        <span class="signal-tag" title="검색어·카테고리 칩·기간(시간창) 조건에 맞는 기사 중 중요도 상위 3건을 보여줍니다. 전체 보기에서는 분야마다 상위 이슈가 고르게 나오도록 분야 안 순위로 고릅니다. 논조 필터는 반영되지 않습니다.">주요 내용</span>
         <button class="signal-toggle-btn" id="signalToggleBtn">▼</button>
       </div>
       <div id="signalItems"></div>
@@ -1855,6 +1855,22 @@ function buildIssueGroups(rows) {
   return groups;
 }
 
+// 전체 보기의 중요도순은 분야 안 순위로 섞는다(2026-11-04). 관련도 점수는 분야마다 몰리는
+// 위치가 달라(정답 데이터 기준 관련 기사 평균: 공정거래 7.2, 지배구조 6.8, 상생 5.7, 노동 6.0)
+// 점수 그대로 정렬하면 공정거래·지배구조가 위를 다 차지했다. 각 이슈를 "자기 분야 안에서
+// 위에서 몇 % 지점인지"로 바꿔 정렬하므로 분야마다 1위 이슈가 먼저 나온다. '인사'는 일부러
+// 점수를 5로 고정해 뒤로 미는 분야라 이 순위에서도 맨 뒤에 둔다.
+function rankWithinCategory(groups) {
+  const byCat = {};
+  groups.forEach(g => (byCat[g.category] = byCat[g.category] || []).push(g));
+  const ranked = [];
+  Object.entries(byCat).forEach(([cat, list]) => list.forEach((g, i) => {
+    ranked.push({ g, pct: (cat === '인사' ? 1 : 0) + i / list.length });
+  }));
+  ranked.sort((a, b) => (a.pct - b.pct) || (b.g.importance - a.g.importance) || (b.g.kwRepeat[1] - a.g.kwRepeat[1]));
+  return ranked.map(x => x.g);
+}
+
 function dailyRows() { return NEWS_DATA.filter(r => r.date === state.currentDate); }
 
 // "오늘 수집 기사" 상단 큰 숫자 전용 - 수집이 실제로 언제 돌았는지(cron 지연으로
@@ -2577,7 +2593,8 @@ function renderNewsView(dr, allGroups) {
     const signalRows = scoped
       .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
       .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search));
-    const top3 = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상').slice(0,3);
+    const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상');
+    const top3 = (state.selectedCategory === '전체' ? rankWithinCategory(signalGroups) : signalGroups).slice(0,3);
     document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
       const reasons = selectionReasons(g);
       const chips = reasons.map(r => `<span class='reason-chip-dark'>${r}</span>`).join(' ');
@@ -2732,6 +2749,8 @@ function renderMainList(scoped, allGroups) {
     groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
   } else if (state.sort === 'press') {
     groups.sort((a,b) => b.pressCount - a.pressCount);
+  } else if (state.selectedCategory === '전체') {
+    groups = rankWithinCategory(groups);
   }
 
   const totalCount = groups.length;
