@@ -269,6 +269,13 @@ a.badge-skipped:hover { text-decoration: underline; }
 .trend-meta { display: block; margin-top: 2px; font-size: 0.76em; opacity: 0.75; }
 .trend-up { color: var(--app-primary); font-weight: 700; }
 .trend-empty { font-size: 0.8em; opacity: 0.6; padding: 4px 0; }
+/* 제목 옆 "?" - 마우스를 대면 기준이 뜨고(title), 누르면 아래에 펼친다(휴대폰은 마우스가 없어서). */
+.trend-help { display: inline-flex; align-items: center; justify-content: center; width: 1.25em; height: 1.25em; margin-left: 5px;
+  border-radius: 50%; border: 1px solid currentColor; font-size: 0.72em; font-weight: 700; opacity: 0.55; cursor: help; vertical-align: 1px; }
+.trend-help:hover, .trend-help.open { opacity: 0.9; }
+.trend-help-box { font-size: 0.74em; line-height: 1.55; opacity: 0.8; margin: -2px 0 10px; padding: 8px 10px; border-radius: 6px;
+  background: rgba(128,128,128,0.1); white-space: pre-line; }
+.trend-panel.collapsed .trend-help-box { display: none; }
 .cart-preview-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 /* 입법 탭 "법령 공포·시행" 패널 - 법안 필터(sticky) 위에 두고, 접으면 제목 줄만 남는다. */
 .sublaw-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -1016,7 +1023,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <!-- 급상승 이슈: 보는 날짜에 수집된 기사를 이슈별로 세어 직전 7일 하루 평균보다
              크게 늘어난 것을 보여준다(2026-11-04, 수집 현황 패널 대신). -->
         <div class="sidebar-panel trend-panel" id="trendPanel">
-          <div class="panel-title" id="trendToggle">급상승 이슈<span class="toggle-caret">▼</span></div>
+          <div class="panel-title" id="trendToggle">급상승 이슈<span class="trend-help" id="trendHelp" role="button" tabindex="0" aria-label="급상승 이슈 기준">?</span><span class="toggle-caret">▼</span></div>
+          <div class="trend-help-box" id="trendHelpBox" hidden></div>
           <div class="trend-caption" id="trendCaption"></div>
           <div id="trendList"></div>
         </div>
@@ -2593,6 +2601,30 @@ function warningTooltip(entries) {
 // 7 이상 기준으로도 상생 이슈 14%, 노동·ESG 이슈 약 10%는 남는다(최근 30일).
 const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7, TREND_MIN_IMPORTANCE = 7;
 const TREND_EXCLUDE = new Set(['인사', '기타']);
+// "?" 도움말 - 위 숫자를 그대로 써서, 기준을 바꾸면 설명도 같이 바뀐다.
+const TREND_HELP = `보는 날짜에 수집된 기사를 이슈별로 세어 직전 ${TREND_PREV_DAYS}일 하루 평균과 비교합니다.
+· 그날 ${TREND_MIN_COUNT}건 이상이고 평균의 ${TREND_MIN_RATIO}배 이상
+· 중요도 ${TREND_MIN_IMPORTANCE}점 이상 기사가 1건 이상
+· ${[...TREND_EXCLUDE].join('·')} 분야는 제외
+· 늘어난 건수(그날 − 평균)가 큰 순서로 ${TREND_TOP}개
+· 기간·검색·논조·분야 필터와 상관없이 날짜로만 계산
+며칠째 이어진 큰 이슈는 평균도 커져서 목록에서 빠질 수 있습니다.`;
+(() => {
+  const help = document.getElementById('trendHelp'), box = document.getElementById('trendHelpBox');
+  if (!help || !box) return;
+  help.title = TREND_HELP;
+  box.textContent = TREND_HELP;
+  const toggle = e => {
+    e.stopPropagation();  // 제목 줄을 누르면 패널이 접히므로 막는다
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    document.getElementById('trendPanel').classList.remove('collapsed');
+    box.hidden = !box.hidden;
+    help.classList.toggle('open', !box.hidden);
+  };
+  help.addEventListener('click', toggle);
+  help.addEventListener('keydown', toggle);
+})();
 const trendCache = {};
 function computeTrends(cur) {
   if (trendCache[cur]) return trendCache[cur];
