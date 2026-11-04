@@ -4296,7 +4296,8 @@ const LAW_LIST_KINDS = ['전체', '법률', '시행령·시행규칙', '행정�
 const LAW_LIST_KIND_HELP = { ...SUB_LAW_KIND_HELP,
   '행정규칙': '법령이 맡긴 세부 기준을 부처가 정한 고시·예규·지침 등(공정위 것만, 내부 운영용 훈령은 뺌)' };
 const LAW_SEARCH_PREVIEW = 20;
-const LAW_RULE_ETC = '기타 행정규칙';
+// 근거 법률이 없는 공정위 내부 운영 규정(인사·교육·감사·홈페이지 등). 2026-11-05 기준 15개.
+const LAW_RULE_ETC = '공정위 내부 운영 규정';
 let lawListKind = '전체', lawListMinistry = '전체', lawListLaw = '전체', lawListQuery = '', lawListShowAll = false;
 let lawSearchShowAll = false;
 let LAW_META = { laws: [], rules: [], lawFiles: {}, updated: '' };
@@ -4441,6 +4442,7 @@ function lawListCardHtml(g, today) {
       <span class="card-tags">${badges.join(' ')}</span>
       <a class="article-title" href="${escHtml(href)}" target="_blank" rel="noopener" title="${bundle ? '개정 공포문 보기' : '법제처 현행법 보기'}">${escHtml(title)}</a>
       ${!bundle && lawMstOf(name) ? `<a class="lawlist-stmd" href="${escHtml(lawStmdLink(lawMstOf(name)))}" target="_blank" rel="noopener" title="법제처 법령체계도: 상위법·하위법·위임 행정규칙">법령체계도</a>` : ''}
+      ${!bundle ? `<a class="lawlist-stmd" href="${escHtml(lawThreeLink(name))}" target="_blank" rel="noopener" title="법제처 3단비교: 법률·시행령·시행규칙 조문을 나란히">3단 비교</a>` : ''}
       <span class="card-meta-inline">${escHtml(subLawMinistryFull(g.ministry))}${latest ? ` · 최근 공포 ${latest.promulgated}` : ''}</span>
     </div>
     ${body}
@@ -4626,7 +4628,7 @@ function renderLawListPanel() {
   const lawFull = subLawLawFullMap(byMin.filter(g => g.type === 'law').map(g => ({ name: g.name, abbr: g.abbr })), subLawGroup);
   noticeChipRow(document.getElementById('lawListLawRow'), lawCounts, lawListLaw, 'law', laws, v => {
     lawListLaw = lawListLaw === v ? '전체' : v; lawListShowAll = false; renderLawListPanel();
-  }, k => lawFull[k] || (k === LAW_RULE_ETC ? '근거 법률을 찾지 못한 행정규칙(내부 운영 규정 등)' : k));
+  }, k => lawFull[k] || (k === LAW_RULE_ETC ? '근거 법률이 없는 공정위 내부 운영 규정(인사·교육·감사·홈페이지 등) - 기업이 지킬 기준은 아님' : k));
 
   const byLaw = lawListLaw === '전체' ? byMin : byMin.filter(g => g.group === lawListLaw);
   const kindCounts = Object.fromEntries(LAW_LIST_KINDS.map(k => [k, byLaw.filter(g => lawListKindMatches(g, k)).length]));

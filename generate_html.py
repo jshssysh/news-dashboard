@@ -308,12 +308,34 @@ def load_law_texts():
                          if law.get("abbr") and not re.search(r"시행(령|규칙)$", law.get("name", ""))},
                         key=lambda x: -len(x[0]))
 
-    def rule_law(r):
-        head = " ".join(a.get("text", "") for a in r.get("articles", [])[:3])
-        for name in re.findall(r"「([^」]+)」", head):
+    # 「」·『』 안 이름이 법령이 아니라 다른 행정규칙이면 그 규칙의 근거 법률을 따른다
+    # ("현장조사 이의제기 업무지침" -> 「공정거래위원회 회의 운영 및 사건절차 등에 관한 규칙」 -> 공정거래법).
+    rule_by_key = {key(r.get("name", "")): r for r in raw.get("rules", {}).values()}
+    # 「」로 법을 적지 않고 "법 제6조"처럼만 쓰는 고시는 규칙 이름·본문의 말로 잇는다(2026-11-05, 기타로 남던 28개 확인).
+    keyword_laws = [
+        ("다단계판매", "방문판매 등에 관한 법률"), ("후원방문판매", "방문판매 등에 관한 법률"),
+        ("통신판매", "전자상거래 등에서의 소비자보호에 관한 법률"),
+        ("제조위탁", "하도급거래 공정화에 관한 법률"), ("선급금", "하도급거래 공정화에 관한 법률"),
+        ("과징금 납부기한", "독점규제 및 공정거래에 관한 법률"), ("단체소송", "소비자기본법"),
+    ]
+
+    def quoted(r):
+        body = " ".join(a.get("text", "") for a in r.get("articles", []))
+        return re.findall(r"[「『]([^」』]+)[」』]", body)
+
+    def rule_law(r, depth=0):
+        names = quoted(r)
+        for name in names:
             hit = base_by_key.get(key(re.sub(r"\s*시행(령|규칙)$", "", name)))
             if hit:
                 return hit
+        if depth < 2:  # 다른 행정규칙을 근거로 들면 그 규칙의 근거 법률(두 단계까지)
+            for name in names:
+                other = rule_by_key.get(key(name))
+                if other is not None and other is not r:
+                    hit = rule_law(other, depth + 1)
+                    if hit:
+                        return hit
         # 「」가 없으면 규칙 이름에 든 법률 약칭으로 잇는다("하도급대금 지급관리시스템 지정고시" -> 하도급법).
         # 약칭 끝의 "법"을 뗀 말(하도급·가맹사업·대리점)까지 본다. 기업결합은 공정거래법에서 다룬다.
         name = r.get("name", "").replace("공정거래위원회", "")  # "공정거래위원회 홈페이지 운영규정"이 공정거래법에 붙지 않게
@@ -322,6 +344,10 @@ def load_law_texts():
         for stem, base in abbr_stems:
             if stem in name:
                 return base
+        head = name + " " + " ".join(a.get("text", "") for a in r.get("articles", [])[:2])
+        for word, base in keyword_laws:
+            if word in head and key(base) in base_by_key:
+                return base_by_key[key(base)]
         return ""
 
     for seq, r in raw.get("rules", {}).items():
