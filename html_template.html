@@ -241,6 +241,21 @@ a.badge-skipped:hover { text-decoration: underline; }
    여기서도 아이디를 같이 걸어 우선순위를 맞춘다. */
 .cart-preview-panel.collapsed #cartPreviewList,
 .cart-preview-panel.collapsed #billCartPreviewList { display: none; }
+/* "급상승 이슈" - 항목을 누르면 그 이슈로 검색해 목록을 거른다(다시 누르면 해제). */
+.trend-caption { font-size: 0.74em; opacity: 0.6; margin: -6px 0 8px; }
+.trend-panel.collapsed .panel-title { margin-bottom: 0; }
+.trend-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
+.trend-panel.collapsed .trend-caption, .trend-panel.collapsed #trendList { display: none; }
+.trend-item { display: block; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--app-border);
+  color: inherit; font: inherit; padding: 8px 6px; cursor: pointer; border-radius: 6px; transition: background-color .15s var(--ease); }
+.trend-item:first-child { border-top: none; }
+.trend-item:hover { background-color: rgba(128,128,128,0.12); }
+.trend-item.active { background-color: rgba(128,128,128,0.16); box-shadow: inset 3px 0 0 var(--app-primary); }
+.trend-item .chip-category { font-size: 0.7em; padding: 1px 6px; border-radius: 6px; }
+.trend-title { display: block; margin-top: 4px; font-weight: 700; font-size: 0.86em; line-height: 1.35; word-break: keep-all; }
+.trend-meta { display: block; margin-top: 2px; font-size: 0.76em; opacity: 0.75; }
+.trend-up { color: var(--app-primary); font-weight: 700; }
+.trend-empty { font-size: 0.8em; opacity: 0.6; padding: 4px 0; }
 .cart-preview-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 /* 입법 탭 "법령 공포·시행" 패널 - 법안 필터(sticky) 위에 두고, 접으면 제목 줄만 남는다. */
 .sublaw-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -985,6 +1000,13 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
+        <!-- 급상승 이슈: 보는 날짜에 수집된 기사를 이슈별로 세어 직전 7일 하루 평균보다
+             크게 늘어난 것을 보여준다(2026-11-04, 수집 현황 패널 대신). -->
+        <div class="sidebar-panel trend-panel" id="trendPanel">
+          <div class="panel-title" id="trendToggle">급상승 이슈<span class="toggle-caret">▼</span></div>
+          <div class="trend-caption" id="trendCaption"></div>
+          <div id="trendList"></div>
+        </div>
         <div class="sidebar-panel cart-preview-panel" id="cartPreviewPanel">
           <div class="panel-title-row">
             <div class="panel-title cart-preview-toggle">담기 미리보기<span class="toggle-caret">▼</span></div>
@@ -1452,6 +1474,13 @@ document.querySelectorAll('.cart-preview-toggle').forEach(toggle => {
     writeFlag(CART_PREVIEW_COLLAPSE_KEY, !readFlag(CART_PREVIEW_COLLAPSE_KEY));
     applyCartPreviewCollapse();
   });
+});
+
+// "급상승 이슈" 접기 - 모바일에선 목록 위에 오므로 접어 둘 수 있게 한다.
+const TREND_COLLAPSE_KEY = 'trendCollapsed';
+document.getElementById('trendPanel').classList.toggle('collapsed', readFlag(TREND_COLLAPSE_KEY));
+document.getElementById('trendToggle').addEventListener('click', () => {
+  writeFlag(TREND_COLLAPSE_KEY, document.getElementById('trendPanel').classList.toggle('collapsed'));
 });
 
 // "2026/09/14" -> "'26.9.14" (사용자가 보여준 보고용 표 형식과 동일).
@@ -2533,8 +2562,76 @@ function warningTooltip(entries) {
   }).join('\n');
 }
 
+// "급상승 이슈" - 보는 날짜(state.currentDate)에 수집된 기사를 대표이슈별로 세어, 직전 7개
+// 수집일의 하루 평균과 비교한다. 이슈 이름은 날마다 다시 묶지만 이어지는 이슈는 같은
+// 이름으로 며칠씩 남는다(10/28~11/4 이슈 2126개 중 312개가 여러 날). 기간·검색·논조
+// 필터와 무관하게 날짜 기준으로만 계산한다(필터를 걸 때마다 순위가 바뀌면 "평소보다
+// 늘었다"는 뜻이 흐려진다). '인사'·'기타'는 뺀다(인사는 화면에서도 일부러 뒤로 미는 분야).
+const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7;
+const TREND_EXCLUDE = new Set(['인사', '기타']);
+const trendCache = {};
+function computeTrends(cur) {
+  if (trendCache[cur]) return trendCache[cur];
+  const idx = allDates.indexOf(cur);
+  const prev = idx > 0 ? allDates.slice(Math.max(0, idx - TREND_PREV_DAYS), idx) : [];
+  const prevSet = new Set(prev);
+  const today = {}, past = {};
+  NEWS_DATA.forEach(r => {
+    if (!r.issue || TREND_EXCLUDE.has(r.category)) return;
+    if (r.date === cur) {
+      const t = today[r.issue] || (today[r.issue] = { n: 0, cats: {} });
+      t.n++;
+      t.cats[r.category] = (t.cats[r.category] || 0) + 1;
+    } else if (prevSet.has(r.date)) {
+      past[r.issue] = (past[r.issue] || 0) + 1;
+    }
+  });
+  const days = Math.max(1, prev.length);
+  const items = prev.length ? Object.keys(today).map(issue => {
+    const t = today[issue];
+    // 같은 이슈가 날마다 다른 분야로 갈리기도 해서(지배구조/공정거래) 가장 많은 쪽을 쓴다.
+    const cat = Object.keys(t.cats).sort((a, b) => t.cats[b] - t.cats[a])[0];
+    return { issue, cat, n: t.n, avg: (past[issue] || 0) / days };
+  }).filter(x => x.n >= TREND_MIN_COUNT && x.n >= TREND_MIN_RATIO * x.avg)
+    .sort((a, b) => (b.n - b.avg) - (a.n - a.avg))
+    .slice(0, TREND_TOP) : [];
+  return (trendCache[cur] = { items, prevDays: prev.length });
+}
+function renderTrendPanel() {
+  const listEl = document.getElementById('trendList');
+  if (!listEl) return;
+  const cur = state.currentDate;
+  const { items, prevDays } = computeTrends(cur);
+  const [, m, d] = (cur || '').split('/').map(Number);
+  document.getElementById('trendCaption').textContent = prevDays
+    ? `${m}/${d} 수집분 · 직전 ${prevDays}일 하루 평균과 비교`
+    : '비교할 이전 날짜가 없습니다.';
+  if (!items.length) {
+    listEl.innerHTML = prevDays ? "<div class='trend-empty'>평소보다 크게 늘어난 이슈가 없습니다.</div>" : '';
+    return;
+  }
+  listEl.innerHTML = items.map(x => {
+    // 평균이 1건 미만이면 "몇 배"가 수백 배로 부풀어 보여서 배수 대신 문구로 적는다.
+    const meta = x.avg === 0 ? `${x.n}건 · <span class="trend-up">새 이슈</span>`
+      : x.avg < 1 ? `${x.n}건 · 평소 하루 1건 미만 <span class="trend-up">▲</span>`
+      : `${x.n}건 · 평소 하루 ${x.avg.toFixed(1)}건 <span class="trend-up">▲${Math.round(x.n / x.avg)}배</span>`;
+    return `<button type="button" class="trend-item ${state.search === x.issue ? 'active' : ''}" data-issue="${escHtml(x.issue)}"
+      title="누르면 이 이슈로 검색합니다(다시 누르면 해제)"><span class="chip-category">${escHtml(x.cat)}</span>
+      <span class="trend-title">${escHtml(x.issue)}</span><span class="trend-meta">${meta}</span></button>`;
+  }).join('');
+  listEl.querySelectorAll('.trend-item').forEach(btn => btn.addEventListener('click', () => {
+    const issue = btn.dataset.issue;
+    state.search = state.search === issue ? '' : issue;
+    state.selectedCategory = '전체';
+    state.page = 1;
+    document.getElementById('searchInput').value = state.search;
+    renderAll();
+  }));
+}
+
 function renderNewsView(dr, allGroups) {
   updateHoursBackControl();
+  renderTrendPanel();
   const scoped = scopedRows();
 
   // "오늘 주요 내용"은 원래 필터와 무관한 읽을거리였는데(그래서 스티키에서도
