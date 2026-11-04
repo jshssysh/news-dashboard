@@ -28,6 +28,7 @@ import requests
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 import main  # noqa: E402
+from scoring_variants import VARIANTS  # noqa: E402
 
 HIDDEN = {"삼성그룹", "삼성물산", "공정위인사"}
 SHOW_MIN = 6  # generate_html.DISPLAY_MIN_ISSUE_SCORE와 같은 기준(여기선 기사 단위)
@@ -55,7 +56,7 @@ def fetch_description(title, link):
     return ""
 
 
-def rescore(labels):
+def rescore(labels, score_col="새 점수", cat_col="새 분야"):
     items = [
         {"idx": i, "title": r["제목"], "description": r["설명"][:main.ANALYZE_DESCRIPTION_CHARS],
          "category": r["분야(당시)"]}
@@ -66,8 +67,25 @@ def rescore(labels):
         for idx, score, _t, _s, _sent, category in main.analyze_batch_with_gemini(items[start:start + 20]):
             scores[idx], cats[idx] = score, category
         time.sleep(4.5)
-    labels["새 점수"] = labels.index.map(lambda i: scores.get(i, 0))
-    labels["새 분야"] = labels.index.map(lambda i: cats.get(i) or labels.at[i, "분야(당시)"])
+    labels[score_col] = labels.index.map(lambda i: scores.get(i, 0))
+    labels[cat_col] = labels.index.map(lambda i: cats.get(i) or labels.at[i, "분야(당시)"])
+
+
+def category_table(labels, schemes):
+    """분야(당시)별로 기준마다 잡음·놓침 건수(층별 표본은 가중)를 나란히 보여 준다."""
+    w = weights(labels)
+    head = "| 분야 | 기사 | 정답 Y | " + " | ".join(f"{n} 잡음/놓침" for n, _, _ in schemes) + " |"
+    lines = [head, "|" + "---|" * (3 + len(schemes))]
+    for cat, g in labels.groupby("분야(당시)"):
+        if cat in HIDDEN:
+            continue
+        is_y = g["노출"] == "Y"
+        cells = []
+        for _, sc, _ in schemes:
+            show = g[sc] >= SHOW_MIN
+            cells.append(f"{w[g.index][show & ~is_y].sum():.0f} / {w[g.index][~show & is_y].sum():.0f}")
+        lines.append(f"| {cat} | {w[g.index].sum():.0f} | {w[g.index][is_y].sum():.0f} | " + " | ".join(cells) + " |")
+    return lines
 
 
 def weights(labels):
@@ -161,7 +179,7 @@ def main_eval():
         f"- 실행: {main.datetime.now(main.KST).strftime('%Y-%m-%d %H:%M')} KST",
         f"- 임베딩 모델: {model or '없음'}",
         "",
-        "### 1. 채점 (같은 기사, 당시 점수 vs 지금 지시문)",
+        "### 1. 채점 (같은 기사, 당시 점수 vs 지금 지시문 vs 시험 기준)",
         "",
         f"기준: 기사 단위 {SHOW_MIN}점 이상이면 화면 노출. 층별 표본은 층 크기로 가중한 전체 수집분 기준 비율.",
         "",
@@ -178,16 +196,28 @@ def main_eval():
             time.sleep(0.1)
         labels["설명"] = descs
         rescore(labels)
+        schemes = [("당시", "중요도(당시)", "분야(당시)"), ("지금 기준", "새 점수", "새 분야")]
+        current_rules = main.SCORING_RULES
+        for vname, rules in VARIANTS.items():
+            main.SCORING_RULES = rules
+            try:
+                rescore(labels, f"{vname} 점수", f"{vname} 분야")
+            finally:
+                main.SCORING_RULES = current_rules
+            schemes.append((vname, f"{vname} 점수", f"{vname} 분야"))
         found = int((labels["설명"] != "").sum())
         lines += [
             f"#### {name} ({len(labels)}건, 설명 찾음 {found}건)", "",
             "| 기준 | 화면 기사(가중) | 잡음 | 놓침 |", "|---|---|---|---|",
             score_row("당시 점수", labels, "중요도(당시)", "분야(당시)"),
             score_row("지금 지시문으로 다시 채점", labels, "새 점수", "새 분야"),
-            "",
-        ]
+        ] + [score_row(f"{n}으로 다시 채점", labels, sc, cc) for n, sc, cc in schemes[2:]] + [
+            "", "분야별 (당시 분야 기준, 잡음/놓침 건수)", "",
+        ] + category_table(labels, schemes) + [""]
         group_lines += grouping_report(name, labels, model)
-        per_article.append(labels.assign(파일=name)[["파일", "기사링크", "제목", "노출", "사건", "중요도(당시)", "새 점수", "새 분야"]])
+        keep = ["파일", "기사링크", "제목", "노출", "사건", "분야(당시)", "중요도(당시)", "새 점수", "새 분야"]
+        keep += [c for n, sc, cc in schemes[2:] for c in (sc, cc)]
+        per_article.append(labels.assign(파일=name)[keep])
 
     lines += group_lines
     lines += ["", f"- Gemini 호출: {main.GEMINI_USAGE['calls']}회 (429 {main.GEMINI_USAGE['rate_limited']}회, "

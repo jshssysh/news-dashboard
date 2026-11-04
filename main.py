@@ -424,21 +424,9 @@ def log_gemini_usage(res_json, label):
     total_t = usage.get("totalTokenCount", 0)
     print(f"[Gemini 토큰 사용량:{label}] 입력={prompt_t} 출력={output_t} thinking={thoughts_t} 합계={total_t}")
 
-def analyze_batch_with_gemini(batch_items):
-    """기사 배치를 Gemini에 보내 (idx, 관련도, 대표이슈명, 요약, 논조, 분야)를 한 번에 판정받는다."""
-    if not GEMINI_API_KEY:
-        return [(item["idx"], 0, "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
-    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "original_category": item["category"]} for item in batch_items]
-
-    # '기자의 서술 태도'가 아닌 '기업 호재/악재' 기준으로 논조를 강제 평가하도록 지시
-    prompt = f"""당신은 기업 지배구조 및 공정거래위원회 정책 전문 애널리스트입니다.
-입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
-
-분석 지침:
-1. idx: 번호 유지
-2. relevance_score: 공정거래·기업지배구조 감시 담당자가 꼭 봐야 하는 기사인지 1~10점 평가.
+# 관련도 채점 기준(analyze_batch_with_gemini 지시문의 2번 항목). 평가(eval/run_eval.py)에서
+# 다른 기준으로 바꿔 끼워 같은 기사로 비교할 수 있게 상수로 뺐다.
+SCORING_RULES = """2. relevance_score: 공정거래·기업지배구조 감시 담당자가 꼭 봐야 하는 기사인지 1~10점 평가.
    대기업이나 '상생'·'ESG'·'지배구조' 같은 단어가 등장한다는 것만으로 높게 주지 말고,
    기사의 주제 자체가 아래 중 무엇인지로 판단할 것. 화면에는 6점 이상만 나온다.
    - 8~10점: 공정위 제재·심의·현장조사·기업결합 심사, 담합·부당지원·일감몰아주기·
@@ -465,7 +453,24 @@ def analyze_batch_with_gemini(batch_items):
    가능성이 조금이라도 있는 기사는 4점 이하가 아니라 5점으로 줄 것.
    단, category가 삼성그룹/삼성물산인 기사는 내부 추적용이라 이 홍보성 규칙을 적용하지
    말고 그 기업 동향으로서의 중요도로 평가할 것.
-3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형).
+"""
+
+
+def analyze_batch_with_gemini(batch_items):
+    """기사 배치를 Gemini에 보내 (idx, 관련도, 대표이슈명, 요약, 논조, 분야)를 한 번에 판정받는다."""
+    if not GEMINI_API_KEY:
+        return [(item["idx"], 0, "API 키 오류", "분석 에러", "판단 실패", None) for item in batch_items]
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
+    input_data = [{"idx": item["idx"], "title": item["title"], "description": item["description"], "original_category": item["category"]} for item in batch_items]
+
+    # '기자의 서술 태도'가 아닌 '기업 호재/악재' 기준으로 논조를 강제 평가하도록 지시
+    prompt = f"""당신은 기업 지배구조 및 공정거래위원회 정책 전문 애널리스트입니다.
+입력 기사 목록: {json.dumps(input_data, ensure_ascii=False)}
+
+분석 지침:
+1. idx: 번호 유지
+{SCORING_RULES}3. group_title: (relevance_score 5점 이상일 때만) 표준 대표 이슈명 (10자 이내 명사형).
    반드시 그 기사의 실제 당사자인 구체적 기업/기관/인물명이 들어가야 함 - "설탕 담합"처럼
    제품/업종명만 넣지 말 것(예: 삼양사가 당사자면 "설탕 담합"이 아니라 "삼양사 담합"류로 지을 것).
    같은 사건을 다루는 다른 기사와 표현이 갈리면 나중에 병합이 안 되므로, 이름 형식은 항상
