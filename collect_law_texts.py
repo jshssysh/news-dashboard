@@ -147,7 +147,31 @@ def fetch_law_body(mst):
         text = _text(b)
         if text:
             byls.append(slim_byl({"no": label, "kind": _t(b, "별표구분") or "별표", "title": _t(b, "별표제목"), "text": text}))
-    return articles, byls
+    # 현행 본문의 부칙은 제정 때부터의 부칙이 다 붙어 있어 가장 이른 부칙 공포일이 제정일이다
+    # (단, 전부개정한 법은 그 전 부칙이 빠질 수 있어 first_promulgation()과 같이 본다).
+    dates = [d for d in ((e.text or "").strip() for e in root.iter("부칙공포일자")) if len(d) == 8 and d.isdigit()]
+    return articles, byls, (min(dates) if dates else "")
+
+
+def first_promulgation(name, law_id):
+    """법령 연혁 목록(target=eflaw, nw=1 연혁)에서 같은 법령ID의 가장 이른 공포일자. 법령 탭을
+    "오래된 법부터" 보이려고 받는다(2026-11-05 사용자 요청). 못 찾으면 ""."""
+    root = get_xml("lawSearch.do", target="eflaw", query=name, nw=1, sort="dasc", display=100)
+    dates = [_t(el, "공포일자") for el in root.findall(".//law")
+             if (not law_id or _t(el, "법령ID") == law_id) and _name_key(_t(el, "법령명한글")) == _name_key(name)]
+    dates = [d for d in dates if len(d) == 8 and d.isdigit()]
+    return min(dates) if dates else ""
+
+
+def enacted_date(name, law_id, buchik_first):
+    """제정일 = 연혁 목록의 가장 이른 공포일과 부칙의 가장 이른 공포일 중 이른 쪽(YYYY-MM-DD)."""
+    try:
+        hist = first_promulgation(name, law_id)
+    except Exception:
+        print(f"[연혁 조회 실패] {name}:\n{traceback.format_exc()}")
+        hist = ""
+    cands = [d for d in (hist, buchik_first) if d]
+    return _fmt(min(cands)) if cands else ""
 
 
 def list_law_byl_files(base_name):
@@ -250,12 +274,14 @@ def main():
         return
     laws = {}
     for mst, meta in current.items():
-        if mst in old_laws and old_laws[mst].get("articles"):
+        # 제정일("enacted")이 없던 예전 수집분은 한 번만 본문을 다시 받아 채운다.
+        if mst in old_laws and old_laws[mst].get("articles") and "enacted" in old_laws[mst]:
             laws[mst] = {**old_laws[mst], **meta, "byls": [slim_byl(b) for b in old_laws[mst].get("byls", [])]}
             continue
         try:
-            articles, byls = fetch_law_body(mst)
-            laws[mst] = {**meta, "articles": articles, "byls": byls}
+            articles, byls, buchik_first = fetch_law_body(mst)
+            laws[mst] = {**meta, "articles": articles, "byls": byls,
+                         "enacted": enacted_date(meta["name"], meta.get("id", ""), buchik_first)}
             stats["law_new"] += 1
         except Exception:
             stats["law_fail"] += 1

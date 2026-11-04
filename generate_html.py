@@ -371,7 +371,7 @@ def load_law_texts():
     for files in law_files.values():
         files.sort(key=lambda f: (f["kind"] != "별표", f["no"]))
     # mst(법령일련번호)는 법제처 화면의 lsiSeq와 같다 - 법령체계도 링크에 쓴다.
-    laws = sorted(({k: law.get(k, "") for k in ("name", "abbr", "kind", "ministry")} | {"mst": mst}
+    laws = sorted(({k: law.get(k, "") for k in ("name", "abbr", "kind", "ministry", "enacted")} | {"mst": mst}
                    for mst, law in raw.get("laws", {}).items()), key=lambda x: x["name"])
     return {"laws": laws, "rules": rules, "lawFiles": law_files, "updated": raw.get("updated", "")}, texts
 
