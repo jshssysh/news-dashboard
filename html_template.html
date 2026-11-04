@@ -6,21 +6,37 @@
 <title>Daily Brief</title>
 <style>
 :root {
-  --app-primary: #ff4b4b; --app-secondary-bg: #f0f2f6; --app-text: #31333f; --app-bg: #ffffff;
+  /* 강조색(선택된 칩·탭·버튼)은 원래 빨강(#ff4b4b)이었는데, 빨강은 경고·제재(제재·규제 칩,
+     과징금)와 겹치고 화면 전체가 붉게 보여 눈이 피로하다는 의견(2026-11-04)으로 남색으로 바꿨다.
+     정당색(파랑/빨강)과도 덜 겹친다. */
+  --app-primary: #34497a; --app-secondary-bg: #f0f2f6; --app-text: #31333f; --app-bg: #ffffff;
   --app-border: rgba(49,51,63,0.14); --app-border-strong: rgba(49,51,63,0.22);
   --app-shadow: 0 1px 2px rgba(15,15,20,0.04), 0 1px 12px rgba(15,15,20,0.045);
   --app-shadow-hover: 0 4px 16px rgba(15,15,20,0.09);
   --ease: cubic-bezier(.2,.7,.3,1);
   /* 위원장 뱃지 전용 - 정당색/경고색(주황 "!")과 안 겹치게 남색 계열로 */
   --chair-accent: #3454a8; --chair-bg: rgba(52,84,168,0.10);
+  --primary-glow: color-mix(in srgb, var(--app-primary) 28%, transparent);
+  /* "주요 내용" 상자 - 예전엔 테마와 무관하게 늘 짙은 남색이라 라이트 모드의 흰 화면에서
+     혼자 무겁게 튀었다. 라이트는 옅은 남색 바탕, 다크는 기존 짙은 남색. */
+  --signal-bg: #f3f6fb; --signal-border: #dbe3f0; --signal-line: rgba(52,73,122,0.12);
+  --signal-title: #1f2a44; --signal-body: #4a5670; --signal-accent: #34497a; --signal-tag-bg: rgba(52,73,122,0.10);
+  /* 카테고리 칩은 꽉 찬 색, 근거 칩(반복·과징금 등)은 옅은 칩으로 나눠 한눈에 구분되게 한다.
+     색은 선택된 칩·탭의 남색(--app-primary)과 헷갈리지 않게 청록 계열로 둔다. */
+  --signal-cat-bg: #2f6f73; --signal-cat-fg: #ffffff;
+  --summary-bg: #f5f6f8; --summary-bg-hover: #eceef2; --summary-fg: #3f4657;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --app-primary: #ff6b6b; --app-secondary-bg: #262730; --app-text: #fafafa; --app-bg: #0e1117;
+    --app-primary: #5f78b0; --app-secondary-bg: #262730; --app-text: #fafafa; --app-bg: #0e1117;
     --app-border: rgba(255,255,255,0.10); --app-border-strong: rgba(255,255,255,0.18);
     --app-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 1px 14px rgba(0,0,0,0.28);
     --app-shadow-hover: 0 6px 20px rgba(0,0,0,0.35);
     --chair-accent: #8fb0ee; --chair-bg: rgba(143,176,238,0.14);
+    --signal-bg: #12203a; --signal-border: #1b2e50; --signal-line: rgba(255,255,255,0.12);
+    --signal-title: #ffffff; --signal-body: #b9c6dc; --signal-accent: #8ab4f8; --signal-tag-bg: rgba(138,180,248,0.14);
+    --signal-cat-bg: #7cc4c0; --signal-cat-fg: #0d1e36;
+    --summary-bg: rgba(255,255,255,0.05); --summary-bg-hover: rgba(255,255,255,0.09); --summary-fg: #c4ccd8;
   }
 }
 * { box-sizing: border-box; }
@@ -49,7 +65,7 @@ button:active { transform: translateY(1px); }
 .db-tabs-row { display: flex; gap: 4px; }
 .db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 4px; font-size: 0.64em; white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15; border: 1px solid var(--app-border); border-radius: 10px; min-height: 32px; }
 .db-tabs-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.08); }
-.db-tabs-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.35); }
+.db-tabs-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px var(--primary-glow); }
 .db-date-row { display: flex; gap: 4px; align-items: center; }
 .db-date-row button { flex: 0 0 auto; padding: 1px 10px; font-size: 0.72em; border: 1px solid var(--app-border); border-radius: 10px; }
 .db-date-row button:hover { border-color: var(--app-border-strong); background: rgba(128,128,128,0.08); }
@@ -138,37 +154,34 @@ a.badge-skipped:hover { text-decoration: underline; }
 .star-filter-btn.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
 .bill-card .card-head { margin-bottom: 4px; }
 
-.summary-box-blue { background-color: #eaf1fc; padding: 9px 12px; border-radius: 8px; margin-bottom: 0; font-size: 0.93em; color: #1a4d8f; display: block; text-decoration: none; line-height: 1.5; transition: background-color .15s var(--ease); }
-.summary-box-blue:hover { background-color: #dbe8fa; }
-@media (prefers-color-scheme: dark) {
-  .summary-box-blue { background-color: rgba(255,255,255,0.05); color: #a9c6f5; }
-  .summary-box-blue:hover { background-color: rgba(255,255,255,0.09); }
-}
-.signal-box { background-color: #12203a; border: 1px solid #1b2e50; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
-.signal-tag { display: inline-block; background-color: #24406e; color: #8ab4f8; font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; cursor: help; }
+/* 요약은 원래 파란 바탕에 파란 글자라 제목보다 요약이 더 눈에 띄었다. 무채색으로 낮추고
+   글자도 제목보다 한 단계 작게 해서 "제목 -> 요약" 순서로 읽히게 한다(2026-11-04 의견). */
+.summary-box-blue { background-color: var(--summary-bg); padding: 9px 12px; border-radius: 8px; margin-bottom: 0; font-size: 0.86em; color: var(--summary-fg); display: block; text-decoration: none; line-height: 1.55; transition: background-color .15s var(--ease); }
+.summary-box-blue:hover { background-color: var(--summary-bg-hover); }
+.signal-box { background-color: var(--signal-bg); border: 1px solid var(--signal-border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--app-shadow); }
+.signal-tag { display: inline-block; background-color: var(--signal-tag-bg); color: var(--signal-accent); font-size: 0.74em; font-weight: 700; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 5px; cursor: help; }
 .signal-box-head { display: flex; align-items: center; justify-content: space-between; }
-.signal-toggle-btn { background: none; border: none; color: #8ab4f8; opacity: 0.7; font-size: 0.8em; padding: 8px 10px; margin: -8px -10px; transition: transform .15s var(--ease); }
+.signal-toggle-btn { background: none; border: none; color: var(--signal-accent); opacity: 0.7; font-size: 0.8em; padding: 8px 10px; margin: -8px -10px; transition: transform .15s var(--ease); }
 .signal-box.collapsed #signalItems { display: none; }
 .signal-box.collapsed .signal-toggle-btn { transform: rotate(-90deg); }
-.signal-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); }
+.signal-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--signal-line); }
 .signal-item:first-of-type { margin-top: 12px; padding-top: 0; border-top: none; }
-.signal-num { display: inline-block; background-color: #8ab4f8; color: #0d1e36; font-weight: 800; width: 19px; height: 19px; border-radius: 50%; text-align: center; font-size: 0.74em; line-height: 19px; margin-right: 4px; flex-shrink: 0; }
-.signal-item-head { color: #fff; font-size: 0.95em; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.4; }
-.signal-item-body { color: #b9c6dc; font-size: 0.85em; margin-top: 5px; line-height: 1.5; }
-.signal-item-empty { color: #b9c6dc; font-size: 0.88em; }
+.signal-num { display: inline-block; background-color: var(--signal-accent); color: var(--signal-bg); font-weight: 800; width: 19px; height: 19px; border-radius: 50%; text-align: center; font-size: 0.74em; line-height: 19px; margin-right: 4px; flex-shrink: 0; }
+.signal-item-head { color: var(--signal-title); font-size: 1em; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.4; }
+.signal-item-body { color: var(--signal-body); font-size: 0.84em; margin-top: 5px; line-height: 1.5; }
+.signal-item-empty { color: var(--signal-body); font-size: 0.88em; }
 .signal-related-toggle { background: none; border: none; padding: 0; font: inherit; font-size: 0.85em;
-  color: #8ab4f8; cursor: pointer; white-space: nowrap; }
+  color: var(--signal-accent); cursor: pointer; white-space: nowrap; }
 .signal-related-toggle:hover { text-decoration: underline; }
-/* signal-box는 라이트/다크 테마와 무관하게 항상 짙은 네이비 배경이라, 그 안의
-   related-list(원래 밝은 배경용 색)는 여기서만 밝은 텍스트로 다시 덮어쓴다. */
-.signal-related-list { border-top-color: rgba(255,255,255,0.12) !important; }
-.signal-related-list .related-row-text { color: #dbe4f5; }
-.signal-related-list .related-row-meta { color: #7c8aa3; }
-.signal-related-list a { color: #8ab4f8; }
-.signal-related-list .cart-inline-btn { border-color: rgba(255,255,255,0.28); color: #dbe4f5; }
-.signal-related-list .cart-inline-btn:hover { border-color: #8ab4f8; color: #8ab4f8; }
-.chip-category-dark { background-color: #24406e; color: #8ab4f8; font-weight: 600; padding: 2px 7px; border-radius: 5px; font-size: 0.78em; margin: 0 2px; }
-.reason-chip-dark { display: inline-block; background-color: rgba(138,180,248,0.12); color: #8ab4f8; padding: 2px 8px; border-radius: 5px; font-size: 0.74em; font-weight: 600; margin-right: 4px; }
+/* signal-box 안의 related-list는 상자 색(테마마다 다름)에 맞춰 다시 칠한다. */
+.signal-related-list { border-top-color: var(--signal-line) !important; }
+.signal-related-list .related-row-text { color: var(--signal-title); opacity: 0.85; }
+.signal-related-list .related-row-meta { color: var(--signal-body); }
+.signal-related-list a { color: var(--signal-accent); }
+.signal-related-list .cart-inline-btn { border-color: var(--signal-line); color: var(--signal-title); }
+.signal-related-list .cart-inline-btn:hover { border-color: var(--signal-accent); color: var(--signal-accent); }
+.chip-category-dark { background-color: var(--signal-cat-bg); color: var(--signal-cat-fg); font-weight: 700; padding: 2px 8px; border-radius: 5px; font-size: 0.74em; margin: 0 2px; }
+.reason-chip-dark { display: inline-block; background-color: transparent; border: 1px solid var(--signal-line); color: var(--signal-body); padding: 1px 7px; border-radius: 5px; font-size: 0.72em; font-weight: 600; margin-right: 4px; }
 
 .news-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin-bottom: 12px; }
 .news-filter-row h5 { margin: 0; width: 230px; flex: 0 0 auto; font-size: 1.02em; font-weight: 700; letter-spacing: -0.1px; white-space: nowrap; }
@@ -407,7 +420,7 @@ a.badge-skipped:hover { text-decoration: underline; }
    좁은 화면에서 건수를 숨기지 않고 이름 아래 줄로 내려 보이게 할 수 있다 */
 .stage-flow-compact .flow-plain { display: inline-flex; align-items: center; gap: 4px; }
 .flow-plain:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
-.flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
+.flow-plain.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px var(--primary-glow); }
 /* 칩 설명 줄: 마우스가 없는(툴팁이 안 뜨는) 화면에서만 보인다. */
 .chip-help { display: none; margin-top: 6px; font-size: 0.78em; line-height: 1.45; opacity: 0.75; }
 @media (hover: none) { .chip-help:not(:empty) { display: block; } }
@@ -427,7 +440,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 .cat-chip-row::-webkit-scrollbar-track { background: transparent; }
 .cat-chip-row button { flex-shrink: 0; border-radius: 20px; white-space: nowrap; padding: 6px 13px; border: 1px solid var(--app-border); background: var(--app-secondary-bg); font-size: 0.84em; font-weight: 600; }
 .cat-chip-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.1); }
-.cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px rgba(255,75,75,0.32); }
+.cat-chip-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px var(--primary-glow); }
 #billCommitteeChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
 #billCommitteeChipRow button.active, #subLawMinistryRow button.active, #noticeMinistryRow button.active { white-space: normal; max-width: 100%; text-align: left; }
 
@@ -496,7 +509,7 @@ a.badge-skipped:hover { text-decoration: underline; }
   .decision-card-head { flex-wrap: wrap !important; }
   .decision-card-head .card-meta-group { flex: 1 1 100% !important; white-space: normal !important; margin-top: 2px; }
 }
-.article-title { font-weight: 700; text-decoration: none; line-height: 1.4; }
+.article-title { font-weight: 700; font-size: 1.04em; text-decoration: none; line-height: 1.4; }
 .article-title:hover { text-decoration: underline; }
 .importance-tag { color: #b8860b; font-size: 0.84em; font-weight: 600; }
 .related-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
@@ -588,7 +601,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 /* "비서"(2자)가 "보좌관"·"비서관"(3자)보다 짧아서 뱃지 폭이 들쭉날쭉하면
    그 옆 이름들도 줄이 안 맞는다 - 폭을 고정하고 가운데 정렬해서 맞춘다. */
 .staff-role { flex-shrink: 0; min-width: 44px; text-align: center; font-weight: 800; font-size: 0.76em; padding: 1px 7px; border-radius: 5px; letter-spacing: -0.1px; }
-.role-aide { background: rgba(255,75,75,0.15); color: var(--app-primary); }
+.role-aide { background: color-mix(in srgb, var(--app-primary) 15%, transparent); color: var(--app-primary); }
 .role-chief { background: rgba(138,180,248,0.15); color: #8ab4f8; }
 .role-sec { background: rgba(128,128,128,0.16); opacity: 0.85; }
 .staff-names { opacity: 0.85; word-break: keep-all; overflow-wrap: anywhere; }
@@ -1274,6 +1287,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 </div>
 
 <script>
+// 천 단위 쉼표(17214 -> 17,214). 숫자나 숫자 문자열만 바꾸고 나머지("1.5" 같은 소수, 빈 값)는 그대로 둔다.
+function fmtN(v) { return (typeof v === 'number' && Number.isInteger(v)) || /^\d+$/.test(v) ? Number(v).toLocaleString('ko-KR') : v; }
+
 // ── innerHTML 공통 필터 (XSS 방어) ─────────────────────────────────────────
 // 기사 제목·요약 등 외부에서 수집한 글이 템플릿 문자열 안에 그대로 들어가므로,
 // 화면에 넣기 직전에 스크립트 실행 경로만 걷어낸다: 위험한 태그, on* 속성,
@@ -1478,7 +1494,11 @@ document.querySelectorAll('.cart-preview-toggle').forEach(toggle => {
 
 // "급상승 이슈" 접기 - 모바일에선 목록 위에 오므로 접어 둘 수 있게 한다.
 const TREND_COLLAPSE_KEY = 'trendCollapsed';
-document.getElementById('trendPanel').classList.toggle('collapsed', readFlag(TREND_COLLAPSE_KEY));
+// 처음 보는 사람에겐 접힌 채로 시작한다 - 본문 옆에 펼쳐져 있으면 기사 목록이 눈에 안
+// 들어온다는 의견(2026-11-04). 한 번 펼치거나 접으면 그 상태를 기억한다.
+const trendCollapsedInit = (() => { try { return localStorage.getItem(TREND_COLLAPSE_KEY) === null; } catch(e) { return true; } })()
+  || readFlag(TREND_COLLAPSE_KEY);
+document.getElementById('trendPanel').classList.toggle('collapsed', trendCollapsedInit);
 document.getElementById('trendToggle').addEventListener('click', () => {
   writeFlag(TREND_COLLAPSE_KEY, document.getElementById('trendPanel').classList.toggle('collapsed'));
 });
@@ -1945,10 +1965,10 @@ function renderTopTiles() {
   document.getElementById('statCollect').innerHTML =
     `<div class="label">수집 기사 <span class="era-tag">${startLabel} 08시 - ${endLabel} 08시</span></div>
      <div class="value-line">
-       <span class="value">${windowGroups.length}건</span>
+       <span class="value">${fmtN(windowGroups.length)}건</span>
        <div class="collect-substats-block">
-         <div class="sub-inline">전체 ${windowRows.length}건</div>
-         <div class="sub-inline">중복 ${windowDupCount}건 <span class="sm-fail">실패 ${windowFailCount}건</span></div>
+         <div class="sub-inline">전체 ${fmtN(windowRows.length)}건</div>
+         <div class="sub-inline">중복 ${fmtN(windowDupCount)}건 <span class="sm-fail">실패 ${fmtN(windowFailCount)}건</span></div>
        </div>
      </div>`;
 
@@ -1961,17 +1981,17 @@ function renderTopTiles() {
   document.getElementById('statLaw').innerHTML =
     `<div class="label">입법 현황 <span class="era-tag">제22대 · ${state.currentDate || '-'}까지</span></div>
      <div class="value-line">
-       <span class="value">${billStatsNow.total}건</span>
+       <span class="value">${fmtN(billStatsNow.total)}건</span>
        <div class="law-substats-block">
-         <div>입안 및 발의 ${billStatsNow.draft}건</div>
-         <div>상임위 ${billStatsNow.committee} · 법사위 ${billStatsNow.law} · 본회의 ${billStatsNow.plenary} · 공포 ${billStatsNow.promulgated || 0}</div>
+         <div>입안 및 발의 ${fmtN(billStatsNow.draft)}건</div>
+         <div>상임위 ${fmtN(billStatsNow.committee)} · 법사위 ${fmtN(billStatsNow.law)} · 본회의 ${fmtN(billStatsNow.plenary)} · 공포 ${fmtN(billStatsNow.promulgated || 0)}</div>
        </div>
      </div>`;
 
   // 모바일에서 타일을 접었을 때 대신 보여줄 한 줄 요약 - 펼친 타일과 같은 숫자를 써야 하므로
   // 여기도 수집일자 기준 groups가 아니라 발행시각 기준 windowGroups를 쓴다.
   document.getElementById('statSummaryText').textContent =
-    `수집 ${windowGroups.length}건 · 입법 ${billStatsNow.total}건 (발의 ${billStatsNow.draft})`;
+    `수집 ${fmtN(windowGroups.length)}건 · 입법 ${fmtN(billStatsNow.total)}건 (발의 ${fmtN(billStatsNow.draft)})`;
 
   return { dr, groups, sentCounts };
 }
@@ -2196,9 +2216,9 @@ function renderMemberChipRows() {
       // 특별위원회 다음, "위원회 없음" 계열 시작 지점에서만 한 칸 더 띄운다.
       const gapCls = (tier === 3 && prevTier !== null && prevTier < 3) ? ' chip-gap-before' : '';
       prevTier = tier;
-      return `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}${gapCls}"${style(n)}>${committeeAbbr(n) || n} ${counts[n]}${pctHtml(n)}</button>`;
+      return `<button data-${attr}="${n}" class="${selected === n ? 'active' : ''}${gapCls}"${style(n)}>${committeeAbbr(n) || n} ${fmtN(counts[n])}${pctHtml(n)}</button>`;
     });
-    el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}"${allStyle}>전체 ${total}</button>`]
+    el.innerHTML = [`<button data-${attr}="전체" class="${selected === '전체' ? 'active' : ''}"${allStyle}>전체 ${fmtN(total)}</button>`]
       .concat(items)
       .join('');
   };
@@ -2208,7 +2228,7 @@ function renderMemberChipRows() {
   // 법안분류 칩은 위원회 칩과 달리 건수순이 아니라 항상 대표발의->가결->대안반영->
   // 부결->폐기 고정 순서로 보여준다(어디에 뭐가 있는지 매번 안 찾게).
   const billChipRow = document.getElementById('memberBillChipRow');
-  billChipRow.innerHTML = [`<button data-billbucket="전체" class="${state.memberBillBucket === '전체' ? 'active' : ''}">전체 ${byBillBucket.length}</button>`]
+  billChipRow.innerHTML = [`<button data-billbucket="전체" class="${state.memberBillBucket === '전체' ? 'active' : ''}">전체 ${fmtN(byBillBucket.length)}</button>`]
     .concat(BILL_BUCKETS.map(b => `<button data-billbucket="${b}" class="${state.memberBillBucket === b ? 'active' : ''}">${b} ${billBucketCounts[b] || 0}</button>`))
     .join('');
 
@@ -2250,7 +2270,7 @@ function memberCardHtml(m) {
   const passSummary = m.passResults
     ? Object.entries(m.passResults)
         .sort((a, b) => Object.keys(PASS_BUCKET_CLASS).indexOf(a[0]) - Object.keys(PASS_BUCKET_CLASS).indexOf(b[0]))
-        .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${cnt}</button>`).join('')
+        .map(([bucket, cnt]) => `<button class="pass-item ${PASS_BUCKET_CLASS[bucket] || ''}" data-name="${m.name}" data-bucket="${bucket}" title="${m.name} 의원의 '${bucket}' 법안만 보기">${bucket} ${fmtN(cnt)}</button>`).join('')
     : '';
   const chairCommittees = memberChairCommittees(m);
   const committees = memberCommittees(m)
@@ -2313,11 +2333,11 @@ function memberCardHtml(m) {
   // (AI 요약 또는 요약이 없으면 제목) 한 줄, 딱 2줄로 끝낸다.
   const newsCards = newsList.slice(0, 5).map(n => `
     <div class="news-item">
-      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${fmtN(n.relatedCount)}건` : ''}</div>
       <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.summary || n.title}</a>
     </div>`).join('');
   const newsMoreBtn = newsList.length > 5
-    ? `<button class="news-more-btn" data-name="${m.name}">전체 ${newsList.length}건 보기</button>` : '';
+    ? `<button class="news-more-btn" data-name="${m.name}">전체 ${fmtN(newsList.length)}건 보기</button>` : '';
   // 접혀 있을 때도 "뉴스" 옆에 최신 이슈를 바로 보여준다 - 원본 제목은 길어서
   // AI 한 줄 요약을 우선 쓰고(요약이 없는 경우만 제목으로 대체), 그래도 길면
   // 칸을 늘리는 대신 CSS에서 말줄임표로 자른다.
@@ -2369,7 +2389,7 @@ function renderMembers() {
   const pageMembers = list.slice(startN, startN + state.memberPageSize);
   document.getElementById('memberResultCaption').textContent = totalCount === 0
     ? '조건에 맞는 의원이 없습니다.'
-    : `전체 ${totalCount}명 중 ${startN + 1}~${Math.min(startN + state.memberPageSize, totalCount)}명 표시 (총 ${totalPages}쪽)`;
+    : `전체 ${fmtN(totalCount)}명 중 ${startN + 1}~${fmtN(Math.min(startN + state.memberPageSize, totalCount))}명 표시 (총 ${totalPages}쪽)`;
   document.getElementById('memberSortSel').value = state.memberSort;
   document.getElementById('memberPageSizeSel').value = String(state.memberPageSize);
   listEl.innerHTML = pageMembers.length
@@ -2456,13 +2476,13 @@ function openMemberNewsPopup(m) {
   const list = m.news || [];
   const itemsHtml = list.map(n => `
     <div class="news-item">
-      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${n.relatedCount}건` : ''}</div>
+      <div class="news-item-head">${n.date || ''}${n.press ? ` · ${n.press}` : ''}${n.relatedCount > 1 ? ` · 관련 보도 ${fmtN(n.relatedCount)}건` : ''}</div>
       <a href="${n.link}" target="_blank" rel="noopener" class="news-item-title">${n.summary || n.title}</a>
     </div>`).join('') || '<div class="info-box">기사가 없습니다.</div>';
   const overlay = document.createElement('div');
   overlay.className = 'news-modal-backdrop';
   overlay.innerHTML = `<div class="news-modal">
-      <div class="news-modal-head"><b>${m.name} 의원 관련 뉴스</b><span class="news-modal-count">총 ${list.length}건</span><button class="news-modal-close" title="닫기">✕</button></div>
+      <div class="news-modal-head"><b>${m.name} 의원 관련 뉴스</b><span class="news-modal-count">총 ${fmtN(list.length)}건</span><button class="news-modal-close" title="닫기">✕</button></div>
       <div class="news-modal-body">${itemsHtml}</div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2556,9 +2576,9 @@ function warningTooltip(entries) {
   return entries.map(w => {
     const md = (w.date || '').slice(5).replace('-', '/');
     if (w.reason === '요약불일치') {
-      return `${md}: '${w.issue}' 기사 ${w.count}건의 요약이 제목과 맞지 않음(묶음 분석 오류 의심, 확인 필요)`;
+      return `${md}: '${w.issue}' 기사 ${fmtN(w.count)}건의 요약이 제목과 맞지 않음(묶음 분석 오류 의심, 확인 필요)`;
     }
-    return `${md}: '${w.issue}'에 ${w.count}건이 몰려 클러스터링 이상 의심(단순 참고용, 기사는 정상 반영됨)`;
+    return `${md}: '${w.issue}'에 ${fmtN(w.count)}건이 몰려 클러스터링 이상 의심(단순 참고용, 기사는 정상 반영됨)`;
   }).join('\n');
 }
 
@@ -2617,9 +2637,9 @@ function renderTrendPanel() {
   }
   listEl.innerHTML = items.map(x => {
     // 평균이 1건 미만이면 "몇 배"가 수백 배로 부풀어 보여서 배수 대신 문구로 적는다.
-    const meta = x.avg === 0 ? `${x.n}건 · <span class="trend-up">새 이슈</span>`
-      : x.avg < 1 ? `${x.n}건 · 평소 하루 1건 미만 <span class="trend-up">▲</span>`
-      : `${x.n}건 · 평소 하루 ${x.avg.toFixed(1)}건 <span class="trend-up">▲${Math.round(x.n / x.avg)}배</span>`;
+    const meta = x.avg === 0 ? `${fmtN(x.n)}건 · <span class="trend-up">새 이슈</span>`
+      : x.avg < 1 ? `${fmtN(x.n)}건 · 평소 하루 1건 미만 <span class="trend-up">▲</span>`
+      : `${fmtN(x.n)}건 · 평소 하루 ${x.avg.toFixed(1)}건 <span class="trend-up">▲${Math.round(x.n / x.avg)}배</span>`;
     return `<button type="button" class="trend-item ${state.search === x.issue ? 'active' : ''}" data-issue="${escHtml(x.issue)}"
       title="누르면 이 이슈로 검색합니다(다시 누르면 해제)"><span class="chip-category">${escHtml(x.cat)}</span>
       <span class="trend-title">${escHtml(x.issue)}</span><span class="trend-meta">${meta}</span></button>`;
@@ -2674,7 +2694,7 @@ function renderNewsView(dr, allGroups) {
         <a href="${g.repLink}" target="_blank" style="color:inherit;text-decoration:none;"><b>${g.title}</b></a> ${chips}</div>
         <div class="signal-item-body">
           <a href="${g.repLink}" target="_blank" style="text-decoration:none;color:inherit;">${g.summary}</a>
-          <button type="button" class="signal-related-toggle" data-key="${issueKey}">(관련 보도 ${g.pressCount}건) ${isOpen?'▲':'▼'}</button>
+          <button type="button" class="signal-related-toggle" data-key="${issueKey}">(관련 보도 ${fmtN(g.pressCount)}건) ${isOpen?'▲':'▼'}</button>
         </div>
         <div class="related-list signal-related-list ${isOpen?'open':''}">${related}</div>
       </div>`;
@@ -2710,7 +2730,7 @@ function renderNewsView(dr, allGroups) {
     const cnt = c === '전체' ? scopedGroups.length : catCounts[c];
     const warnEntries = warnedCategories[c];
     const warnHtml = warnEntries ? `<span class="cat-warn" title="${warningTooltip(warnEntries).replace(/"/g,'&quot;')}">!</span>` : '';
-    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c}${warnHtml} ${cnt}</button>`;
+    return `<button data-cat="${c.replace(/"/g,'&quot;')}" class="${state.selectedCategory===c?'active':''}" title="${tip}">${c}${warnHtml} ${fmtN(cnt)}</button>`;
   }).join('');
   // 모바일에서 접었을 때도 지금 무슨 카테고리를 보고 있는지 제목 옆에 남긴다
   // ("전체"면 굳이 표시하지 않음).
@@ -2754,7 +2774,7 @@ function renderMainList(scoped, allGroups) {
   const pageGroups = groups.slice(startN, startN + state.pageSize);
 
   document.getElementById('resultCaption').textContent = totalCount === 0 ? "조건에 맞는 기사가 없습니다." :
-    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.pageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+    `전체 ${fmtN(totalCount)}건 중 ${startN+1}~${fmtN(Math.min(startN+state.pageSize,totalCount))}건 표시 (총 ${totalPages}쪽)`;
   document.getElementById('pageSizeSel').value = String(state.pageSize);
 
   const listEl = document.getElementById('mainListArea');
@@ -2795,12 +2815,12 @@ function renderMainList(scoped, allGroups) {
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
           <span class="card-meta-group"><span class="importance-tag" title="중요도 ${g.importance}/10">${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain}</span></span>
-          <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
+          <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
         <div class="related-row">
           <div class="reason-box">${reasons.length? ("<span class='reason-label'>선별 근거</span>"+reasonChips) : ""}</div>
-          <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${g.pressCount}건 ${isOpen?'▲':'▼'}</button>
+          <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <div class="related-list ${isOpen?'open':''}">${related}</div>
       </div>`;
@@ -2984,7 +3004,7 @@ function billStepperHtml(b) {
       altHtml = ` <a href="${b.altBillLink}" target="_blank" class="bill-alt-link" title="${altNameAttr}">→ 반영된 대안 보기</a>`;
     } else if (result && b.absorbedBills && b.absorbedBills.length) {
       const isOpen = !!state.openBillAlts[b.id];
-      altHtml = ` <button type="button" class="bill-alt-toggle" data-id="${b.id}">반영된 법안 ${b.absorbedBills.length}건 ${isOpen?'▲':'▼'}</button>`;
+      altHtml = ` <button type="button" class="bill-alt-toggle" data-id="${b.id}">반영된 법안 ${fmtN(b.absorbedBills.length)}건 ${isOpen?'▲':'▼'}</button>`;
     }
     return `<span class="bill-step-group">${arrow}<span class="bill-step ${cls}">${s.label}${resultHtml}${dateHtml}${altHtml}</span></span>`;
   }).join('');
@@ -3174,7 +3194,7 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
   // "전체"를 별도 버튼(allBtnId)으로 빼면 소관위원회 제목 옆에 붙여둘 수 있고,
   // 아래 칩 행에는 실제 위원회들만 남아 두 줄로 정리하기 쉬워진다.
   const values = allBtn ? Object.keys(counts).sort(sorter) : ['전체'].concat(Object.keys(counts).sort(sorter));
-  const chipText = (v, active) => `${escHtml(active ? fullFn(v) : displayFn(v))} ${counts[v]}`;
+  const chipText = (v, active) => `${escHtml(active ? fullFn(v) : displayFn(v))} ${fmtN(counts[v])}`;
   const setActive = (val) => {
     row.querySelectorAll('button').forEach(b => {
       const on = b.dataset.val === val;
@@ -3192,12 +3212,12 @@ function renderBillChipRow(elId, field, stateKey, displayFn, sortFn, filterFn, o
     renderBillList();
   };
   row.innerHTML = values.map(v => {
-    if (v === '전체') return `<button data-val="전체" class="${state[stateKey]===v?'active':''}">전체 ${source.length}</button>`;
+    if (v === '전체') return `<button data-val="전체" class="${state[stateKey]===v?'active':''}">전체 ${fmtN(source.length)}</button>`;
     return `<button data-val="${escHtml(v)}" title="${escHtml(titleFn(v))}" class="${state[stateKey]===v?'active':''}">${chipText(v, state[stateKey]===v)}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => select(btn.dataset.val)));
   if (allBtn) {
-    allBtn.textContent = `전체 ${source.length}`;
+    allBtn.textContent = `전체 ${fmtN(source.length)}`;
     allBtn.classList.toggle('active', state[stateKey] === '전체');
     allBtn.onclick = () => select('전체');
   }
@@ -3292,7 +3312,7 @@ function renderStageFlowRow() {
   const stageChip = (stage, label) => {
     const cnt = stageCounts[stage];
     const isActive = state.billStage === stage;
-    const cntHtml = cnt !== undefined ? `<span class="flow-cnt">${cnt}</span>` : '';
+    const cntHtml = cnt !== undefined ? `<span class="flow-cnt">${fmtN(cnt)}</span>` : '';
     return `<button data-stage="${stage}" class="flow-plain ${isActive?'active':''}"${helpAttr(BILL_STAGE_HELP, stage)}><span class="flow-label">${label}</span>${cntHtml}</button>`;
   };
 
@@ -3332,7 +3352,7 @@ function renderStageFlowRow() {
       state.billStage === btn.dataset.stage ? '전체' : btn.dataset.stage
     ));
   });
-  allBtn.textContent = `전체 ${source.length}`;
+  allBtn.textContent = `전체 ${fmtN(source.length)}`;
   allBtn.title = BILL_STAGE_HELP['전체'];
   allBtn.classList.toggle('active', state.billStage === '전체');
   allBtn.onclick = () => selectStage('전체');
@@ -3431,7 +3451,7 @@ function renderBillList() {
   const pageBills = filtered.slice(startN, startN + state.billPageSize);
 
   const captionText = totalCount === 0 ? "조건에 맞는 법안이 없습니다." :
-    `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.billPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+    `전체 ${fmtN(totalCount)}건 중 ${startN+1}~${fmtN(Math.min(startN+state.billPageSize,totalCount))}건 표시 (총 ${totalPages}쪽)`;
   const captionEl = document.getElementById('billResultCaption');
   // 의원 탭에서 넘어와 대표발의자/처리결과로 걸려 있으면, 왜 걸렸는지 보이게
   // 하고 바로 풀 수 있게 한다. 대표발의자 없이 처리결과만 거는 경우는 없어서
@@ -3589,7 +3609,7 @@ function renderDecisionKindChipRow() {
   tag.textContent = state.decisionKind === '전체' ? '' : `${state.decisionKind} ${counts[state.decisionKind]||0}`;
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? DECISION_DATA.length : counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.decisionKind===v?'active':''}">${v} ${cnt}</button>`;
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.decisionKind===v?'active':''}">${v} ${fmtN(cnt)}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.decisionKind = btn.dataset.val;
@@ -3621,7 +3641,7 @@ function renderDecisionList() {
 
   document.getElementById('decisionResultCaption').textContent = totalCount === 0
     ? "조건에 맞는 결정문·판례가 없습니다."
-    : `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.decisionPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+    : `전체 ${fmtN(totalCount)}건 중 ${startN+1}~${fmtN(Math.min(startN+state.decisionPageSize,totalCount))}건 표시 (총 ${totalPages}쪽)`;
   document.getElementById('decisionPageSizeSel').value = String(state.decisionPageSize);
 
   const listEl = document.getElementById('decisionListArea');
@@ -3711,7 +3731,7 @@ function renderPenaltyKindChipRow() {
   tag.textContent = state.penaltyKind === '전체' ? '' : `${state.penaltyKind} ${counts[state.penaltyKind]||0}`;
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyKind===v?'active':''}">${v} ${cnt}</button>`;
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyKind===v?'active':''}">${v} ${fmtN(cnt)}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.penaltyKind = btn.dataset.val;
@@ -3731,7 +3751,7 @@ function renderPenaltyLawChipRow() {
   tag.textContent = state.penaltyLaw === '전체' ? '' : `${state.penaltyLaw} ${counts[state.penaltyLaw]||0}`;
   row.innerHTML = values.map(v => {
     const cnt = v === '전체' ? LAW_PENALTY_DATA.length : counts[v];
-    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyLaw===v?'active':''}">${v} ${cnt}</button>`;
+    return `<button data-val="${v.replace(/"/g,'&quot;')}" class="${state.penaltyLaw===v?'active':''}">${v} ${fmtN(cnt)}</button>`;
   }).join('');
   row.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     state.penaltyLaw = btn.dataset.val;
@@ -3765,7 +3785,7 @@ function renderPenaltyList() {
 
   document.getElementById('penaltyResultCaption').textContent = totalCount === 0
     ? "조건에 맞는 조문이 없습니다."
-    : `전체 ${totalCount}건 중 ${startN+1}~${Math.min(startN+state.penaltyPageSize,totalCount)}건 표시 (총 ${totalPages}쪽)`;
+    : `전체 ${fmtN(totalCount)}건 중 ${startN+1}~${fmtN(Math.min(startN+state.penaltyPageSize,totalCount))}건 표시 (총 ${totalPages}쪽)`;
   document.getElementById('penaltyPageSizeSel').value = String(state.penaltyPageSize);
 
   const listEl = document.getElementById('penaltyListArea');
@@ -3914,7 +3934,7 @@ function subLawLawFullMap(rows, groupFn) {
 }
 // 칩 하나: 고른 칩은 풀네임, 나머지는 약칭(툴팁은 언제나 풀네임).
 function subLawChip(attr, key, label, full, count, active) {
-  return `<button data-${attr}="${escHtml(key)}" title="${escHtml(full)}" class="${active ? 'active' : ''}">${escHtml(active ? full : label)} ${count}</button>`;
+  return `<button data-${attr}="${escHtml(key)}" title="${escHtml(full)}" class="${active ? 'active' : ''}">${escHtml(active ? full : label)} ${fmtN(count)}</button>`;
 }
 
 function subLawGroup(r) {
@@ -4028,7 +4048,7 @@ function renderSubLawPanel() {
   if (subLawMinistry !== '전체' && !minCounts[subLawMinistry]) subLawMinistry = '전체';
   const ministries = Object.keys(minCounts).sort((a, b) => subLawMinistryRank(a) - subLawMinistryRank(b) || a.localeCompare(b));
   const minRow = document.getElementById('subLawMinistryRow');
-  minRow.innerHTML = [`<button data-min="전체" class="${subLawMinistry === '전체' ? 'active' : ''}">전체 ${byKindAll.length}</button>`,
+  minRow.innerHTML = [`<button data-min="전체" class="${subLawMinistry === '전체' ? 'active' : ''}">전체 ${fmtN(byKindAll.length)}</button>`,
     ...ministries.map(m => subLawChip('min', m, m, subLawMinistryFull(m), minCounts[m], subLawMinistry === m))].join('');
   minRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     subLawMinistry = subLawMinistry === btn.dataset.min ? '전체' : btn.dataset.min;
@@ -4045,7 +4065,7 @@ function renderSubLawPanel() {
     (a === SUB_LAW_BUNDLE) - (b === SUB_LAW_BUNDLE) || lawCounts[b] - lawCounts[a] || a.localeCompare(b));
   const lawRow = document.getElementById('subLawLawRow');
   const lawFull = subLawLawFullMap(byKindOnly, subLawGroup);
-  lawRow.innerHTML = [`<button data-law="전체" class="${subLawLaw === '전체' ? 'active' : ''}">전체 ${byKindOnly.length}</button>`,
+  lawRow.innerHTML = [`<button data-law="전체" class="${subLawLaw === '전체' ? 'active' : ''}">전체 ${fmtN(byKindOnly.length)}</button>`,
     ...laws.map(g => subLawChip('law', g, g, lawFull[g] || g, lawCounts[g], subLawLaw === g))].join('');
   lawRow.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     // 고른 법을 다시 누르면 전체로 돌아간다(단계 줄 칩과 같은 규칙).
@@ -4064,7 +4084,7 @@ function renderSubLawPanel() {
       `<button data-kind="${k}" class="${subLawKind === k ? 'active' : ''}"${helpAttr(SUB_LAW_KIND_HELP, k)}>${k}</button>`).join('')
     + '<span class="sublaw-filter-sep"></span>'
     + SUB_LAW_FILTERS.map(f =>
-      `<button data-val="${f}" class="${subLawFilter === f ? 'active' : ''}"${helpAttr(SUB_LAW_FILTER_HELP, f)}>${f} ${counts[f]}</button>`).join('');
+      `<button data-val="${f}" class="${subLawFilter === f ? 'active' : ''}"${helpAttr(SUB_LAW_FILTER_HELP, f)}>${f} ${fmtN(counts[f])}</button>`).join('');
   setChipHelp('subLawHelp', [
     subLawKind !== '전체' ? `${subLawKind}: ${SUB_LAW_KIND_HELP[subLawKind]}` : '',
     `${subLawFilter}: ${SUB_LAW_FILTER_HELP[subLawFilter]}`,
@@ -4165,7 +4185,7 @@ function noticeItemHtml(r, today) {
 
 function noticeChipRow(el, counts, active, attr, order, onPick, fullFn) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  el.innerHTML = [`<button data-${attr}="전체" class="${active === '전체' ? 'active' : ''}">전체 ${total}</button>`,
+  el.innerHTML = [`<button data-${attr}="전체" class="${active === '전체' ? 'active' : ''}">전체 ${fmtN(total)}</button>`,
     ...order.map(k => subLawChip(attr, k, k, fullFn(k), counts[k], active === k))].join('');
   el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => onPick(btn.dataset[attr])));
 }
@@ -4866,7 +4886,7 @@ document.getElementById('archiveSearchBtn').addEventListener('click', () => {
       const shown = combined.slice(0, CAP);
       statusEl.textContent = searched.length === 0
         ? '해당 기간에는 보관된 자료가 없습니다 (35일 이전부터 아카이브가 쌓입니다).'
-        : `총 ${combined.length}건${combined.length > CAP ? ' 중 최근 '+CAP+'건 표시' : ''}`;
+        : `총 ${fmtN(combined.length)}건${combined.length > CAP ? ' 중 최근 '+CAP+'건 표시' : ''}`;
       if (failedMonths.length) {
         // 못 받은 달이 있는데 "총 0건"처럼만 보이면 자료가 없는 것으로 오해하므로 따로 알린다
         statusEl.textContent += ` — ${failedMonths.join(', ')} 자료를 불러오지 못했습니다(브라우저가 압축 해제를 지원하지 않거나 네트워크 오류). 다시 검색하면 재시도합니다.`;
