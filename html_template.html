@@ -4015,7 +4015,13 @@ const SUB_LAW_MINISTRY_ABBR = Object.fromEntries(SUB_LAW_MINISTRY_ORDER);
 // 여러 부처 공동 소관("재정경제부,조달청")이면 순서표에서 가장 앞선 부처 하나로 묶는다.
 // 여러 부처 공동 소관인데 순서표 규칙(공정위 우선)으로 묶으면 엉뚱해지는 법은 주무 부처를 적어 둔다.
 // 중대재해처벌법은 법제처 소관부처에 7개 부처가 가나다순으로 나오는데 실제 주무는 고용노동부다(2026-11-05).
-const LAW_PRIMARY_MINISTRY = { '중대재해 처벌 등에 관한 법률': '고용노동부' };
+// 건설폐기물법은 국토부·기후에너지환경부 공동인데 폐기물 관리가 본체라 기후에너지환경부가 주무다.
+// 나머지 공동 소관(국가계약법→재경부, 동물원수족관법·신재생에너지법→기후에너지환경부, 제조물책임법→공정위)은
+// 순서표 규칙으로도 주무 부처에 맞게 묶인다(2026-11-05 전부 확인).
+const LAW_PRIMARY_MINISTRY = {
+  '중대재해 처벌 등에 관한 법률': '고용노동부',
+  '건설폐기물의 재활용촉진에 관한 법률': '기후에너지환경부',
+};
 function subLawMinistryOf(r) {
   const primary = LAW_PRIMARY_MINISTRY[(r.name || '').replace(/\s*시행(령|규칙)$/, '')];
   if (primary) return SUB_LAW_MINISTRY_ABBR[primary] || primary;
