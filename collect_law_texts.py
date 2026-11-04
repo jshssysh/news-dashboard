@@ -78,6 +78,19 @@ def _text(elem):
     return re.sub(r"\s+", " ", " ".join(parts)).strip()
 
 
+# 표 테두리 문자(─┬┃ 등)는 검색에 쓸모가 없고 별표 크기만 키운다.
+BOX_CHARS = re.compile(r"[─-╿■-◿]+")
+
+
+def slim_byl(b):
+    """서식(빈 신청서 양식)은 본문을 버리고 제목만 남긴다 - 2026-11-04 첫 수집에서 서식 본문이
+    전체 조문 자료 1,100만 자 중 240만 자였는데 빈칸·안내문뿐이라 검색에 쓸모가 없었다.
+    별표는 표 테두리 문자만 걷어 낸다."""
+    if b.get("kind") == "서식":
+        return {**b, "text": ""}
+    return {**b, "text": re.sub(r"\s+", " ", BOX_CHARS.sub(" ", b.get("text", ""))).strip()}
+
+
 def _name_key(name):
     return re.sub(r"[\s·ㆍ・]", "", name or "")
 
@@ -133,7 +146,7 @@ def fetch_law_body(mst):
             label += f"의{int(gaji)}" if gaji.isdigit() else f"의{gaji}"
         text = _text(b)
         if text:
-            byls.append({"no": label, "kind": _t(b, "별표구분") or "별표", "title": _t(b, "별표제목"), "text": text})
+            byls.append(slim_byl({"no": label, "kind": _t(b, "별표구분") or "별표", "title": _t(b, "별표제목"), "text": text}))
     return articles, byls
 
 
@@ -238,7 +251,7 @@ def main():
     laws = {}
     for mst, meta in current.items():
         if mst in old_laws and old_laws[mst].get("articles"):
-            laws[mst] = {**old_laws[mst], **meta}
+            laws[mst] = {**old_laws[mst], **meta, "byls": [slim_byl(b) for b in old_laws[mst].get("byls", [])]}
             continue
         try:
             articles, byls = fetch_law_body(mst)
@@ -290,7 +303,13 @@ def main():
         if rule_files is not None:
             rules[seq]["files"] = rule_files.get(seq, [])
 
-    out = {"updated": now.strftime("%Y-%m-%d %H:%M"), "laws": laws, "rules": rules, "lawFiles": law_files}
+    # 내용이 그대로면 파일을 다시 쓰지 않는다 - 수십 MB 파일이라 시각만 바뀐 채 매일 커밋되면
+    # 저장소가 금방 불어난다. "updated"는 내용이 실제로 바뀐 시각이다.
+    out = {"laws": laws, "rules": rules, "lawFiles": law_files}
+    if {k: cache.get(k) for k in out} == out:
+        print("[법령 조문·행정규칙 수집] 바뀐 내용이 없어 law_texts.json을 그대로 둡니다.")
+        return
+    out = {"updated": now.strftime("%Y-%m-%d %H:%M"), **out}
     with open(LAW_TEXTS_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
     n_art = sum(len(x.get("articles", [])) for x in laws.values())

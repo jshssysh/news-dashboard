@@ -298,15 +298,44 @@ def load_law_texts():
         return {"laws": [], "rules": [], "lawFiles": {}, "updated": ""}, []
     rules = []
     texts = []
+    # 행정규칙마다 근거 법률을 찾는다: 앞 조문(대개 제1조 목적)에 처음 나오는 「법령명」 중 법령 목록에
+    # 있는 것(시행령·시행규칙이면 그 법률). 2026-11-04 첫 수집에서 179개 중 169개가 앞 조문에 「」를 썼다.
+    law_bases = {re.sub(r"\s*시행(령|규칙)$", "", law.get("name", "")) for law in raw.get("laws", {}).values()}
+    key = lambda n: re.sub(r"[\s·ㆍ・]", "", n or "")
+    base_by_key = {key(n): n for n in law_bases}
+    abbr_stems = sorted({(law.get("abbr", "").removesuffix("법") if len(law.get("abbr", "")) > 3 else law.get("abbr", ""), law.get("name", ""))
+                         for law in raw.get("laws", {}).values()
+                         if law.get("abbr") and not re.search(r"시행(령|규칙)$", law.get("name", ""))},
+                        key=lambda x: -len(x[0]))
+
+    def rule_law(r):
+        head = " ".join(a.get("text", "") for a in r.get("articles", [])[:3])
+        for name in re.findall(r"「([^」]+)」", head):
+            hit = base_by_key.get(key(re.sub(r"\s*시행(령|규칙)$", "", name)))
+            if hit:
+                return hit
+        # 「」가 없으면 규칙 이름에 든 법률 약칭으로 잇는다("하도급대금 지급관리시스템 지정고시" -> 하도급법).
+        # 약칭 끝의 "법"을 뗀 말(하도급·가맹사업·대리점)까지 본다. 기업결합은 공정거래법에서 다룬다.
+        name = r.get("name", "").replace("공정거래위원회", "")  # "공정거래위원회 홈페이지 운영규정"이 공정거래법에 붙지 않게
+        if "기업결합" in name:
+            return base_by_key.get(key("독점규제 및 공정거래에 관한 법률"), "")
+        for stem, base in abbr_stems:
+            if stem in name:
+                return base
+        return ""
+
     for seq, r in raw.get("rules", {}).items():
         rules.append({k: r.get(k, "") for k in ("name", "kind", "ministry", "issued", "number", "effective", "revision", "reason")}
-                     | {"seq": seq, "files": r.get("files", []), "attach": r.get("attach", [])})
+                     | {"seq": seq, "law": rule_law(r), "files": r.get("files", []), "attach": r.get("attach", [])})
         texts.append({"t": "rule", "name": r.get("name", ""), "kind": r.get("kind", ""), "seq": seq,
                       "a": [[x.get("no", ""), x.get("title", ""), x.get("text", "")] for x in r.get("articles", [])]})
     rules.sort(key=lambda r: (r["issued"] or "", r["name"]), reverse=True)
     for mst, law in raw.get("laws", {}).items():
         items = [[x.get("no", ""), x.get("title", ""), x.get("text", "")] for x in law.get("articles", [])]
-        items += [[f"{b.get('kind') or '별표'} {b.get('no', '')}", b.get("title", ""), b.get("text", "")] for b in law.get("byls", [])]
+        # 서식은 본문 없이 제목만 찾는다(collect_law_texts.slim_byl과 같은 이유). 예전 파일에 남은 본문도 여기서 버린다.
+        items += [[f"{b.get('kind') or '별표'} {b.get('no', '')}", b.get("title", ""),
+                   "" if b.get("kind") == "서식" else re.sub(r"\s+", " ", re.sub(r"[─-╿■-◿]+", " ", b.get("text", ""))).strip()]
+                  for b in law.get("byls", [])]
         texts.append({"t": "law", "name": law.get("name", ""), "abbr": law.get("abbr", ""), "kind": law.get("kind", ""),
                       "mst": mst, "a": items})
     law_files = {}
