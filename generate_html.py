@@ -47,6 +47,9 @@ WARNINGS_JSON_PATH = os.path.join(OUT_DIR, "warnings.json")
 DECISIONS_JSON_PATH = os.path.join(OUT_DIR, "decisions.json")
 LAW_PENALTIES_JSON_PATH = os.path.join(OUT_DIR, "law_penalties.json")
 SUBORDINATE_LAWS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_laws.json")
+# 법령 탭: 행정규칙·별표서식 목록(탭을 열 때 받음)과 조문 검색용 전문(검색할 때만 받음).
+LAW_META_JSON_PATH = os.path.join(OUT_DIR, "law_meta.json")
+LAW_TEXTS_JSON_PATH = os.path.join(OUT_DIR, "law_texts.json")
 # 신구조문 대비는 법령마다 수 KB라 목록과 따로 두고, 화면이 처음 펼칠 때만 받는다.
 SUBORDINATE_LAW_DIFFS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_law_diffs.json")
 LEGISLATIVE_NOTICES_JSON_PATH = os.path.join(OUT_DIR, "legislative_notices.json")
@@ -278,6 +281,43 @@ def load_subordinate_laws(diffs=None):
         }
         for _, row in sdf.iterrows()
     ]
+
+
+def load_law_texts():
+    """collect_law_texts.py가 받은 law_texts.json을 화면용 둘로 나눈다.
+    meta: 행정규칙 목록(제개정이유·별표서식 포함)과 법령별 별표·서식 파일 목록 - 작아서 탭을 열 때 받는다.
+    texts: 조문 검색용 [{t, name, abbr, kind, a: [[조문번호, 제목, 본문], ...]}] - 커서 검색할 때만 받는다.
+    법령 별표 본문은 a에 ["별표 2", 제목, 본문]으로 같이 넣어 조문과 똑같이 찾는다."""
+    path = "law_texts.json"
+    if not os.path.exists(path):
+        return {"laws": [], "rules": [], "lawFiles": {}, "updated": ""}, []
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return {"laws": [], "rules": [], "lawFiles": {}, "updated": ""}, []
+    rules = []
+    texts = []
+    for seq, r in raw.get("rules", {}).items():
+        rules.append({k: r.get(k, "") for k in ("name", "kind", "ministry", "issued", "number", "effective", "revision", "reason")}
+                     | {"seq": seq, "files": r.get("files", []), "attach": r.get("attach", [])})
+        texts.append({"t": "rule", "name": r.get("name", ""), "kind": r.get("kind", ""), "seq": seq,
+                      "a": [[x.get("no", ""), x.get("title", ""), x.get("text", "")] for x in r.get("articles", [])]})
+    rules.sort(key=lambda r: (r["issued"] or "", r["name"]), reverse=True)
+    for mst, law in raw.get("laws", {}).items():
+        items = [[x.get("no", ""), x.get("title", ""), x.get("text", "")] for x in law.get("articles", [])]
+        items += [[f"{b.get('kind') or '별표'} {b.get('no', '')}", b.get("title", ""), b.get("text", "")] for b in law.get("byls", [])]
+        texts.append({"t": "law", "name": law.get("name", ""), "abbr": law.get("abbr", ""), "kind": law.get("kind", ""),
+                      "mst": mst, "a": items})
+    law_files = {}
+    for group in raw.get("lawFiles", {}).values():
+        for f in group.get("files", []):
+            law_files.setdefault(f.get("law", ""), []).append({k: f.get(k, "") for k in ("no", "kind", "title", "file", "pdf")})
+    for files in law_files.values():
+        files.sort(key=lambda f: (f["kind"] != "별표", f["no"]))
+    laws = sorted(({k: law.get(k, "") for k in ("name", "abbr", "kind", "ministry")} for law in raw.get("laws", {}).values()),
+                  key=lambda x: x["name"])
+    return {"laws": laws, "rules": rules, "lawFiles": law_files, "updated": raw.get("updated", "")}, texts
 
 
 def load_legislative_notices():
@@ -737,6 +777,7 @@ def build():
                              for r in subordinate_laws if r["mst"] in subordinate_law_diffs}
     effective_matched = attach_effective_dates(bills, subordinate_laws)
     contract_law_corpus = load_contract_law_corpus()
+    law_meta, law_texts = load_law_texts()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
@@ -769,6 +810,12 @@ def build():
     subordinate_law_diffs_bytes = len(diffs_text.encode("utf-8"))
     legislative_notices_bytes = dump_json(LEGISLATIVE_NOTICES_JSON_PATH, legislative_notices)
     contract_corpus_bytes = dump_json(CONTRACT_LAW_CORPUS_JSON_PATH, contract_law_corpus)
+    law_meta_text = json.dumps(law_meta, ensure_ascii=False, separators=(",", ":"))
+    with open(LAW_META_JSON_PATH, "w", encoding="utf-8") as f:
+        f.write(law_meta_text)
+    law_texts_text = json.dumps(law_texts, ensure_ascii=False, separators=(",", ":"))
+    with open(LAW_TEXTS_JSON_PATH, "w", encoding="utf-8") as f:
+        f.write(law_texts_text)
     html_kb = os.path.getsize(OUT_PATH) / 1024
     print(
         f"[정적 대시보드 생성 완료]\n"
@@ -782,7 +829,9 @@ def build():
         f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건, 공포 법안 시행일 연결 {effective_matched}건)\n"
         f"  {SUBORDINATE_LAW_DIFFS_JSON_PATH:<20} {subordinate_law_diffs_bytes/1024:8.0f}KB (신구조문 대비 {len(subordinate_law_diffs)}건)\n"
         f"  {LEGISLATIVE_NOTICES_JSON_PATH:<20} {legislative_notices_bytes/1024:8.0f}KB (입법예고 {len(legislative_notices)}건)\n"
-        f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)"
+        f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)\n"
+        f"  {LAW_META_JSON_PATH:<20} {len(law_meta_text.encode('utf-8'))/1024:8.0f}KB (행정규칙 {len(law_meta['rules'])}개)\n"
+        f"  {LAW_TEXTS_JSON_PATH:<20} {len(law_texts_text.encode('utf-8'))/1024:8.0f}KB (조문 검색 문서 {len(law_texts)}개)"
     )
 
 

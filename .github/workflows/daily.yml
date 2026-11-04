@@ -154,6 +154,16 @@ jobs:
         run: |
           python collect_subordinate_laws.py
 
+      - name: 법령 조문·행정규칙·별표서식 수집 (법제처 국가법령정보 Open API)
+        # 법령 탭 "조문 검색"과 행정규칙·별표서식 목록용. 공포·시행 수집과 같은 입력·시각(06시대)으로 돈다.
+        # 개정된(일련번호가 바뀐) 것만 본문을 새로 받고 나머지는 law_texts.json에 둔 것을 쓴다.
+        if: ${{ !cancelled() && github.event.inputs.skip_law_penalties != 'true' }}
+        env:
+          LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
+          SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
+        run: |
+          python collect_law_texts.py
+
       - name: 입법예고 수집 (법제처 국민참여입법센터)
         # 법령 공포·시행 수집과 같은 입력·시각(06시대)으로 돈다. 목록을 못 받으면 기존 파일을 둔다.
         if: ${{ !cancelled() && github.event.inputs.skip_law_penalties != 'true' }}
@@ -190,7 +200,7 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv embed_attach_log.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json legislative_notice_list.csv docs/legislative_notices.json docs/contract_law_corpus.json; do
+          for f in news_list.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv rejected_news.csv embed_attach_log.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json legislative_notice_list.csv docs/legislative_notices.json docs/contract_law_corpus.json law_texts.json docs/law_meta.json docs/law_texts.json; do
             [ -f "$f" ] && git add "$f"
           done
           # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다
