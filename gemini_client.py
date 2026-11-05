@@ -6,6 +6,7 @@
 호출 수·대기 시간 기록(GEMINI_USAGE, GEMINI_OVERLOAD)도 스크립트마다 따로 센다.
 """
 import os
+import re
 import time
 
 import requests
@@ -60,11 +61,27 @@ def _gemini_fallback_models():
     return [m for m in GEMINI_OVERLOAD["fallbacks"] if m not in GEMINI_OVERLOAD["bad"]]
 
 
+_QUOTA_SEEN = set()
+
+
+def _note_quota(res):
+    """429 응답 본문에서 어떤 한도(분당/하루, 어느 모델)에 걸렸는지 뽑아 기록한다.
+    로그 출력은 본문 앞 300자에서 잘려 "* Quota ex..."까지만 보였다(11/06 08시 실행)."""
+    text = res.text or ""
+    found = re.findall(r"Quota exceeded for metric: ([^,\s]+), limit: (\d+)(?:, model: ([\w.\-]+))?", text)
+    key = "; ".join(f"{m.rsplit('/', 1)[-1]} 한도 {l}{' (' + mo + ')' if mo else ''}" for m, l, mo in found) or text[:140]
+    note_gemini_error(f"429 {key}")
+    if key not in _QUOTA_SEEN:
+        _QUOTA_SEEN.add(key)
+        print(f"[Gemini 한도 초과] {key}")
+
+
 def _post_once(url, payload, timeout):
     GEMINI_USAGE["calls"] += 1
     res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
     if res.status_code == 429:
         GEMINI_USAGE["rate_limited"] += 1
+        _note_quota(res)
     elif res.status_code != 200:
         GEMINI_USAGE["errors"] += 1
         note_gemini_error(f"{res.status_code} {res.text[:140]}")
@@ -72,7 +89,7 @@ def _post_once(url, payload, timeout):
 
 
 def _try_fallbacks(url, payload, timeout, start_sticky=True):
-    """원래 모델이 503일 때 대체 모델로 보낸다. 성공하면 그 응답, 모두 안 되면 None.
+    """원래 모델이 503·429일 때 대체 모델로 보낸다. 성공하면 그 응답, 모두 안 되면 None.
     start_sticky=False(이미 대체 모델을 쓰는 중)면 남은 횟수를 늘리지 않아, 정해진 횟수 뒤에는
     원래 모델을 다시 시도하게 된다."""
     for model in _gemini_fallback_models():
@@ -111,6 +128,12 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     for attempt in range(len(waits) + 1):
         try:
             res = _post_once(url, payload, timeout)
+            # 429(한도 초과)도 대체 모델로 보낸다. 무료 등급 한도는 모델마다 따로라, 11/06 08시
+            # 실행에서 원래 모델이 429로 막힌 뒤에도(53회) 대체 모델은 받아 줄 여지가 있었다.
+            # 하루 한도면 기다려도 소용없으므로 대기 없이 바로 넘긴다.
+            if res.status_code == 429 and uses_primary:
+                fb = _try_fallbacks(url, payload, timeout)
+                return fb if fb is not None else res
             if res.status_code != 503:
                 return res
             wait = waits[attempt] if attempt < len(waits) else None
