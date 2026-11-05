@@ -26,6 +26,7 @@ KST = timezone(timedelta(hours=9))
 
 from gemini_client import (  # Gemini 호출 재시도·대체 모델·사용량 집계(공용, gemini_client.py 참고)
     GEMINI_USAGE, GEMINI_ERROR_SAMPLES, GEMINI_OVERLOAD, note_gemini_error, post_gemini_with_retry,
+    gemini_daily_exhausted,
 )
 GEMINI_USAGE_PATH = "gemini_usage.csv"
 GEMINI_USAGE_RETENTION_DAYS = 60
@@ -40,6 +41,8 @@ def save_gemini_usage(script, articles, today_str):
                              "오류 예시": " | ".join(f"{t} ({n}회)" for t, n in GEMINI_ERROR_SAMPLES.items()),
                              "503 대처": (f"대기 {GEMINI_OVERLOAD['waited']}초, 대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회"
                                         f"({', '.join(GEMINI_OVERLOAD['fallbacks'] or []) or '후보 없음'})"
+                                        + (f", 하루 한도 소진: {', '.join(sorted(GEMINI_OVERLOAD['daily_exhausted']))}"
+                                           if GEMINI_OVERLOAD["daily_exhausted"] else "")
                                         if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else "")}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
@@ -1813,6 +1816,11 @@ def main():
             api_items_by_idx = {item["idx"]: item for item in api_items}
             # 배치가 클수록 배치마다 반복되는 프롬프트 지시문 비용이 줄어든다 (너무 크면 응답 파싱 실패 위험)
             for start in range(0, len(api_items), 20):
+                # 하루 무료 한도를 다 썼으면 남은 묶음은 보내지 않는다 - 분석 결과가 없는 기사는
+                # '판단 실패'(화면에선 분석 대기)로 저장되고 다음 실행(한도 초기화 뒤)에 다시 분석된다.
+                if gemini_daily_exhausted():
+                    print(f"[Gemini 하루 한도 소진] 남은 {len(api_items) - start}건은 분석하지 않고 다음 실행으로 미룸")
+                    break
                 for r_idx, score, g_title, summary, sentiment, category in analyze_batch_with_gemini(api_items[start:start + 20]):
                     original_item = api_items_by_idx.get(r_idx)
                     if not original_item:

@@ -5,6 +5,7 @@
 이제 재시도·대체 모델 로직은 여기 한 곳에만 둔다. 각 스크립트는 따로 실행되는 프로세스라
 호출 수·대기 시간 기록(GEMINI_USAGE, GEMINI_OVERLOAD)도 스크립트마다 따로 센다.
 """
+import json
 import os
 import re
 import time
@@ -36,10 +37,31 @@ GEMINI_PRIMARY_MODEL = "gemini-3.5-flash-lite"
 # 대체 후보 - 앞에 있을수록 우선. thinkingConfig.thinkingLevel을 쓰는 Gemini 3 계열만 둔다
 # (2.5 계열은 이 설정을 400으로 거절한다). 실제로 있는지는 실행할 때 모델 목록으로 확인한다.
 GEMINI_FALLBACK_PREFERENCE = ["gemini-3-flash-lite", "gemini-3.5-flash", "gemini-3-flash"]
-GEMINI_503_WAITS = [10, 30]          # 같은 모델로 다시 시도하기 전 대기(초)
+# 같은 모델로 다시 시도하기 전 대기(초). 무료 등급은 503으로 실패한 요청도 하루 한도(500회)에
+# 들어가서(AI Studio 사용량 화면으로 확인, 11/06) 재시도를 많이 하면 장애 때 한도가 더 빨리 준다.
+# 그래서 같은 모델 재시도는 1번만 하고 바로 대체 모델로 넘긴다.
+GEMINI_503_WAITS = [15]
 GEMINI_503_WAIT_BUDGET = 600         # 한 실행에서 503 때문에 기다리는 시간 합계 상한(초)
 GEMINI_FALLBACK_STICKY_CALLS = 20    # 대체 모델로 넘어가면 이만큼은 계속 쓰고, 그 뒤 원래 모델을 다시 시도
-GEMINI_OVERLOAD = {"waited": 0, "sticky_left": 0, "fallbacks": None, "bad": set(), "fallback_ok": 0}
+GEMINI_OVERLOAD = {"waited": 0, "sticky_left": 0, "fallbacks": None, "bad": set(), "fallback_ok": 0,
+                   "daily_exhausted": set()}   # 하루 한도를 다 쓴 모델 - 이번 실행에선 더 보내지 않는다
+
+
+class _QuotaExhaustedResponse:
+    """하루 한도를 다 쓴 뒤엔 실제로 보내지 않고 이 가짜 429를 돌려준다(호출하는 쪽은 그대로 실패 처리)."""
+    status_code = 429
+    text = '{"error": {"code": 429, "message": "하루 무료 한도 소진 - 이번 실행에서는 Gemini 호출을 건너뜀"}}'
+
+    def json(self):
+        return json.loads(self.text)
+
+
+def gemini_daily_exhausted():
+    """원래 모델과 쓸 수 있는 대체 모델이 모두 하루 한도를 다 썼으면 True.
+    main.py 뉴스 분석은 이걸 보고 남은 묶음을 보내지 않고 '분석 대기'로 남긴다."""
+    if GEMINI_PRIMARY_MODEL not in GEMINI_OVERLOAD["daily_exhausted"]:
+        return False
+    return not _gemini_fallback_models()
 
 
 def _gemini_fallback_models():
@@ -58,30 +80,54 @@ def _gemini_fallback_models():
             print(f"[대체 모델 조회 예외] {e}")
         GEMINI_OVERLOAD["fallbacks"] = [m for m in GEMINI_FALLBACK_PREFERENCE if m in names]
         print(f"[대체 모델 후보] {GEMINI_OVERLOAD['fallbacks'] or '없음'}")
-    return [m for m in GEMINI_OVERLOAD["fallbacks"] if m not in GEMINI_OVERLOAD["bad"]]
+    return [m for m in GEMINI_OVERLOAD["fallbacks"]
+            if m not in GEMINI_OVERLOAD["bad"] and m not in GEMINI_OVERLOAD["daily_exhausted"]]
 
 
 _QUOTA_SEEN = set()
 
 
-def _note_quota(res):
+def _is_daily_quota(text):
+    """429가 하루 한도인지 판단한다. 응답의 QuotaFailure.quotaId에 "PerDay"가 있거나
+    (예: GenerateRequestsPerDayPerProjectPerModel-FreeTier), 다시 시도하라는 대기 시간이 10분을 넘으면
+    하루 한도로 본다. 분당 한도(15회/분)는 잠깐 기다리면 풀리므로 멈추면 안 된다."""
+    if re.search(r'"quotaId"\s*:\s*"[^"]*PerDay', text):
+        return True
+    m = re.search(r'"retryDelay"\s*:\s*"(\d+)', text) or re.search(r"retry in (\d+(?:\.\d+)?)s", text)
+    return bool(m) and float(m.group(1)) > 600
+
+
+def _note_quota(res, model):
     """429 응답 본문에서 어떤 한도(분당/하루, 어느 모델)에 걸렸는지 뽑아 기록한다.
-    로그 출력은 본문 앞 300자에서 잘려 "* Quota ex..."까지만 보였다(11/06 08시 실행)."""
+    로그 출력은 본문 앞 300자에서 잘려 "* Quota ex..."까지만 보였다(11/06 08시 실행).
+    하루 한도면 그 모델을 이번 실행에서 더 쓰지 않는다(11/06 10시 실행: 159회 중 156회가 429)."""
     text = res.text or ""
+    daily = _is_daily_quota(text)
+    if daily:
+        GEMINI_OVERLOAD["daily_exhausted"].add(model)
     found = re.findall(r"Quota exceeded for metric: ([^,\s]+), limit: (\d+)(?:, model: ([\w.\-]+))?", text)
     key = "; ".join(f"{m.rsplit('/', 1)[-1]} 한도 {l}{' (' + mo + ')' if mo else ''}" for m, l, mo in found) or text[:140]
+    key = ("하루 " if daily else "") + key
     note_gemini_error(f"429 {key}")
     if key not in _QUOTA_SEEN:
         _QUOTA_SEEN.add(key)
         print(f"[Gemini 한도 초과] {key}")
 
 
+def _model_of(url):
+    m = re.search(r"/models/([^:/?]+)", url)
+    return m.group(1) if m else ""
+
+
 def _post_once(url, payload, timeout):
+    model = _model_of(url)
+    if model in GEMINI_OVERLOAD["daily_exhausted"]:
+        return _QuotaExhaustedResponse()
     GEMINI_USAGE["calls"] += 1
     res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
     if res.status_code == 429:
         GEMINI_USAGE["rate_limited"] += 1
-        _note_quota(res)
+        _note_quota(res, model)
     elif res.status_code != 200:
         GEMINI_USAGE["errors"] += 1
         note_gemini_error(f"{res.status_code} {res.text[:140]}")
