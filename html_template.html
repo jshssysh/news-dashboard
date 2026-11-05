@@ -1237,7 +1237,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="bill-filter-sticky">
       <div class="news-filter-row" id="memberMainFilterRow">
         <h5 id="memberSearchToggle">검색<span class="toggle-caret">▼</span></h5>
-        <button id="memberSearchScopeToggle" class="star-filter-btn" title="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">기본</button>
+        <!-- 의원 뉴스를 껐으므로(2026-11-06, generate_html.py SHOW_MEMBER_NEWS) "뉴스 포함 검색" 토글도 숨긴다 -->
+        <button id="memberSearchScopeToggle" class="star-filter-btn" style="display:none" title="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">기본</button>
         <input type="text" id="memberSearchInput" placeholder="이름, 지역구, 위원회, 정당, 보좌진, 사무실 호실에서 검색">
       </div>
       <div class="member-party-bill-row">

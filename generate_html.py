@@ -578,6 +578,12 @@ def bill_outcome_bucket(result):
     return None
 
 
+# 의원 뉴스는 2026-11-06에 수집과 화면 표시를 모두 껐다(daily.yml 의원별 뉴스 수집 스텝 참고).
+# member_news.csv는 지우지 않고 남겨 두므로, 다시 보이게 하려면 이 값만 True로 바꾼다.
+# 끄면 members.json에서 뉴스가 빠지고 화면의 의원 카드 뉴스 칸도 사라진다.
+SHOW_MEMBER_NEWS = False
+
+
 def load_member_news():
     """collect_member_news.py가 쌓은 member_news.csv를 의원 이름별로 묶는다.
     (최신순 정렬은 여기서 한 번만 해두면 화면은 그대로 앞에서부터 자르기만 하면 된다.)"""
@@ -633,7 +639,7 @@ def load_members(bills):
             pass_results.setdefault(rep, {})
             pass_results[rep][bucket] = pass_results[rep].get(bucket, 0) + 1
 
-    news_by_member = load_member_news()
+    news_by_member = load_member_news() if SHOW_MEMBER_NEWS else {}
 
     records = []
     for _, row in mdf.iterrows():
