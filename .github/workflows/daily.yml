@@ -227,8 +227,26 @@ jobs:
               git add $conflicted
               git commit --no-edit
             fi
-            if ! git push; then
-              echo "::error::git push 실패 - 이번 실행 결과가 원격에 반영되지 않았습니다. 로그를 확인하세요."
+            # push는 GitHub 쪽 일시 오류로 실패할 때가 있다(11/06 08시: "remote: fatal error in
+            # commit_refs" - 20분 분석 결과가 통째로 사라짐). 잠깐 기다렸다 최신 main을 다시
+            # 병합하고 최대 3번까지 시도한다.
+            pushed=""
+            for wait in 0 20 60; do
+              if [ "$wait" != "0" ]; then
+                echo "::warning::git push 실패 - ${wait}초 뒤 다시 시도"
+                sleep "$wait"
+                git fetch origin main
+                if ! git merge origin/main --no-edit; then
+                  conflicted=$(git diff --name-only --diff-filter=U)
+                  git checkout --ours -- $conflicted
+                  git add $conflicted
+                  git commit --no-edit
+                fi
+              fi
+              if git push; then pushed=1; break; fi
+            done
+            if [ -z "$pushed" ]; then
+              echo "::error::git push 3번 실패 - 이번 실행 결과가 원격에 반영되지 않았습니다. 로그를 확인하세요."
               exit 1
             fi
           fi
