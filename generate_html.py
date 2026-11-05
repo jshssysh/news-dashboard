@@ -315,7 +315,7 @@ def load_law_texts():
     keyword_laws = [
         ("다단계판매", "방문판매 등에 관한 법률"), ("후원방문판매", "방문판매 등에 관한 법률"),
         ("통신판매", "전자상거래 등에서의 소비자보호에 관한 법률"),
-        ("제조위탁", "하도급거래 공정화에 관한 법률"), ("선급금", "하도급거래 공정화에 관한 법률"),
+        ("제조위탁", "하도급거래 공정화에 관한 법률"), ("용역위탁", "하도급거래 공정화에 관한 법률"), ("선급금", "하도급거래 공정화에 관한 법률"),
         ("과징금 납부기한", "독점규제 및 공정거래에 관한 법률"), ("단체소송", "소비자기본법"),
     ]
 
@@ -323,12 +323,22 @@ def load_law_texts():
         body = " ".join(a.get("text", "") for a in r.get("articles", []))
         return re.findall(r"[「『]([^」』]+)[」』]", body)
 
-    def rule_law(r, depth=0):
-        names = quoted(r)
+    # 공정위 고시는 본문에 남의 법을 예로 들기도 한다("용역위탁 중 역무의 범위 고시"가 「건축법」·
+    # 「건축사법」을 나열해 건축법 묶음에 붙었다, 2026-11-05). 그래서 「」 안 이름 가운데 공정위 소관 법을
+    # 먼저 보고, 이름으로 잇기를 해 본 뒤에야 다른 부처 법을 쓴다.
+    ftc_bases = {re.sub(r"\s*시행(령|규칙)$", "", law.get("name", "")) for law in raw.get("laws", {}).values()
+                 if law.get("ministry") == "공정거래위원회"}
+
+    def quoted_bases(names, ftc):
         for name in names:
             hit = base_by_key.get(key(re.sub(r"\s*시행(령|규칙)$", "", name)))
-            if hit:
-                return hit
+            if hit and (hit in ftc_bases) == ftc:
+                yield hit
+
+    def rule_law(r, depth=0):
+        names = quoted(r)
+        for hit in quoted_bases(names, True):
+            return hit
         if depth < 2:  # 다른 행정규칙을 근거로 들면 그 규칙의 근거 법률(두 단계까지)
             for name in names:
                 other = rule_by_key.get(key(name))
@@ -348,6 +358,8 @@ def load_law_texts():
         for word, base in keyword_laws:
             if word in head and key(base) in base_by_key:
                 return base_by_key[key(base)]
+        for hit in quoted_bases(names, False):
+            return hit
         return ""
 
     for seq, r in raw.get("rules", {}).items():
