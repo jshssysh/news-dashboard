@@ -503,6 +503,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .side-col::-webkit-scrollbar-track { background: transparent; }
 
 .result-caption { font-size: 0.8em; opacity: 0.6; margin-bottom: 12px; }
+.pending-link { background: none; border: none; padding: 0 0 0 4px; font: inherit; color: #9c4dcc; font-weight: 700;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .sidebar-panel { background: var(--app-secondary-bg); border: 1px solid var(--app-border); box-shadow: var(--app-shadow); border-radius: 10px; padding: 16px 14px; margin-bottom: 16px; }
 .sidebar-panel .panel-title { font-weight: 700; margin-bottom: 12px; font-size: 0.95em; letter-spacing: -0.1px;
   display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -1964,8 +1966,10 @@ function buildIssueGroups(rows) {
   const byIssue = {};
   // 대표이슈가 비어 있으면(분석 실패분) 제목을 키로 쓴다. 예전엔 빈 값이 그대로
   // 키가 되면서 서로 아무 관계 없는 기사들이 한 이슈로 뭉쳤다.
+  // 분석 실패 기사는 대표이슈가 "통신 예외 발생" 같은 같은 자리표시라, 이슈로 묶으면 수천 건이
+  // 카드 하나로 뭉친다(11/06: 2,358건이 2장). 제목으로 묶는다.
   rows.forEach(r => {
-    const key = r.issue || r.title || r.link;
+    const key = (r.sentiment === '판단 실패' ? r.title : r.issue) || r.title || r.link;
     (byIssue[key] = byIssue[key] || []).push(r);
   });
   const groups = Object.keys(byIssue).map(title => {
@@ -2631,6 +2635,10 @@ function matchesSearchTokens(fields, query) {
 }
 
 function newsMatchesGlobalFilters(r) {
+  // AI 분석에 실패한 기사는 관련도로 걸러지지 않은 채 저장돼서(11/06 06시 2,139건 중 1,961건)
+  // 목록을 덮는다. 논조 칸에서 "판단 실패"를 고를 때만 보여주고, 평소엔 결과 줄의
+  // "분석 대기 N건"으로 건수만 알린다. 다음 수집에서 분석되면 자동으로 목록에 나타난다.
+  if (r.sentiment === '판단 실패' && state.sentiment !== '판단 실패') return false;
   if (state.sentiment && r.sentiment !== state.sentiment) return false;
   if (state.search && !matchesSearchTokens([r.title, r.summary, r.issue], state.search)) return false;
   return true;
@@ -2800,6 +2808,7 @@ function renderNewsView(dr, allGroups) {
   // 부정 일변도로 바뀌면 오히려 읽을거리로서의 가치가 떨어짐, 2026-09-17).
   const renderSignalItems = () => {
     const signalRows = scoped
+      .filter(r => r.sentiment !== '판단 실패')
       .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
       .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search));
     const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상');
@@ -2913,6 +2922,24 @@ function renderMainList(scoped, allGroups) {
   // 정렬 기준 "?" - 정렬 선택 칸이 있는 줄은 모바일에서 네 칸에 맞춰 놓아서, 결과 안내 끝에 단다.
   if (totalCount) document.getElementById('resultCaption').insertAdjacentHTML('beforeend',
     '<span class="help-tip" data-help-key="sort" role="button" tabindex="0" aria-label="정렬 기준">?</span>');
+  // 숨겨 둔 분석 실패 기사 건수(분야·검색어는 목록과 같게 적용). 누르면 그 기사만 본다.
+  if (state.sentiment !== '판단 실패') {
+    const pendingCount = scoped.filter(r => r.sentiment === '판단 실패'
+      && (state.selectedCategory === '전체' || r.category === state.selectedCategory)
+      && (!state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search))).length;
+    if (pendingCount) {
+      const cap = document.getElementById('resultCaption');
+      cap.insertAdjacentHTML('beforeend', ` <button type="button" class="pending-link"
+        title="AI 분석이 실패해 목록에서 뺀 기사입니다. 다음 수집 때 다시 분석되면 목록에 나타납니다.">분석 대기 ${fmtN(pendingCount)}건 보기</button>`);
+      cap.querySelector('.pending-link').addEventListener('click', () => {
+        state.sentiment = '판단 실패';
+        state.page = 1;
+        document.getElementById('sentimentSelect').value = state.sentiment;
+        syncSentimentSelectWidth();
+        renderAll();
+      });
+    }
+  }
   document.getElementById('pageSizeSel').value = String(state.pageSize);
 
   const listEl = document.getElementById('mainListArea');

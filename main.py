@@ -366,6 +366,28 @@ CLUSTER_SECOND_SAMPLE_MIN_SIZE = 3
 # Gemini에 보내는 기사 설명 길이(글자)
 ANALYZE_DESCRIPTION_CHARS = 200
 
+# Gemini 분석이 실패한 기사의 요약 칸에 "분석 에러" 대신 넣을 네이버 설명(2026-11-06).
+# 네이버 설명은 기사 첫머리가 아니라 검색어 주변 발췌라 "위한 공동 대응이다. 부산불꽃축제는..."처럼
+# 문장 중간에서 시작하고 조각을 "..."로 잇는다. 이어 붙인 "..."만 "…"로 정리하고 길이를 줄인다.
+# 다음 실행에서 분석에 성공하면 Gemini 요약으로 바뀌므로 저장 용량은 거의 늘지 않는다
+# (모든 기사에 설명 칸을 따로 두면 news_list.csv가 약 41MB → 73MB로 커져 GitHub 50MB 경고를 넘는다).
+FALLBACK_SUMMARY_CHARS = 160
+FAILED_SUMMARY_PLACEHOLDERS = {"분석 에러", "데이터 구조 불일치"}
+
+
+def naver_description_summary(desc, title):
+    text = " ".join(str(desc or "").split())
+    text = re.sub(r"\s*(?:\.{3,}|…)\s*", " … ", text).strip()
+    cut_end = text.endswith("…")   # 원문이 중간에 끊긴 것이면 끝의 "…"는 남긴다
+    text = text.strip(" …")
+    # 앞의 짧은 문장 조각을 떼는 것도 시험했지만(탈락 기사 22,539건 중 13%가 해당), 떼어진 부분이
+    # "관련 서비스 평가에서 5년 연속 최고상을 받았다."처럼 온전한 핵심 문장인 경우가 많아 그대로 둔다.
+    if len(text) > FALLBACK_SUMMARY_CHARS:
+        text, cut_end = text[:FALLBACK_SUMMARY_CHARS].rstrip(), True
+    if text and cut_end:
+        text += "…"
+    return text or title
+
 def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_THRESHOLD):
     """분야별로, 제목이 비슷한 기사들을 그룹으로 묶는다. (다른 분야끼리는 비교하지 않음)
     반환값: {원본 norm_t: 그룹 대표 norm_t}"""
@@ -1975,8 +1997,11 @@ def main():
                     continue
                 group_title = force_merge_by_keywords(item["title"], group_title)
                 category = category or item["category"]
+                if sentiment == "판단 실패" and (not summary or summary in FAILED_SUMMARY_PLACEHOLDERS):
+                    summary = naver_description_summary(item["description"], item["title"])
             else:
-                group_title, summary, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), item["title"], "판단 실패", 0
+                group_title, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), "판단 실패", 0
+                summary = naver_description_summary(item["description"], item["title"])
                 category = item["category"]
 
             rows.append([
