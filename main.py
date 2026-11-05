@@ -40,24 +40,101 @@ GEMINI_USAGE_PATH = "gemini_usage.csv"
 GEMINI_USAGE_RETENTION_DAYS = 60
 
 
+# 503 "This model is currently experiencing high demand"(11/05 12:01~11/06 06:01, 실행마다 호출의
+# 80% 이상 실패) 대응. 그 전에는 5초 뒤 한 번만 다시 시도해서 거의 다 실패로 끝났고, 실패한 기사는
+# 다음 실행에 다시 분석 대상이 되어(load_analyzed_links) 실패가 눈덩이처럼 불었다(157→337→1941건).
+# 이제는 (1) 조금 더 기다렸다 다시 시도하고, (2) 그래도 503이면 같은 키로 쓸 수 있는 다른 Gemini 3
+# 모델로 보낸다. 오류 문구가 "이 모델"의 수요 문제라 다른 모델은 대개 받아 준다.
+GEMINI_PRIMARY_MODEL = "gemini-3.5-flash-lite"
+# 대체 후보 - 앞에 있을수록 우선. thinkingConfig.thinkingLevel을 쓰는 Gemini 3 계열만 둔다
+# (2.5 계열은 이 설정을 400으로 거절한다). 실제로 있는지는 실행할 때 모델 목록으로 확인한다.
+GEMINI_FALLBACK_PREFERENCE = ["gemini-3-flash-lite", "gemini-3.5-flash", "gemini-3-flash"]
+GEMINI_503_WAITS = [10, 30]          # 같은 모델로 다시 시도하기 전 대기(초)
+GEMINI_503_WAIT_BUDGET = 600         # 한 실행에서 503 때문에 기다리는 시간 합계 상한(초)
+GEMINI_FALLBACK_STICKY_CALLS = 20    # 대체 모델로 넘어가면 이만큼은 계속 쓰고, 그 뒤 원래 모델을 다시 시도
+GEMINI_OVERLOAD = {"waited": 0, "sticky_left": 0, "fallbacks": None, "bad": set(), "fallback_ok": 0}
+
+
+def _gemini_fallback_models():
+    """이 키로 generateContent를 쓸 수 있는 대체 모델 이름(우선순위 순). 한 번만 조회한다."""
+    if GEMINI_OVERLOAD["fallbacks"] is None:
+        names = set()
+        try:
+            res = requests.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                               headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=30)
+            if res.status_code == 200:
+                names = {m["name"].split("/", 1)[-1] for m in res.json().get("models", [])
+                         if "generateContent" in m.get("supportedGenerationMethods", [])}
+            else:
+                print(f"[대체 모델 조회 실패] HTTP {res.status_code}")
+        except Exception as e:
+            print(f"[대체 모델 조회 예외] {e}")
+        GEMINI_OVERLOAD["fallbacks"] = [m for m in GEMINI_FALLBACK_PREFERENCE if m in names]
+        print(f"[대체 모델 후보] {GEMINI_OVERLOAD['fallbacks'] or '없음'}")
+    return [m for m in GEMINI_OVERLOAD["fallbacks"] if m not in GEMINI_OVERLOAD["bad"]]
+
+
+def _post_once(url, payload, timeout):
+    GEMINI_USAGE["calls"] += 1
+    res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
+    if res.status_code == 429:
+        GEMINI_USAGE["rate_limited"] += 1
+    elif res.status_code != 200:
+        GEMINI_USAGE["errors"] += 1
+        note_gemini_error(f"{res.status_code} {res.text[:140]}")
+    return res
+
+
+def _try_fallbacks(url, payload, timeout, start_sticky=True):
+    """원래 모델이 503일 때 대체 모델로 보낸다. 성공하면 그 응답, 모두 안 되면 None.
+    start_sticky=False(이미 대체 모델을 쓰는 중)면 남은 횟수를 늘리지 않아, 정해진 횟수 뒤에는
+    원래 모델을 다시 시도하게 된다."""
+    for model in _gemini_fallback_models():
+        res = _post_once(url.replace(GEMINI_PRIMARY_MODEL, model), payload, timeout)
+        if res.status_code == 200:
+            if start_sticky:
+                GEMINI_OVERLOAD["sticky_left"] = GEMINI_FALLBACK_STICKY_CALLS
+            GEMINI_OVERLOAD["fallback_ok"] += 1
+            # 정렬해서 다음 호출도 방금 된 모델부터 쓰게 한다.
+            GEMINI_OVERLOAD["fallbacks"].remove(model)
+            GEMINI_OVERLOAD["fallbacks"].insert(0, model)
+            return res
+        if res.status_code in (400, 403, 404):
+            GEMINI_OVERLOAD["bad"].add(model)   # 이 키·설정으로는 못 쓰는 모델 - 이번 실행에선 다시 안 씀
+    return None
+
+
 def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     """Gemini 호출 하나를 감싸서, 서버 과부하(503)나 타임아웃처럼 '잠깐 있다 다시 하면
-    될' 일시적 오류일 때만 짧게 대기 후 한 번 더 시도한다. 그 외(200 성공, 4xx 등
+    될' 일시적 오류일 때만 다시 시도한다. 원래 모델(GEMINI_PRIMARY_MODEL)이 503이면
+    대기 후 재시도, 그래도 안 되면 대체 모델로 보낸다(위 설명). 그 외(200 성공, 4xx 등
     영구적 오류)는 그대로 반환해서 기존 처리 로직이 그대로 판단하게 둔다."""
-    last_exc = None
-    for attempt in range(retries + 1):
+    uses_primary = GEMINI_PRIMARY_MODEL in url
+    # 직전에 원래 모델이 과부하였으면 한동안은 바로 대체 모델로 보낸다(503 대기를 매번 반복하지 않게).
+    if uses_primary and GEMINI_OVERLOAD["sticky_left"] > 0:
+        GEMINI_OVERLOAD["sticky_left"] -= 1
         try:
-            GEMINI_USAGE["calls"] += 1
-            res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
-            if res.status_code == 429:
-                GEMINI_USAGE["rate_limited"] += 1
-            elif res.status_code != 200:
-                GEMINI_USAGE["errors"] += 1
-                note_gemini_error(f"{res.status_code} {res.text[:140]}")
-            if res.status_code == 503 and attempt < retries:
-                time.sleep(retry_wait)
-                continue
-            return res
+            res = _try_fallbacks(url, payload, timeout, start_sticky=False)
+            if res is not None:
+                return res
+        except requests.exceptions.RequestException as e:
+            GEMINI_USAGE["errors"] += 1
+            note_gemini_error(f"{type(e).__name__} {e}")
+    last_exc = None
+    waits = GEMINI_503_WAITS if uses_primary else [retry_wait] * retries
+    for attempt in range(len(waits) + 1):
+        try:
+            res = _post_once(url, payload, timeout)
+            if res.status_code != 503:
+                return res
+            wait = waits[attempt] if attempt < len(waits) else None
+            if uses_primary and (wait is None or GEMINI_OVERLOAD["waited"] + wait > GEMINI_503_WAIT_BUDGET):
+                fb = _try_fallbacks(url, payload, timeout)
+                return fb if fb is not None else res
+            if wait is None:
+                return res
+            GEMINI_OVERLOAD["waited"] += wait if uses_primary else 0
+            time.sleep(wait)
         except requests.exceptions.RequestException as e:
             GEMINI_USAGE["errors"] += 1
             note_gemini_error(f"{type(e).__name__} {e}")
@@ -75,14 +152,18 @@ def save_gemini_usage(script, articles, today_str):
         row = pd.DataFrame([{"실행일시": today_str, "스크립트": script, "Gemini 호출": GEMINI_USAGE["calls"],
                              "429(한도 초과)": GEMINI_USAGE["rate_limited"], "기타 오류": GEMINI_USAGE["errors"],
                              "저장 기사 수": articles, "임베딩 묶기": EMBED_LAST_RESULT["text"],
-                             "오류 예시": " | ".join(f"{t} ({n}회)" for t, n in GEMINI_ERROR_SAMPLES.items())}])
+                             "오류 예시": " | ".join(f"{t} ({n}회)" for t, n in GEMINI_ERROR_SAMPLES.items()),
+                             "503 대처": (f"대기 {GEMINI_OVERLOAD['waited']}초, 대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회"
+                                        f"({', '.join(GEMINI_OVERLOAD['fallbacks'] or []) or '후보 없음'})"
+                                        if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else "")}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=GEMINI_USAGE_RETENTION_DAYS)).strftime("%Y-%m-%d")
         row = row[row["실행일시"].astype(str) >= cutoff]
         row.to_csv(GEMINI_USAGE_PATH, index=False, encoding="utf-8-sig")
         print(f"[Gemini 사용량] 호출 {GEMINI_USAGE['calls']}회, 429 {GEMINI_USAGE['rate_limited']}회, "
-              f"기타 오류 {GEMINI_USAGE['errors']}회")
+              f"기타 오류 {GEMINI_USAGE['errors']}회, 503 대기 {GEMINI_OVERLOAD['waited']}초, "
+              f"대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회")
     except Exception as e:
         print(f"[Gemini 사용량 기록 예외 - 건너뜀] {e}")
 
