@@ -1332,7 +1332,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-05 12:35 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-05 18:43 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -4082,8 +4082,16 @@ function subLawLawFullMap(rows, groupFn) {
   return map;
 }
 // 칩 하나: 고른 칩은 풀네임, 나머지는 약칭(툴팁은 언제나 풀네임).
+// 칩 이름이 길면("전기용품 및 생활용품 안전관리법") 앞 10자만 보이고 나머지는 …로 줄인다.
+// 전체 이름은 마우스를 올리면(title) 보이고, 고른 칩은 전체 이름으로 펼친다.
+const CHIP_LABEL_MAX = 10;
+function chipShort(t) {
+  t = String(t || '');
+  return t.length > CHIP_LABEL_MAX ? t.slice(0, CHIP_LABEL_MAX - 1).trimEnd() + '…' : t;
+}
+
 function subLawChip(attr, key, label, full, count, active) {
-  return `<button data-${attr}="${escHtml(key)}" title="${escHtml(full)}" class="${active ? 'active' : ''}">${escHtml(active ? full : label)} ${fmtN(count)}</button>`;
+  return `<button data-${attr}="${escHtml(key)}" title="${escHtml(full)}" class="${active ? 'active' : ''}">${escHtml(active ? full : chipShort(label))} ${fmtN(count)}</button>`;
 }
 
 function subLawGroup(r) {
@@ -4358,9 +4366,13 @@ function lawListKindMatches(g, kind) {
   return subLawKindMatches({ kind: g.kind }, kind);
 }
 
+// 법령 탭에서 빼는 법령: 공정위 소관이지만 기업이 지킬 내용이 없는 것(공정위가 비영리법인 설립을
+// 허가·감독하는 절차 규칙, 2026-11-05 사용자 요청). 공포·시행 탭에는 그대로 둔다.
+const LAW_LIST_EXCLUDE = new Set(['공정거래위원회 소관 비영리법인의 설립 및 감독에 관한 규칙']);
+
 function lawListGroups() {
   const byName = {};
-  SUB_LAW_DATA.forEach(r => { (byName[r.name] = byName[r.name] || []).push(r); });
+  SUB_LAW_DATA.forEach(r => { if (!LAW_LIST_EXCLUDE.has(r.name)) (byName[r.name] = byName[r.name] || []).push(r); });
   const groups = Object.entries(byName).map(([name, rows]) => {
     rows = rows.slice().sort((a, b) => (b.promulgated || '').localeCompare(a.promulgated || ''));
     const latest = rows[0];
@@ -4371,7 +4383,7 @@ function lawListGroups() {
   // 최근 2년 동안 개정이 없어 공포·시행 자료에 없는 현행 법령도 카드로 넣는다(요약 없이).
   const seen = new Set(Object.keys(byName));
   (LAW_META.laws || []).forEach(l => {
-    if (seen.has(l.name)) return;
+    if (seen.has(l.name) || LAW_LIST_EXCLUDE.has(l.name)) return;
     seen.add(l.name);
     const kind = lawKindLabel(l.name, l.kind);
     const fake = { name: l.name, abbr: l.abbr, ministry: l.ministry };
