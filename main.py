@@ -27,6 +27,15 @@ KST = timezone(timedelta(hours=9))
 # 이번 실행의 Gemini 호출 수. 뉴스·법안·심결·의원뉴스가 같은 무료 키를 나눠 쓰므로,
 # 실제 사용량을 gemini_usage.csv에 남겨 한도에 얼마나 가까운지 본다(save_gemini_usage).
 GEMINI_USAGE = {"calls": 0, "rate_limited": 0, "errors": 0}
+# 오류가 어떤 것이었는지 gemini_usage.csv "오류 예시" 칸에 남긴다. Actions 로그는 회사 PC에서
+# 로그인이 안 돼 못 보므로, 11/05 12:01부터 호출 대부분이 실패했을 때 원인을 알 수 없었다.
+GEMINI_ERROR_SAMPLES = {}  # {"503 ...본문 앞부분": 횟수}
+
+
+def note_gemini_error(text):
+    text = " ".join(str(text).split())[:160]
+    if text in GEMINI_ERROR_SAMPLES or len(GEMINI_ERROR_SAMPLES) < 5:
+        GEMINI_ERROR_SAMPLES[text] = GEMINI_ERROR_SAMPLES.get(text, 0) + 1
 GEMINI_USAGE_PATH = "gemini_usage.csv"
 GEMINI_USAGE_RETENTION_DAYS = 60
 
@@ -44,12 +53,14 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
                 GEMINI_USAGE["rate_limited"] += 1
             elif res.status_code != 200:
                 GEMINI_USAGE["errors"] += 1
+                note_gemini_error(f"{res.status_code} {res.text[:140]}")
             if res.status_code == 503 and attempt < retries:
                 time.sleep(retry_wait)
                 continue
             return res
         except requests.exceptions.RequestException as e:
             GEMINI_USAGE["errors"] += 1
+            note_gemini_error(f"{type(e).__name__} {e}")
             last_exc = e
             if attempt < retries:
                 time.sleep(retry_wait)
@@ -63,7 +74,8 @@ def save_gemini_usage(script, articles, today_str):
     try:
         row = pd.DataFrame([{"실행일시": today_str, "스크립트": script, "Gemini 호출": GEMINI_USAGE["calls"],
                              "429(한도 초과)": GEMINI_USAGE["rate_limited"], "기타 오류": GEMINI_USAGE["errors"],
-                             "저장 기사 수": articles, "임베딩 묶기": EMBED_LAST_RESULT["text"]}])
+                             "저장 기사 수": articles, "임베딩 묶기": EMBED_LAST_RESULT["text"],
+                             "오류 예시": " | ".join(f"{t} ({n}회)" for t, n in GEMINI_ERROR_SAMPLES.items())}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=GEMINI_USAGE_RETENTION_DAYS)).strftime("%Y-%m-%d")
@@ -558,6 +570,8 @@ def analyze_batch_with_gemini(batch_items):
             print(f"[Gemini API 오류] status={res.status_code} body={res.text[:300]}")
     except Exception as e:
         print(f"[Gemini API 예외] {e}")
+        if not isinstance(e, requests.exceptions.RequestException):  # 통신 예외는 post_gemini_with_retry가 이미 적음
+            note_gemini_error(f"응답 처리 예외 {type(e).__name__} {e}")
     return [(item["idx"], 0, ISSUE_TITLE_API_ERROR, "분석 에러", "판단 실패", None) for item in batch_items]
 
 def load_analyzed_links(file_name="news_list.csv"):
