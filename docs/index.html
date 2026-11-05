@@ -1332,7 +1332,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-05 08:42 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-05 09:27 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -4312,7 +4312,7 @@ HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규
 · 법령체계도·조문 체계도: 법제처 화면에서 상위법·하위법·위임 행정규칙 관계를 봅니다
 · 3단 비교: 법제처 화면에서 법률·시행령·시행규칙 조문을 나란히 봅니다(조문 위치로는 바로 가지 않음)
 · 소관 부처가 여럿이면 순서표에서 앞선 부처 하나로 묶습니다(공정위가 가장 앞)
-· 순서: 같은 법끼리 붙여 법률 → 시행령 → 시행규칙 → 행정규칙, 법끼리는 가장 최근 개정(발령)된 법부터`;
+· 순서: 같은 법끼리 붙여 법률 → 시행령 → 시행규칙 → 행정규칙, 법끼리는 오래된 법(법률 제정일)부터`;
 
 function ensureLawMeta() {
   if (lawMetaLoaded) return Promise.resolve();
@@ -4388,16 +4388,26 @@ function lawListGroups() {
       ministry: base ? base.ministry : subLawMinistryOf(r), group: base ? base.group : LAW_RULE_ETC });
   });
   // 같은 법 묶음(법률 + 시행령 + 시행규칙 + 그 법의 행정규칙)은 붙여서 법률 → 시행령 → 시행규칙 →
-  // 행정규칙 순으로 보인다. 묶음끼리는 묶음 안에서 가장 최근에 개정(발령)된 날짜 순.
-  const groupDate = {};
-  groups.forEach(g => { if (!groupDate[g.group] || g.date > groupDate[g.group]) groupDate[g.group] = g.date; });
+  // 행정규칙 순으로 보인다. 묶음끼리는 오래된 법부터 - 묶음의 법률 제정일(법률이 없으면 묶음 안 가장
+  // 이른 제정일) 순이다(2026-11-05 사용자 요청: 최근 개정 순은 고시 하나만 바뀌어도 순서가 뒤집혔다).
+  // 제정일을 모르는 묶음은 뒤로, 일괄개정·공정위 내부 운영 규정 칸은 맨 뒤.
+  const enactedByName = Object.fromEntries((LAW_META.laws || []).map(l => [l.name, l.enacted || '']));
   const tier = g => g.type === 'rule' ? 3 : (LAW_SEARCH_KIND_RANK[g.kind] ?? 2);
-  const alone = g => g.group === SUB_LAW_BUNDLE || g.group === LAW_RULE_ETC;  // 서로 다른 법이 모인 칸은 날짜 순 그대로
-  return groups.sort((a, b) => {
-    const ka = alone(a) ? a.date : groupDate[a.group], kb = alone(b) ? b.date : groupDate[b.group];
-    return kb.localeCompare(ka) || (alone(a) || alone(b) ? 0 : a.group.localeCompare(b.group) || tier(a) - tier(b))
-      || b.date.localeCompare(a.date) || a.name.localeCompare(b.name);
+  const groupEnacted = {};
+  groups.forEach(g => {
+    const d = g.type === 'law' ? enactedByName[g.name] : '';
+    if (!d) return;
+    const cur = groupEnacted[g.group];
+    // 법률(tier 0)의 제정일이 있으면 그것, 없으면 가장 이른 날짜
+    if (!cur || (tier(g) === 0 && !cur.law) || (!cur.law && d < cur.d)) groupEnacted[g.group] = { d, law: tier(g) === 0 };
   });
+  groups.forEach(g => { if (g.type === 'law') g.enacted = enactedByName[g.name] || ''; });
+  const alone = g => g.group === SUB_LAW_BUNDLE || g.group === LAW_RULE_ETC;
+  // localeCompare는 기호를 숫자보다 앞에 두므로 날짜 키는 그냥 크기로 비교한다.
+  const keyOf = g => alone(g) ? '99999' : ((groupEnacted[g.group] || {}).d || '9999');
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  return groups.sort((a, b) => cmp(keyOf(a), keyOf(b)) || a.group.localeCompare(b.group)
+    || (alone(a) ? 0 : tier(a) - tier(b)) || b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
 }
 
 function lawFilesHtml(files) {
@@ -4443,7 +4453,7 @@ function lawListCardHtml(g, today) {
       <a class="article-title" href="${escHtml(href)}" target="_blank" rel="noopener" title="${bundle ? '개정 공포문 보기' : '법제처 현행법 보기'}">${escHtml(title)}</a>
       ${!bundle && lawMstOf(name) ? `<a class="lawlist-stmd" href="${escHtml(lawStmdLink(lawMstOf(name)))}" target="_blank" rel="noopener" title="법제처 법령체계도: 상위법·하위법·위임 행정규칙">법령체계도</a>` : ''}
       ${!bundle ? `<a class="lawlist-stmd" href="${escHtml(lawThreeLink(name))}" target="_blank" rel="noopener" title="법제처 3단비교: 법률·시행령·시행규칙 조문을 나란히">3단 비교</a>` : ''}
-      <span class="card-meta-inline">${escHtml(subLawMinistryFull(g.ministry))}${latest ? ` · 최근 공포 ${latest.promulgated}` : ''}</span>
+      <span class="card-meta-inline">${escHtml(subLawMinistryFull(g.ministry))}${g.enacted ? ` · 제정 ${g.enacted}` : ''}${latest ? ` · 최근 공포 ${latest.promulgated}` : ''}</span>
     </div>
     ${body}
     ${lawFilesHtml((LAW_META.lawFiles || {})[name])}
