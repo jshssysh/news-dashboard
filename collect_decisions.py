@@ -41,6 +41,7 @@ import pandas as pd
 
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
+from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, main.py와 같은 로직)
 KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
@@ -76,24 +77,7 @@ NEW_PER_RUN_LIMIT = 40
 RETRY_INCOMPLETE_LIMIT = 30
 
 
-def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
-    """Gemini 호출을 감싸서, 서버 과부하(503)나 타임아웃처럼 일시적 오류일 때만
-    짧게 대기 후 한 번 더 시도한다 (main.py/collect_bills.py의 동일 함수와 같은 목적)."""
-    last_exc = None
-    for attempt in range(retries + 1):
-        try:
-            res = requests.post(url, json=payload, headers={"x-goog-api-key": GEMINI_API_KEY}, timeout=timeout)
-            if res.status_code == 503 and attempt < retries:
-                time.sleep(retry_wait)
-                continue
-            return res
-        except requests.exceptions.RequestException as e:
-            last_exc = e
-            if attempt < retries:
-                time.sleep(retry_wait)
-                continue
-            raise
-    raise last_exc
+# post_gemini_with_retry는 gemini_client.py로 옮겼다(2026-11-06) - 503이면 대기 후 재시도, 그래도 안 되면 대체 모델.
 
 
 def get_law_api_with_retry(url, params, timeout=20, retries=2, retry_wait=10):
