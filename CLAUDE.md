@@ -61,7 +61,9 @@
 | skip_law_penalties_wait | 그대로 | ✅ (지금 바로 수집) | 그대로 | 그대로 |
 
 - 언제 무엇을 쓰나
-  - ① 화면만 다시 만들기: `html_template.html`·`generate_html.py`·`config/news_overrides.csv`를 고친 뒤. 1~2분.
+  - ① 화면만 다시 만들기: `html_template.html`·`generate_html.py`를 고친 뒤. 1~2분.
+  - `config/news_overrides.csv`(기사 이슈 바꾸기·삭제)는 `main.py`가 돌 때만 반영되므로 ①로는 안 바뀐다.
+    손으로 돌리지 않고 다음 정기 실행(06:01/12:01/18:01)을 기다린다.
   - ② 법령 지금 수집: 법령 쪽 수집기(`collect_law_*.py`, `collect_subordinate_laws.py`,
     `collect_legislative_notices.py`)를 고친 뒤. 법령 벌칙, 공포·시행, 조문·행정규칙, 입법예고를 모두 돈다.
     본문을 새로 받아야 하면 20분 넘게 걸린다.
