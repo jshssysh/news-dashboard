@@ -55,10 +55,10 @@
 | skip_bills | ✅ | ✅ | ✅ | **체크 안 함** |
 | skip_member_news | ✅ | ✅ | ✅ | ✅ |
 | skip_decisions | ✅ | ✅ | **체크 안 함** | ✅ |
-| skip_decisions_wait | 그대로 | 그대로 | ✅ (지금 바로 수집) | 그대로 |
-| decisions_lookback_days | 비워 둠 | 비워 둠 | 비워 둠 | 비워 둠 |
 | skip_law_penalties | ✅ | **체크 안 함** | ✅ | ✅ |
+| skip_decisions_wait | 그대로 | 그대로 | ✅ (지금 바로 수집) | 그대로 |
 | skip_law_penalties_wait | 그대로 | ✅ (지금 바로 수집) | 그대로 | 그대로 |
+| decisions_lookback_days | 비워 둠 | 비워 둠 | 비워 둠 | 비워 둠 |
 
 - 언제 무엇을 쓰나
   - ① 화면만 다시 만들기: `html_template.html`·`generate_html.py`를 고친 뒤. 1~2분.

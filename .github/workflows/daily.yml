@@ -10,6 +10,8 @@ on:
     # 체크 항목은 전부 "체크하면 동작": [건너뛰기]는 그 수집을 빼고, [지금 바로 수집]은
     # 정해진 시각까지 기다리지 않고 바로 돈다. 아무것도 체크 안 하면 평소대로 전부 돈다.
     # 입력 이름(skip_*)은 cron-job.org 호출이 쓰므로 바꾸지 않고 설명만 고친다.
+    # 화면 순서는 이 순서 그대로라 [건너뛰기] → [지금 바로 수집] → 숫자 입력으로 묶어 둔다
+    # (순서를 바꾸면 CLAUDE.md의 수동 실행 표도 같이 바꾼다).
     inputs:
       skip_news:
         description: '[건너뛰기] 뉴스 수집 + AI 분석 전체. 법안만 다시 받을 때 이것만 체크 (cron-job.org의 07:12/07:47 "법안만 재확인" 실행도 이 값을 씀)'
@@ -36,18 +38,13 @@ on:
         required: false
         type: boolean
         default: false
-      skip_decisions_wait:
-        description: '[지금 바로 수집] 심·판결 - 평소엔 토요일 06시대에만 수집. 체크하면 시간 상관없이 지금 수집'
+      skip_law_penalties:
+        description: '[건너뛰기] 법령 벌칙·과징금 + 법령 공포·시행 + 입법예고 수집 (테스트용). 아래 ''지금 바로 수집''과 같이 체크하면 수집 안 됨'
         required: false
         type: boolean
         default: false
-      decisions_lookback_days:
-        description: '[심·판결 숫자 입력] 며칠치를 훑을지. 평소엔 비워 두세요 (비우면 쌓인 데이터의 가장 오래된 날짜까지 다시 훑어 늦게 공개된 결정문도 채움). 예: 500 = 22대 국회 임기 시작 무렵부터'
-        required: false
-        type: string
-        default: ''
-      skip_law_penalties:
-        description: '[건너뛰기] 법령 벌칙·과징금 + 법령 공포·시행 + 입법예고 수집 (테스트용). 아래 ''지금 바로 수집''과 같이 체크하면 수집 안 됨'
+      skip_decisions_wait:
+        description: '[지금 바로 수집] 심·판결 - 평소엔 토요일 06시대에만 수집. 체크하면 시간 상관없이 지금 수집'
         required: false
         type: boolean
         default: false
@@ -56,6 +53,11 @@ on:
         required: false
         type: boolean
         default: false
+      decisions_lookback_days:
+        description: '[심·판결 숫자 입력] 며칠치를 훑을지. 평소엔 비워 두세요 (비우면 쌓인 데이터의 가장 오래된 날짜까지 다시 훑어 늦게 공개된 결정문도 채움). 예: 500 = 22대 국회 임기 시작 무렵부터'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build:
