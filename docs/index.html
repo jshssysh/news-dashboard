@@ -1336,7 +1336,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-06 10:02 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-06 10:19 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -4375,6 +4375,7 @@ let lawMetaLoaded = false, lawMetaPromise = null;
 let LAW_TEXTS = null, lawTextsPromise = null;
 HELP_TEXT.lawlist = `법제처에서 받은 현행 법령과 공정위 행정규칙을 하나당 카드 하나로 모았습니다.
 · 검색: 띄어 쓴 단어가 모두 들어간 조문·별표를 찾습니다(예: 공시 과태료). 조문 제목에 단어가 있으면 위로
+· 검색 중 부처·법·종류 칩: 검색어에 걸린 법령(이름·개정 내용이나 조문에 단어가 모두 든 것)만 세고, 0개인 칩은 숨깁니다
 · 법령 이름: 법제처의 현행법(오늘 시행 중인 조문)으로 이동. 조문 검색 결과는 그 조문으로 바로 이동
 · 카드 요약: 가장 최근 직접 개정의 개정 이유·주요 내용(최근 2년 안의 개정만). 행정규칙은 제·개정 이유
 · 개정 이력: 개정마다 공포일·시행일, 요약, 신구조문 대비
@@ -4591,6 +4592,18 @@ function lawSearch(words, kind) {
   });
   return hits.sort((a, b) => b.score - a.score || a.rank - b.rank || a.doc.name.localeCompare(b.doc.name));
 }
+// 검색어에 걸리는 조문이 하나라도 있는 법령·행정규칙 이름(칩 건수용 - 부처·법·종류와 상관없이 전체에서).
+function lawSearchDocNames(words) {
+  const names = new Set();
+  (LAW_TEXTS || []).forEach(doc => {
+    const nameHay = `${doc.name} ${doc.abbr || ''}`.toLowerCase();
+    if ((doc.a || []).some(([, title, text]) => {
+      const t = (title || '').toLowerCase(), b = (text || '').toLowerCase();
+      return words.every(w => t.includes(w) || b.includes(w) || nameHay.includes(w));
+    })) names.add(doc.name);
+  });
+  return names;
+}
 function lawSnippet(text, words, size = 150) {
   const lower = text.toLowerCase();
   const pos = Math.min(...words.map(w => lower.indexOf(w)).filter(i => i >= 0), text.length);
@@ -4613,7 +4626,8 @@ function renderLawSearchResults(box, q) {
   if (!words.length || q.trim().length < 2) { box.innerHTML = ''; return; }
   if (!LAW_TEXTS) {
     box.innerHTML = "<div class='info-box'>조문을 불러오는 중…</div>";
-    ensureLawTexts().then(() => { if (lawListQuery === q) renderLawSearchResults(box, q); })
+    // 조문을 받으면 칩 건수(조문에 걸린 법령 포함)도 다시 세도록 패널 전체를 다시 그린다.
+    ensureLawTexts().then(() => { if (lawListQuery === q) renderLawListPanel(); })
       .catch(() => { box.innerHTML = "<div class='info-box'>조문 검색 자료가 아직 없습니다(다음 법령 수집 뒤에 생깁니다).</div>"; });
     return;
   }
@@ -4689,12 +4703,17 @@ function renderLawListPanel() {
       .map(t => (t || '').toLowerCase()).join(' ');
     return qWords.every(w => hay.includes(w));
   };
-  // 부처 -> 법 -> 종류 순으로 좁힌다. 건수는 각 줄이 그 위 줄까지 고른 범위 안에서 센 법령·행정규칙 수
-  // (검색어와 상관없이 고정 - 칩으로 범위를 고른 뒤 그 안에서 조문을 찾게 한다).
-  const byKindAll = groupsAll;
+  // 부처 -> 법 -> 종류 순으로 좁힌다. 건수는 각 줄이 그 위 줄까지 고른 범위 안에서 센 법령·행정규칙 수.
+  // 검색 중에는 뉴스 필터처럼 검색어에 걸린 법령(이름·개정 내용에 단어가 모두 들었거나, 단어가 모두 든
+  // 조문이 있는 것)만 세고 0개인 칩은 숨긴다. 고른 칩은 0개여도 남겨 검색어를 바꿔도 선택이 풀리지 않게 한다.
+  const searching = qWords.length > 0;
+  const hitDocs = searching && LAW_TEXTS && q.length >= 2 ? lawSearchDocNames(qWords) : new Set();
+  const byKindAll = searching ? groupsAll.filter(g => cardMatches(g) || hitDocs.has(g.name)) : groupsAll;
+  const keepActive = (counts, active) => { if (searching && active !== '전체' && !counts[active]) counts[active] = 0; };
   const minCounts = {};
   byKindAll.forEach(g => { minCounts[g.ministry] = (minCounts[g.ministry] || 0) + 1; });
-  if (lawListMinistry !== '전체' && !minCounts[lawListMinistry]) lawListMinistry = '전체';
+  keepActive(minCounts, lawListMinistry);
+  if (lawListMinistry !== '전체' && !(lawListMinistry in minCounts)) lawListMinistry = '전체';
   const ministries = Object.keys(minCounts).sort((a, b) => subLawMinistryRank(a) - subLawMinistryRank(b) || a.localeCompare(b));
   noticeChipRow(document.getElementById('lawListMinistryRow'), minCounts, lawListMinistry, 'min', ministries, v => {
     lawListMinistry = lawListMinistry === v ? '전체' : v;
@@ -4704,7 +4723,8 @@ function renderLawListPanel() {
   const byMin = lawListMinistry === '전체' ? byKindAll : byKindAll.filter(g => g.ministry === lawListMinistry);
   const lawCounts = {};
   byMin.forEach(g => { lawCounts[g.group] = (lawCounts[g.group] || 0) + 1; });
-  if (lawListLaw !== '전체' && !lawCounts[lawListLaw]) lawListLaw = '전체';
+  keepActive(lawCounts, lawListLaw);
+  if (lawListLaw !== '전체' && !(lawListLaw in lawCounts)) lawListLaw = '전체';
   const isTail = k => k === SUB_LAW_BUNDLE || k === LAW_RULE_ETC;
   // 건수 많은 법부터, 일괄개정·기타 행정규칙은 뒤로.
   const laws = Object.keys(lawCounts).sort((a, b) =>
@@ -4716,16 +4736,16 @@ function renderLawListPanel() {
 
   const byLaw = lawListLaw === '전체' ? byMin : byMin.filter(g => g.group === lawListLaw);
   const kindCounts = Object.fromEntries(LAW_LIST_KINDS.map(k => [k, byLaw.filter(g => lawListKindMatches(g, k)).length]));
-  if (lawListKind !== '전체' && !kindCounts[lawListKind]) lawListKind = '전체';
-  document.getElementById('lawListKindRow').innerHTML = LAW_LIST_KINDS.filter(k => k === '전체' || kindCounts[k]).map(k =>
+  if (lawListKind !== '전체' && !kindCounts[lawListKind] && !searching) lawListKind = '전체';
+  document.getElementById('lawListKindRow').innerHTML = LAW_LIST_KINDS.filter(k => k === '전체' || kindCounts[k] || k === lawListKind).map(k =>
     `<button data-kind="${k}" class="${lawListKind === k ? 'active' : ''}"${helpAttr(LAW_LIST_KIND_HELP, k)}>${k} ${fmtN(kindCounts[k])}</button>`).join('');
   document.querySelectorAll('#lawListKindRow button').forEach(btn => btn.addEventListener('click', () => {
     lawListKind = btn.dataset.kind; lawListShowAll = false; lawSearchShowAll = false; renderLawListPanel();
   }));
   const scoped = byLaw.filter(g => lawListKindMatches(g, lawListKind));
   const list = scoped.filter(cardMatches);
-  const nLaw = groupsAll.filter(g => g.type === 'law').length, nRule = groupsAll.length - nLaw;
-  document.getElementById('lawListCountTag').textContent = `법령 ${fmtN(nLaw)}개${nRule ? ` · 행정규칙 ${fmtN(nRule)}개` : ''}`;
+  const nLaw = byKindAll.filter(g => g.type === 'law').length, nRule = byKindAll.length - nLaw;
+  document.getElementById('lawListCountTag').textContent = `${searching ? '검색 관련 ' : ''}법령 ${fmtN(nLaw)}개${nRule ? ` · 행정규칙 ${fmtN(nRule)}개` : ''}`;
   const items = lawListShowAll ? list : list.slice(0, LAW_LIST_PREVIEW_COUNT);
   // 조문 검색도 고른 부처·법 안에서만 찾는다(종류는 lawSearch가 거른다).
   lawSearchScope = (lawListMinistry === '전체' && lawListLaw === '전체') ? null : new Set(byLaw.map(g => g.name));
