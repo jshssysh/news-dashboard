@@ -1098,6 +1098,10 @@ EMBED_ANCHOR_MIN = 0.75
 # (그날 임베딩 일부 실패, 원인 미확정) 두 쪽 제목 겹침은 0.00~0.04였다. 한 달치 정답 쌍에서
 # 0.10 기준은 같은 사건 기사의 4%만 막았다.
 EMBED_TITLE_OVERLAP_MIN = 0.10
+# 겹치는 2-gram이 한 개뿐이면 우연으로 본다. 11/06 12:01 독과점 시행령 개정 기사가 '정비' 한 글자쌍
+# ('정비사업' 기사에서 옴)만 겹쳐 '공정위 공공공사 입찰담합 조사'에 붙었다. 지난 2주 붙은 기사 약
+# 1,490건 중 이 기준으로 막히는 37건은 국채시장·ESG·원전 칼럼처럼 대부분 잘못 붙은 기사였다.
+EMBED_TITLE_OVERLAP_MIN_GRAMS = 2
 EMBED_TITLE_GRAM_TITLES = 10  # 이슈 제목 글자를 모으는 제목 수(처음 수집된 것부터)
 EMBED_ATTACH_LOG_PATH = "embed_attach_log.csv"  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
 EMBED_ATTACH_LOG_DAYS = 14
@@ -1262,8 +1266,9 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             if anchor_sim < EMBED_ANCHOR_MIN:
                 near_miss = True  # 중심과는 가깝지만 출발점과 너무 다름 - 번짐으로 보고 막는다
                 continue
-            overlap = len(xg & grams[i]) / max(len(xg), 1)
-            if overlap < EMBED_TITLE_OVERLAP_MIN:
+            shared = len(xg & grams[i])
+            overlap = shared / max(len(xg), 1)
+            if overlap < EMBED_TITLE_OVERLAP_MIN or shared < EMBED_TITLE_OVERLAP_MIN_GRAMS:
                 text_miss = True  # 벡터는 가깝다는데 제목 글자가 거의 안 겹침 - 다른 사건으로 보고 막는다
                 continue
             best_i, best_sim, best_anchor, best_overlap = i, sim, anchor_sim, overlap
@@ -1274,7 +1279,9 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
             # 이슈의 비교용 제목 글자는 처음 EMBED_TITLE_GRAM_TITLES개 제목까지만 늘린다. 붙는 기사마다
             # 늘리면 한 번 잘못 붙은 기사의 글자로 다음 기사가 또 붙어, 다른 사건이 줄줄이 따라 들어온다
             # (11/03 공시 과태료 기사 약 60건이 이렇게 '공정위 과징금 패소 논란'에 붙었다).
-            if gram_n[best_i] < EMBED_TITLE_GRAM_TITLES:
+            # 기존 이슈는 아예 늘리지 않는다. 최근 3일 제목이 10개 미만인 이슈는 위 상한이 안 걸려서,
+            # 11/06 12:01 독과점 기사 24건이 첫 기사의 글자를 타고 '공공공사 입찰담합'에 줄줄이 붙었다.
+            if best_i >= n_recent and gram_n[best_i] < EMBED_TITLE_GRAM_TITLES:
                 grams[best_i] |= xg
                 gram_n[best_i] += 1
             attached += best_i < n_recent
