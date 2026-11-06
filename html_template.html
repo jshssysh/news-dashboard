@@ -1059,8 +1059,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
         <div id="mainListArea"></div>
       </div>
       <div class="side-col">
-        <!-- 급상승 이슈: 보는 날짜에 수집된 기사를 이슈별로 세어 직전 7일 하루 평균보다
-             크게 늘어난 것을 보여준다(2026-11-04, 수집 현황 패널 대신). -->
+        <!-- 급상승 이슈: 최근 24시간(지난 날짜는 전날 08시~그날 08시)에 발행된 기사를 이슈별로 세어
+             직전 7일 하루 평균보다 크게 늘어난 것을 보여준다(2026-11-04, 수집 현황 패널 대신).
+             세는 기준은 computeTrends, 도움말은 HELP_TEXT.trend 참고. -->
         <div class="sidebar-panel trend-panel" id="trendPanel">
           <div class="panel-title" id="trendToggle">급상승 이슈<span class="help-tip" data-help-key="trend" role="button" tabindex="0" aria-label="급상승 이슈 기준">?</span><span class="toggle-caret">▼</span></div>
           <div class="trend-caption" id="trendCaption"></div>
@@ -1888,8 +1889,7 @@ const HELP_TEXT = {
 · 큰 숫자: 같은 사건을 하나로 묶은 이슈 수
 · 전체: 묶기 전 기사 수
 · 중복: 같은 이슈로 묶여 겹친 기사 수(전체 − 이슈 수)
-· 실패: AI가 논조를 판단하지 못한 기사 수
-최고 점수 6점 이상인 이슈의 기사만 셉니다.`,
+최고 점수 6점 이상인 이슈의 기사만 셉니다. AI 분석에 실패한 기사는 목록과 같이 빼고 셉니다(다음 수집 때 다시 분석되면 들어갑니다).`,
   sort: `· 중요도순: 이슈의 중요도(대표 기사 점수)가 높은 순. 전체 보기에서는 분야마다 점수 수준이 달라 분야 안 순위(각 분야 1위끼리, 그다음 2위끼리…)로 섞어 보여 주고, 인사는 맨 뒤
 · 보도량순: 이슈로 묶인 기사 수가 많은 순
 · 최신순: 가장 최근에 수집된 기사가 있는 이슈부터`,
@@ -2738,13 +2738,17 @@ function warningTooltip(entries) {
 const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7, TREND_MIN_IMPORTANCE = 7;
 const TREND_EXCLUDE = new Set(['인사', '기타']);
 // 급상승 "?" 도움말 - 위 숫자를 그대로 써서, 기준을 바꾸면 설명도 같이 바뀐다.
-HELP_TEXT.trend = `보는 날짜에 수집된 기사를 이슈별로 세어 직전 ${TREND_PREV_DAYS}일 하루 평균과 비교합니다.
-· 그날 ${TREND_MIN_COUNT}건 이상이고 평균의 ${TREND_MIN_RATIO}배 이상
-· 중요도 ${TREND_MIN_IMPORTANCE}점 이상 기사가 1건 이상
-· ${[...TREND_EXCLUDE].join('·')} 분야는 제외
-· 늘어난 건수(그날 − 평균)가 큰 순서로 ${TREND_TOP}개
-· 기간·검색·논조·분야 필터와 상관없이 날짜로만 계산
-며칠째 이어진 큰 이슈는 평균도 커져서 목록에서 빠질 수 있습니다.`;
+HELP_TEXT.trend = `보도량이 평소보다 갑자기 늘어난 이슈입니다. 기사 발행시각으로 셉니다.
+· 세는 범위: 오늘을 볼 때는 지금부터 24시간, 지난 날짜를 볼 때는 전날 08시~그날 08시
+· 비교 대상: 같은 이슈의 직전 ${TREND_PREV_DAYS}일 하루 평균 기사 수
+· 조건: ${TREND_MIN_COUNT}건 이상, 평균의 ${TREND_MIN_RATIO}배 이상, 중요도 ${TREND_MIN_IMPORTANCE}점 이상 기사가 1건 이상
+· 늘어난 건수(지금 − 평균)가 큰 순서로 ${TREND_TOP}개, 직전 ${TREND_PREV_DAYS}일에 기사가 없던 이슈는 '새 이슈'
+· ${[...TREND_EXCLUDE].join('·')} 분야 이슈와 AI 분석에 실패한 기사는 세지 않음
+· 기간·검색·논조·분야 필터와 상관없이 계산
+누르면 그 이슈 이름으로 검색합니다. 이때 목록 건수가 패널과 다를 수 있습니다.
+· 목록 위 시간 칸을 24시간이 아닌 값으로 바꿨거나 기간을 '최근 7일'·'날짜 지정' 등으로 바꾼 경우(패널은 항상 하루 기준)
+· 이름 검색이라 같은 단어가 들어간 다른 이슈 기사도 함께 걸린 경우
+며칠째 이어진 큰 이슈는 평균도 커져서 패널에서 빠질 수 있습니다.`;
 const trendCache = {};
 // 수집일이 아니라 발행시각(pub_ts)으로 센다(2026-11-06). 수집일로 세면 목록("오늘만" = 최근 24시간
 // 발행)과 숫자가 어긋났다 - 예: '공정위 결혼준비대행업체 가격공개 점검' 목록 62건, 패널 59건(11/5 발행
