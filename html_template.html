@@ -2087,10 +2087,13 @@ function renderTopTiles() {
   // 위 큰 숫자("수집 기사")만은 수집 스크립트가 실제로 언제 돌았는지와 무관하게,
   // 발행시각 기준 고정된 "전일 08시~오늘 08시" 창으로 센다(카테고리 칩/목록 등
   // 나머지 화면은 그대로 수집일자 기준 dr/groups를 쓴다 - 그건 안 건드림).
-  const windowRows = morningWindowRows(state.currentDate);
+  // 분석 실패 기사는 목록에서 숨기므로 상단 숫자에서도 뺀다(실패 기사는 제목마다 따로 묶여
+  // 그대로 세면 11/06처럼 2,400건으로 부풀었다). SHOW_ANALYSIS_PENDING이면 "실패 N건"을 따로 보인다.
+  const allWindowRows = morningWindowRows(state.currentDate);
+  const windowFailCount = allWindowRows.filter(r => r.sentiment === '판단 실패').length;
+  const windowRows = allWindowRows.filter(r => r.sentiment !== '판단 실패');
   const windowGroups = buildIssueGroups(windowRows);
   const windowDupCount = windowRows.length - windowGroups.length;
-  const windowFailCount = windowRows.filter(r => r.sentiment === '판단 실패').length;
   const { startLabel, endLabel } = morningWindowBounds(state.currentDate);
 
   document.getElementById('statCollect').innerHTML =
@@ -2099,7 +2102,7 @@ function renderTopTiles() {
        <span class="value">${fmtN(windowGroups.length)}건</span>
        <div class="collect-substats-block">
          <div class="sub-inline">전체 ${fmtN(windowRows.length)}건</div>
-         <div class="sub-inline">중복 ${fmtN(windowDupCount)}건 <span class="sm-fail">실패 ${fmtN(windowFailCount)}건</span></div>
+         <div class="sub-inline">중복 ${fmtN(windowDupCount)}건${SHOW_ANALYSIS_PENDING && windowFailCount ? ` <span class="sm-fail">실패 ${fmtN(windowFailCount)}건</span>` : ''}</div>
        </div>
      </div>`;
 
@@ -2635,6 +2638,11 @@ function matchesSearchTokens(fields, query) {
   return tokens.every(tok => combined.includes(tok));
 }
 
+// 분석 실패(분석 대기) 기사 건수를 화면에 보일지(2026-11-06 시연 전 끔). 끄면 결과 줄의
+// "분석 대기 N건 보기" 링크와 상단 칸의 "실패 N건"이 사라진다. 실패 기사는 어느 쪽이든 목록에서
+// 숨기고, 논조 칸에서 "판단 실패"를 고르면 볼 수 있다.
+const SHOW_ANALYSIS_PENDING = false;
+
 function newsMatchesGlobalFilters(r) {
   // AI 분석에 실패한 기사는 관련도로 걸러지지 않은 채 저장돼서(11/06 06시 2,139건 중 1,961건)
   // 목록을 덮는다. 논조 칸에서 "판단 실패"를 고를 때만 보여주고, 평소엔 결과 줄의
@@ -2924,7 +2932,7 @@ function renderMainList(scoped, allGroups) {
   if (totalCount) document.getElementById('resultCaption').insertAdjacentHTML('beforeend',
     '<span class="help-tip" data-help-key="sort" role="button" tabindex="0" aria-label="정렬 기준">?</span>');
   // 숨겨 둔 분석 실패 기사 건수(분야·검색어는 목록과 같게 적용). 누르면 그 기사만 본다.
-  if (state.sentiment !== '판단 실패') {
+  if (SHOW_ANALYSIS_PENDING && state.sentiment !== '판단 실패') {
     const pendingCount = scoped.filter(r => r.sentiment === '판단 실패'
       && (state.selectedCategory === '전체' || r.category === state.selectedCategory)
       && (!state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search))).length;
