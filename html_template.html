@@ -136,7 +136,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-alt-toggle { background: none; border: none; padding: 0; margin-left: 2px; font: inherit;
   font-size: 1em; font-weight: 600; color: inherit; opacity: 0.75; cursor: pointer; white-space: nowrap; }
 .bill-alt-toggle:hover { opacity: 1; text-decoration: underline; }
-.company-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+/* 회사 꼬리표는 선별 근거 줄에 같이 둬서 카드가 세 줄을 넘지 않게 한다(11/10). 근거가 없으면 빈 테두리 상자를 숨긴다. */
+.company-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 auto 0 0; align-items: center; }
+.reason-box:empty { display: none; }
 .company-chip { background: transparent; border: 1px solid var(--app-border); color: var(--app-text-secondary, inherit); border-radius: 999px; padding: 1px 8px; font-size: 0.74em; cursor: pointer; line-height: 1.6; }
 .company-chip:hover, .company-chip.active { border-color: var(--accent, #6b7fd7); color: var(--accent, #6b7fd7); }
 .reason-chip { display: inline-block; background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 5px; font-size: 0.8em; font-weight: 600; margin-right: 4px; border: 1px solid var(--app-border); }
@@ -3036,9 +3038,9 @@ function renderMainList(scoped, allGroups) {
           <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
-        ${g.companies.length ? `<div class="company-chips">${g.companies.map(c => `<button type="button" class="company-chip ${state.search === c ? 'active' : ''}" data-company="${escHtml(c)}" title="이 회사가 나온 기사로 검색(다시 누르면 해제)">${escHtml(c)}</button>`).join('')}</div>` : ''}
         <div class="related-row">
           <div class="reason-box">${reasons.length? ("<span class='reason-label'>선별 근거<span class='help-tip' data-help-key='reason' role='button' tabindex='0' aria-label='선별 근거 기준'>?</span></span>"+reasonChips) : ""}</div>
+          ${g.companies.length ? `<div class="company-chips">${g.companies.map(c => `<button type="button" class="company-chip ${state.search === c ? 'active' : ''}" data-company="${escHtml(c)}" title="이 회사가 나온 기사로 검색(다시 누르면 해제)">${escHtml(c)}</button>`).join('')}</div>` : ''}
           <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <div class="related-list ${isOpen?'open':''}">${related}</div>

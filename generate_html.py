@@ -585,9 +585,33 @@ def row_to_dict(row):
         "link": nz(row["기사링크"], ""),
         **({"digest": 1} if digest else {}),
         # Gemini가 뽑은 언급 회사(main.py COMPANIES_BY_TITLE, 2026-11-10부터). 없으면 칸을 안 쓴다(news.json 크기)
-        **({"companies": companies} if (companies := [c for c in str(row.get("언급기업") or "").split(";")
-                                                      if c.strip() and c != "nan"]) else {}),
+        # 모음 기사는 다른 꼭지의 회사가 붙으므로(11/10 '젠슨 황…[오늘아침]'에 배민·쿠팡) 꼬리표를 안 단다.
+        **({"companies": companies} if (not digest and (companies := company_tags(row.get("언급기업")))) else {}),
     }
+
+
+def _load_company_aliases():
+    """config/company_aliases.csv(별칭,대표이름) - 같은 회사의 다른 표기를 하나로 맞춘다."""
+    try:
+        adf = pd.read_csv("config/company_aliases.csv", dtype=str, keep_default_na=False)
+        return {r["별칭"].strip(): r["대표이름"].strip() for _, r in adf.iterrows() if r["별칭"].strip()}
+    except Exception:
+        return {}
+
+
+COMPANY_ALIASES = _load_company_aliases()
+
+
+def company_tags(raw):
+    out = []
+    for c in str(raw or "").split(";"):
+        c = c.strip()
+        if not c or c == "nan":
+            continue
+        c = COMPANY_ALIASES.get(c, c)
+        if c not in out:
+            out.append(c)
+    return out
 
 
 def bill_outcome_bucket(result):
