@@ -136,6 +136,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-alt-toggle { background: none; border: none; padding: 0; margin-left: 2px; font: inherit;
   font-size: 1em; font-weight: 600; color: inherit; opacity: 0.75; cursor: pointer; white-space: nowrap; }
 .bill-alt-toggle:hover { opacity: 1; text-decoration: underline; }
+.company-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+.company-chip { background: transparent; border: 1px solid var(--app-border); color: var(--app-text-secondary, inherit); border-radius: 999px; padding: 1px 8px; font-size: 0.74em; cursor: pointer; line-height: 1.6; }
+.company-chip:hover, .company-chip.active { border-color: var(--accent, #6b7fd7); color: var(--accent, #6b7fd7); }
 .reason-chip { display: inline-block; background: var(--app-secondary-bg); padding: 2px 8px; border-radius: 5px; font-size: 0.8em; font-weight: 600; margin-right: 4px; border: 1px solid var(--app-border); }
 .reason-box { border: 1px solid var(--app-border); border-radius: 8px; padding: 4px 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; line-height: 1.3; }
 /* "선별 근거"가 스타일 없는 맨 텍스트라 옆 칩(0.8em)보다 커서 혼자 튀어 보였다.
@@ -1336,7 +1339,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-10 07:57 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-10 08:18 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1963,6 +1966,14 @@ function fmtDt(ts) {
   return mm + "." + dd + " " + hh + ":" + mi;
 }
 
+// 카드에 붙이는 언급 회사: 기사들의 companies(Gemini 추출)를 기사 수 많은 순으로 최대 5개.
+// 이슈는 사건으로 묶고 회사는 꼬리표로 따로 보이게 한다(2026-11-10, 같은 회사의 다른 일이 한 이슈에 쌓이던 문제).
+function issueCompanies(rows) {
+  const n = {};
+  rows.forEach(r => (r.companies || []).forEach(c => { n[c] = (n[c] || 0) + 1; }));
+  return Object.keys(n).sort((a, b) => n[b] - n[a] || a.localeCompare(b)).slice(0, 5);
+}
+
 function buildIssueGroups(rows) {
   const byIssue = {};
   // 대표이슈가 비어 있으면(분석 실패분) 제목을 키로 쓴다. 예전엔 빈 값이 그대로
@@ -1987,7 +1998,7 @@ function buildIssueGroups(rows) {
     return {
       title, importance: rep.importance, sentiment: rep.sentiment, category: rep.category, summary: rep.summary,
       mainPress: rep.press, pressCount: grows.length, repTs: rep.ts, repPubTs: rep.pub_ts, repLink: rep.link,
-      kwRepeat: keywordRepeatInfo(grows), rows: grows,
+      kwRepeat: keywordRepeatInfo(grows), rows: grows, companies: issueCompanies(grows),
     };
   });
   groups.sort((a,b) => (b.importance - a.importance) || (b.kwRepeat[1] - a.kwRepeat[1]));
@@ -2656,7 +2667,7 @@ function newsMatchesGlobalFilters(r) {
   // "분석 대기 N건"으로 건수만 알린다. 다음 수집에서 분석되면 자동으로 목록에 나타난다.
   if (r.sentiment === '판단 실패' && state.sentiment !== '판단 실패') return false;
   if (state.sentiment && r.sentiment !== state.sentiment) return false;
-  if (state.search && !matchesSearchTokens([r.title, r.summary, r.issue], state.search)) return false;
+  if (state.search && !matchesSearchTokens([r.title, r.summary, r.issue, (r.companies || []).join(' ')], state.search)) return false;
   return true;
 }
 
@@ -2852,7 +2863,7 @@ function renderNewsView(dr, allGroups) {
     const signalRows = scoped
       .filter(r => r.sentiment !== '판단 실패')
       .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
-      .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search));
+      .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue, (r.companies || []).join(' ')], state.search));
     const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상');
     const top3 = (state.selectedCategory === '전체' ? rankWithinCategory(signalGroups) : signalGroups).slice(0,3);
     document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
@@ -2968,7 +2979,7 @@ function renderMainList(scoped, allGroups) {
   if (SHOW_ANALYSIS_PENDING && state.sentiment !== '판단 실패') {
     const pendingCount = scoped.filter(r => r.sentiment === '판단 실패'
       && (state.selectedCategory === '전체' || r.category === state.selectedCategory)
-      && (!state.search || matchesSearchTokens([r.title, r.summary, r.issue], state.search))).length;
+      && (!state.search || matchesSearchTokens([r.title, r.summary, r.issue, (r.companies || []).join(' ')], state.search))).length;
     if (pendingCount) {
       const cap = document.getElementById('resultCaption');
       cap.insertAdjacentHTML('beforeend', ` <button type="button" class="pending-link"
@@ -3025,6 +3036,7 @@ function renderMainList(scoped, allGroups) {
           <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
+        ${g.companies.length ? `<div class="company-chips">${g.companies.map(c => `<button type="button" class="company-chip ${state.search === c ? 'active' : ''}" data-company="${escHtml(c)}" title="이 회사가 나온 기사로 검색(다시 누르면 해제)">${escHtml(c)}</button>`).join('')}</div>` : ''}
         <div class="related-row">
           <div class="reason-box">${reasons.length? ("<span class='reason-label'>선별 근거<span class='help-tip' data-help-key='reason' role='button' tabindex='0' aria-label='선별 근거 기준'>?</span></span>"+reasonChips) : ""}</div>
           <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
@@ -3038,6 +3050,14 @@ function renderMainList(scoped, allGroups) {
     listEl.querySelectorAll('.news-cart-inline-btn').forEach(btn => {
       btn.addEventListener('click', () => toggleCartItem(btn));
     });
+    listEl.querySelectorAll('.company-chip').forEach(btn => btn.addEventListener('click', () => {
+      const c = btn.dataset.company;
+      state.search = state.search === c ? '' : c;
+      state.selectedCategory = '전체';
+      state.page = 1;
+      document.getElementById('searchInput').value = state.search;
+      renderAll();
+    }));
   }
 
   const pg = document.getElementById('pgNav');
