@@ -1102,6 +1102,12 @@ EMBED_TITLE_OVERLAP_MIN = 0.10
 # ('정비사업' 기사에서 옴)만 겹쳐 '공정위 공공공사 입찰담합 조사'에 붙었다. 지난 2주 붙은 기사 약
 # 1,490건 중 이 기준으로 막히는 37건은 국채시장·ESG·원전 칼럼처럼 대부분 잘못 붙은 기사였다.
 EMBED_TITLE_OVERLAP_MIN_GRAMS = 2
+# 유사도가 기준선(0.80) 근처면 제목 글자도 더 많이 겹쳐야 붙인다(2026-11-10). 지난 2주 붙은 기사
+# 2,973건 중 유사도 0.83 미만·겹침 0.35 미만 192건, 0.83~0.86·겹침 0.25 미만 136건을 표본으로 보니
+# 거의 다 다른 사건이었다(쿠팡 끼워팔기 재심사 -> '독과점 가격남용 규율 정비', 중국 회사 하도급법
+# 판결 -> '삼성물산 하도급 분쟁 합의', 국감 총평 -> '두산그룹 공시대상기업집단' 등).
+# [(이 유사도 미만이면, 겹침이 이 값 이상이어야)] - 위에서부터 처음 맞는 줄을 쓴다.
+EMBED_BORDERLINE_OVERLAP = [(0.83, 0.35), (0.86, 0.25)]
 EMBED_TITLE_GRAM_TITLES = 10  # 이슈 제목 글자를 모으는 제목 수(처음 수집된 것부터)
 EMBED_ATTACH_LOG_PATH = "embed_attach_log.csv"  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
 EMBED_ATTACH_LOG_DAYS = 14
@@ -1268,7 +1274,8 @@ def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
                 continue
             shared = len(xg & grams[i])
             overlap = shared / max(len(xg), 1)
-            if overlap < EMBED_TITLE_OVERLAP_MIN or shared < EMBED_TITLE_OVERLAP_MIN_GRAMS:
+            need = next((o for lim, o in EMBED_BORDERLINE_OVERLAP if sim < lim), EMBED_TITLE_OVERLAP_MIN)
+            if overlap < need or shared < EMBED_TITLE_OVERLAP_MIN_GRAMS:
                 text_miss = True  # 벡터는 가깝다는데 제목 글자가 거의 안 겹침 - 다른 사건으로 보고 막는다
                 continue
             best_i, best_sim, best_anchor, best_overlap = i, sim, anchor_sim, overlap
