@@ -553,7 +553,24 @@ def _parse_absorbed_bills(raw):
         return []
 
 
+# 여러 소식을 모은 기사("[건설브리핑] 삼성물산, 목동13단지 ... ", "[금융권 이모저모]", "... 외")는
+# 검색어 근처 발췌문만 보고 요약해서, 제목과 다른 꼭지(11/09: 목동13단지 기사에 에스피네이처 CP
+# 요약)가 요약으로 나온다. 이런 기사는 요약 대신 제목을 보여 준다.
+DIGEST_TITLE_RE = re.compile(
+    r"^\s*[\[【<]?[^\]】>]{0,20}(브리핑|소식|모음|이모저모|나들이|Pick|픽\]|뉴스\s*종합|이슈\s*종합|오늘\s*뉴스)[^\]】>]{0,20}[\]】>]"
+    r"|\s(외|外)$")
+
+
+def is_digest_title(title):
+    t = str(title or "")
+    # 인사 모음("[인사] 고용노동부 외")은 Gemini가 사람·직책을 뽑아 요약하므로 그대로 둔다
+    if re.match(r"^\s*\[(애널|핫스톡|그래픽)", t) or "인사" in t:
+        return False
+    return bool(DIGEST_TITLE_RE.search(t))
+
+
 def row_to_dict(row):
+    digest = is_digest_title(row["제목"])
     return {
         "date": nz(row["date_str"]),
         "ts": row["dt"].strftime("%Y-%m-%dT%H:%M:%S") if pd.notna(row["dt"]) else None,
@@ -562,10 +579,11 @@ def row_to_dict(row):
         "issue": nz(row["대표이슈"]),
         "title": nz(row["제목"], ""),
         "press": nz(row["언론사"], ""),
-        "summary": nz(row["AI요약"], ""),
+        "summary": nz(row["제목"], "") if digest else nz(row["AI요약"], ""),
         "sentiment": nz(row["논조"], ""),
         "importance": int(row["중요도"]) if pd.notna(row["중요도"]) else 5,
         "link": nz(row["기사링크"], ""),
+        **({"digest": 1} if digest else {}),
     }
 
 
