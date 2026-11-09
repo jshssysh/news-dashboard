@@ -1336,7 +1336,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-09 12:21 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-09 18:29 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1975,8 +1975,13 @@ function buildIssueGroups(rows) {
   });
   const groups = Object.keys(byIssue).map(title => {
     const grows = byIssue[title].slice().sort((a,b) => b.importance - a.importance);
-    const majorRows = grows.filter(r => isMajorPress(r.link));
-    const rep = majorRows.length ? majorRows[0] : grows[0];
+    // 카드 요약은 대표 기사를 따른다. 이슈 이름의 당사자(첫 단어 앞 두 글자)가 제목에 든 기사를
+    // 먼저 고른다 - 다른 당사자 기사의 요약이 카드에 올라 제목과 어긋나지 않게(11/09 평택·영동).
+    const stem = (title.split(/\s+/)[0] || '').replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 2);
+    const fits = r => stem.length < 2 || (r.title || '').replace(/[^가-힣A-Za-z0-9]/g, '').includes(stem);
+    const pool = grows.filter(fits).length ? grows.filter(fits) : grows;
+    const majorRows = pool.filter(r => isMajorPress(r.link));
+    const rep = majorRows.length ? majorRows[0] : pool[0];
     return {
       title, importance: rep.importance, sentiment: rep.sentiment, category: rep.category, summary: rep.summary,
       mainPress: rep.press, pressCount: grows.length, repTs: rep.ts, repPubTs: rep.pub_ts, repLink: rep.link,
