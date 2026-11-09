@@ -170,6 +170,10 @@ PERSONNEL_NEWS_ORGS = [
 # 되면 안 된다 (한 번 배치가 실패하면 이 문구가 빈도 1위가 되어 Gemini에게 재사용
 # 대상으로 제시되는 오염이 실제로 발생했다).
 ISSUE_TITLE_API_ERROR = "통신 예외 발생"
+# Gemini 분석이 뽑은 기사별 언급 회사(2026-11-10). 분석 결과 튜플(점수·이슈·요약·논조·분야)은 여러 곳에서
+# 풀어 쓰고 있어 칸을 늘리지 않고, 제목 -> 회사 목록으로 따로 모은다. news_list.csv "언급기업" 칸에 저장.
+COMPANIES_BY_TITLE = {}
+COMPANY_SEP = ";"
 ISSUE_TITLE_PARSE_ERROR = "파싱 오류"
 ERROR_ISSUE_TITLES = {ISSUE_TITLE_API_ERROR, ISSUE_TITLE_PARSE_ERROR}
 
@@ -512,7 +516,12 @@ def analyze_batch_with_gemini(batch_items):
    - summary: 인사 발령이면 소속·직책 변경 내용을, 부고면 고인과의 관계(본인/부친상/모친상 등)를
      1문장으로 정리
 
-주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment 생성 제외 (category는 항상 생성).
+8. companies: (relevance_score 5점 이상일 때만) 기사에 당사자로 나오는 회사·그룹·기업 단체 이름 목록
+   (최대 5개, 기사에 많이 나오는 순). 정식 이름에 가까운 흔한 표기로 쓸 것(예: "배민"이 아니라
+   "배달의민족", "한화M&S"는 그대로). 공정위·금융위·국회·법원 같은 정부·공공 기관과 언론사는 넣지
+   말 것. 회사가 없으면 빈 배열.
+
+주의: relevance_score가 4점 이하인 기사는 group_title, summary, sentiment, companies 생성 제외 (category는 항상 생성).
 """
     # thinkingBudget=0: 단순 분류/추출 작업이라 긴 추론이 불필요한데, 기본값(동적 사고)으로 두면
     # 눈에 안 보이는 "thinking" 토큰이 출력 토큰 요금(입력의 8배 이상)으로 과금되어 비용이 커진다
@@ -555,6 +564,12 @@ def analyze_batch_with_gemini(batch_items):
                     category = None
 
                 result_map[r_idx] = (score, g_title, summary, sentiment, category)
+                companies = r.get("companies")
+                if isinstance(companies, list):
+                    names = list(dict.fromkeys(str(c).strip() for c in companies if str(c).strip()))[:5]
+                    item = next((b for b in batch_items if b["idx"] == r_idx), None)
+                    if item is not None and names:
+                        COMPANIES_BY_TITLE[item["title"]] = names
 
             return [(item["idx"], *result_map.get(item["idx"], (0, ISSUE_TITLE_PARSE_ERROR, "데이터 구조 불일치", "판단 실패", None))) for item in batch_items]
         else:
@@ -1651,7 +1666,7 @@ def save_cluster_warnings(warnings, today_str):
 
 
 def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None):
-    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시"]
+    columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시", "언급기업"]
     new_df = pd.DataFrame(new_rows, columns=columns)
 
     cluster_warnings = find_cluster_warnings(new_df)
@@ -1911,7 +1926,7 @@ def main():
             group_title = force_merge_by_keywords(item["title"], normalize_title(item["title"]))
             rows.append([
                 item["today_str"], item["category"], group_title, item["title"],
-                press_display_name(item["known_press"], item["link"]), "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"]
+                press_display_name(item["known_press"], item["link"]), "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"], ""
             ])
     else:
         # 완전 동일 제목(unique_for_api)에서 한 단계 더 나아가, 분야별로 제목이 비슷한 기사를 묶어
@@ -1938,6 +1953,7 @@ def main():
                 )
 
         analyzed_results = {}
+        companies_by_nt = {}
 
         def analyze_norm_titles(norm_ts):
             api_items = []
@@ -1960,6 +1976,8 @@ def main():
                     g_title = force_merge_by_keywords(original_item["title"], g_title)
                     final_category = category or original_item["category"]
                     analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
+                    if original_item["title"] in COMPANIES_BY_TITLE:
+                        companies_by_nt[original_item["norm_t"]] = COMPANIES_BY_TITLE[original_item["title"]]
                 time.sleep(4.5)  # 무료 등급은 분당 15회 제한 (60/15=4초) - 여유 있게 4.5초씩 대기
 
         first_pass = list(cluster_members) + list(second_samples.values())
@@ -1985,6 +2003,8 @@ def main():
         for nt, leader_nt in title_cluster_map.items():
             if nt not in analyzed_results and leader_nt in analyzed_results:
                 analyzed_results[nt] = analyzed_results[leader_nt]
+                if leader_nt in companies_by_nt:
+                    companies_by_nt[nt] = companies_by_nt[leader_nt]
 
         # 임베딩을 쓸 수 있으면 Gemini 이슈명 통합(master_cluster_with_gemini)은 건너뛴다 -
         # 그 단계가 새 이슈를 엉뚱한 기존 이름에 붙이면(10/14 '현장조사 거부 파장' 사례)
@@ -2031,7 +2051,8 @@ def main():
 
             rows.append([
                 item["today_str"], category, group_title, item["title"],
-                press_display_name(item["known_press"], item["link"]), summary, sentiment, score, item["link"], item["pub_date"]
+                press_display_name(item["known_press"], item["link"]), summary, sentiment, score, item["link"], item["pub_date"],
+                COMPANY_SEP.join(companies_by_nt.get(norm_t, []))
             ])
 
     if not SKIP_AI_ANALYSIS:

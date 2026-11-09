@@ -584,6 +584,9 @@ def row_to_dict(row):
         "importance": int(row["중요도"]) if pd.notna(row["중요도"]) else 5,
         "link": nz(row["기사링크"], ""),
         **({"digest": 1} if digest else {}),
+        # Gemini가 뽑은 언급 회사(main.py COMPANIES_BY_TITLE, 2026-11-10부터). 없으면 칸을 안 쓴다(news.json 크기)
+        **({"companies": companies} if (companies := [c for c in str(row.get("언급기업") or "").split(";")
+                                                      if c.strip() and c != "nan"]) else {}),
     }
 
 
