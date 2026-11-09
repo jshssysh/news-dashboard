@@ -1336,7 +1336,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-10 07:22 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-10 07:57 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1979,7 +1979,9 @@ function buildIssueGroups(rows) {
     // 먼저 고른다 - 다른 당사자 기사의 요약이 카드에 올라 제목과 어긋나지 않게(11/09 평택·영동).
     const stem = (title.split(/\s+/)[0] || '').replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 2);
     const fits = r => stem.length < 2 || (r.title || '').replace(/[^가-힣A-Za-z0-9]/g, '').includes(stem);
-    const pool = grows.filter(fits).length ? grows.filter(fits) : grows;
+    // 모음 기사(브리핑·소식 모음, generate_html.py is_digest_title)는 다른 기사가 있으면 대표로 쓰지 않는다
+    const solo = grows.filter(r => !r.digest).length ? grows.filter(r => !r.digest) : grows;
+    const pool = solo.filter(fits).length ? solo.filter(fits) : solo;
     const majorRows = pool.filter(r => isMajorPress(r.link));
     const rep = majorRows.length ? majorRows[0] : pool[0];
     return {
