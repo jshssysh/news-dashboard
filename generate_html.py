@@ -103,7 +103,23 @@ def load_data():
     exempt = (df['분야'] == '인사') | (df['논조'] == '판단 실패') | df['대표이슈'].isna()
     df = df[exempt | (issue_max >= DISPLAY_MIN_ISSUE_SCORE)]
 
+    # 여러 당사자 기사가 묶인 이슈는 main.py가 지은 공통 이름으로 보여 준다(issue_display_names.csv).
+    # 데이터(news_list.csv)의 대표이슈는 그대로라, 덮어쓰기(config/news_overrides.csv)는 원래 이름으로 쓴다.
+    names = load_issue_display_names()
+    if names:
+        df['대표이슈'] = df['대표이슈'].map(lambda t: names.get(t, t) if isinstance(t, str) else t)
     return df
+
+
+def load_issue_display_names():
+    path = "issue_display_names.csv"
+    if not os.path.exists(path):
+        return {}
+    try:
+        ndf = pd.read_csv(path, dtype=str, keep_default_na=False)
+        return {r["이슈"]: r["표시이름"] for _, r in ndf.iterrows() if r["이슈"] and r["표시이름"]}
+    except Exception:
+        return {}
 
 
 def load_personnel():

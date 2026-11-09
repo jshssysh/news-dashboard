@@ -1722,6 +1722,124 @@ def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None
 
     combined_df.to_csv(file_name, index=False, encoding="utf-8-sig")
 
+# 이슈 표시 이름(2026-11-09). 임베딩 묶기는 같은 정책을 여러 지자체·기업이 각각 시행한 기사
+# (평택·영동·영주시 "수의계약 연 5회 제한")를 한 이슈로 묶는데, 이슈 이름은 처음 들어온 기사의
+# 당사자("평택시 수의계약 횟수 제한")로 고정되고 카드 요약은 대표 기사(영동군)를 따라가서
+# 제목과 내용이 어긋났다. 묶음은 그대로 두고, 이름의 당사자가 기사 제목 상당수에 없으면 그 이슈
+# 기사 제목들로 Gemini에 공통 이름을 다시 지어 화면에서만 그 이름을 쓴다(generate_html.py).
+# news_list.csv의 대표이슈는 바꾸지 않는다 - 과거 행 고정 원칙(apply_issue_merge)과
+# config/news_overrides.csv의 이슈 이름이 그대로 맞아야 해서다.
+ISSUE_DISPLAY_PATH = "issue_display_names.csv"
+ISSUE_DISPLAY_DAYS = 14          # 이만큼 지난 이름은 지운다(화면은 35일치라 그 뒤엔 원래 이름)
+ISSUE_DISPLAY_RECENT_DAYS = 3    # 최근 이만큼 기사가 들어온 이슈만 본다
+ISSUE_DISPLAY_MIN_ARTICLES = 3
+ISSUE_DISPLAY_MISS_RATIO = 0.3   # 당사자가 없는 제목이 이 비율 이상이면 다시 짓는다
+ISSUE_DISPLAY_MAX_PER_RUN = 15
+ISSUE_DISPLAY_TITLES = 12        # Gemini에 보내는 이슈당 제목 수
+
+
+def issue_subject(name):
+    """이슈 이름의 당사자: 일반 단어(공정위·정부 등)가 아닌 첫 단어. 없으면 ""."""
+    for w in re.split(r"[\s·,]+", name or ""):
+        w = re.sub(r"[^가-힣A-Za-z0-9]", "", w)
+        if len(w) >= 2 and w not in NON_SPECIFIC_ISSUE_WORDS:
+            return w
+    return ""
+
+
+def issue_display_candidates(df, now=None):
+    """[(이슈, [제목...])] - 이름의 당사자가 기사 제목 상당수에 없는 최근 이슈."""
+    now = now or datetime.now(KST).replace(tzinfo=None)
+    d = df[~df["대표이슈"].isin(ERROR_ISSUE_TITLES) & (df["논조"] != "판단 실패") & (df["논조"] != "미분석")].copy()
+    d["_dt"] = pd.to_datetime(d["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
+    d["중요도"] = pd.to_numeric(d["중요도"], errors="coerce").fillna(0)
+    recent = d[d["_dt"] >= now - timedelta(days=ISSUE_DISPLAY_RECENT_DAYS)]["대표이슈"].unique()
+    out = []
+    for issue, g in d[d["대표이슈"].isin(recent)].groupby("대표이슈"):
+        if g["중요도"].max() < EMBED_MIN_SCORE:
+            continue  # 화면에 안 나오는 이슈
+        titles = list(dict.fromkeys(g.sort_values("_dt")["제목"].dropna().astype(str)))
+        subj = issue_subject(issue)
+        if len(titles) < ISSUE_DISPLAY_MIN_ARTICLES or not subj:
+            continue
+        # 약칭·표기 차이("호반그룹"/"호반", "한화MS"/"한화M&S")로 잘못 걸리지 않게 앞 두 글자로 본다
+        stem = subj[:2]
+        miss = sum(stem not in re.sub(r"[^가-힣A-Za-z0-9]", "", t) for t in titles)
+        if miss >= 2 and miss / len(titles) >= ISSUE_DISPLAY_MISS_RATIO:
+            out.append((issue, titles))
+    return out
+
+
+def name_issues_with_gemini(cands):
+    """{이슈: 새 이름}. 실패하면 {}."""
+    if not GEMINI_API_KEY or not cands:
+        return {}
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
+    # 처음 몇 건(이름이 나온 기사)과 최근 기사(카드 요약이 따라가는 쪽)를 함께 보낸다
+    data = [{"issue": i, "titles": t if len(t) <= ISSUE_DISPLAY_TITLES else t[:4] + t[-(ISSUE_DISPLAY_TITLES - 4):]}
+            for i, t in cands]
+    prompt = f"""당신은 뉴스 대시보드의 이슈 카드 제목을 다듬는 편집자입니다.
+각 항목은 한 카드에 묶인 기사 제목들과, 지금 카드 이름(issue)입니다. 지금 이름은 처음 들어온
+기사 하나를 따라 지어져, 다른 기사들과 안 맞을 수 있습니다.
+입력: {json.dumps(data, ensure_ascii=False)}
+
+규칙:
+1. 제목들이 모두 한 당사자(회사·기관·인물)의 한 사건이면 지금 이름을 그대로 돌려줄 것.
+2. 여러 당사자가 같은 일을 각각 하는 기사들이면(예: 여러 지자체가 같은 제도를 도입), 특정
+   당사자 하나의 이름을 쓰지 말고 공통 주체·주제로 지을 것(예: "지자체 수의계약 총량제 도입").
+3. 한 사건에 여러 기관이 얽혔으면 기사 대부분이 다루는 핵심 당사자와 사건으로 지을 것.
+4. 15자 안팎의 명사형, 따옴표·괄호 없이.
+
+JSON 배열로만 답할 것: [{{"issue": "지금 이름", "name": "새 이름"}}]
+"""
+    payload = {"contents": [{"parts": [{"text": prompt}]}],
+               "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
+    try:
+        res = post_gemini_with_retry(url, payload)
+        if res.status_code != 200:
+            print(f"[이슈 표시 이름 - Gemini 오류] {res.status_code}")
+            return {}
+        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+        valid = {i for i, _ in cands}
+        out = {}
+        for r in json.loads(raw):
+            if isinstance(r, dict) and r.get("issue") in valid:
+                name = re.sub(r"[\"'“”‘’()\[\]]", "", str(r.get("name") or "")).strip()
+                if 2 <= len(name) <= 30:
+                    out[r["issue"]] = name
+        return out
+    except Exception as e:
+        print(f"[이슈 표시 이름 - 예외, 이번엔 건너뜀] {e}")
+        return {}
+
+
+def update_issue_display_names(news_path="news_list.csv"):
+    """issue_display_names.csv(이슈, 표시이름, 기사수, 갱신일시)를 갱신한다. 기사 수가 그대로인
+    이슈는 다시 묻지 않는다. 실패해도 수집에는 영향 없음."""
+    try:
+        df = pd.read_csv(news_path)
+        now = datetime.now(KST).replace(tzinfo=None)
+        old = pd.read_csv(ISSUE_DISPLAY_PATH, dtype=str).fillna("") if os.path.exists(ISSUE_DISPLAY_PATH) else \
+            pd.DataFrame(columns=["이슈", "표시이름", "기사수", "갱신일시"])
+        known = {r["이슈"]: r["기사수"] for _, r in old.iterrows()}
+        cands = [(i, t) for i, t in issue_display_candidates(df, now) if known.get(i) != str(len(t))]
+        cands = sorted(cands, key=lambda x: -len(x[1]))[:ISSUE_DISPLAY_MAX_PER_RUN]
+        names = name_issues_with_gemini(cands)
+        stamp = now.strftime("%Y-%m-%d %H:%M")
+        new = pd.DataFrame([{"이슈": i, "표시이름": names[i], "기사수": str(len(t)), "갱신일시": stamp}
+                            for i, t in cands if i in names])
+        merged = pd.concat([old[~old["이슈"].isin(new["이슈"] if len(new) else [])], new], ignore_index=True)
+        cutoff = (now - timedelta(days=ISSUE_DISPLAY_DAYS)).strftime("%Y-%m-%d")
+        merged = merged[merged["갱신일시"].astype(str) >= cutoff]
+        merged.to_csv(ISSUE_DISPLAY_PATH, index=False, encoding="utf-8-sig")
+        changed = [f"{i} -> {names[i]}" for i, _ in cands if i in names and names[i] != i]
+        print(f"[이슈 표시 이름] 후보 {len(cands)}개, 이름 바뀜 {len(changed)}개" + (": " + "; ".join(changed) if changed else ""))
+    except Exception as e:
+        print(f"[이슈 표시 이름 - 예외, 이번엔 건너뜀] {e}")
+
+
 def main():
     today_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     all_articles = []
@@ -1941,6 +2059,7 @@ def main():
 
     save_and_merge_data(rows, embedded_links=embedded_links)
     if not SKIP_AI_ANALYSIS:
+        update_issue_display_names()
         save_rejected_news(rejected)
         save_gemini_usage("main.py(뉴스)", len(rows), today_str)
 
