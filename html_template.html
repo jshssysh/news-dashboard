@@ -5523,7 +5523,10 @@ async function loadArchiveMonth(m) {
   if (typeof DecompressionStream !== 'function') throw new Error('unsupported');
   const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
   if (!res.ok || !res.body) throw new Error('archive/' + m + '.json.gz → HTTP ' + res.status);
-  return await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  // 예전 월 파일에는 빈 칸이 JSON 표준이 아닌 NaN으로 적힌 곳이 있다(main.py
+  // _clean_archive_rows가 다음 수집 때 고쳐 쓴다). 그 전에도 읽히도록 null로 바꿔 읽는다.
+  const text = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
+  return JSON.parse(text.replace(/":NaN(?=[,}])/g, '":null'));
 }
 function ensureArchiveMonths() {
   if (!archiveMonthsPromise) {

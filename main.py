@@ -1445,10 +1445,29 @@ def _read_archive_month(month):
     return []
 
 
+def _is_nan(v):
+    return isinstance(v, float) and v != v
+
+
+def _clean_archive_rows(rows):
+    """빈 칸이 NaN(float)으로 남은 값을 ""로 바꾼다. json.dumps는 NaN을 그대로 `NaN`으로
+    적는데 이건 JSON 표준이 아니라 브라우저가 월 파일 전체를 못 읽는다(실측 2026-11-11:
+    2026-08 498곳, 2026-09 9곳 - 9월 아카이브 검색이 "불러오지 못했습니다"로 실패).
+    바뀐 값이 있으면 True를 돌려준다."""
+    changed = False
+    for item in rows:
+        for k, v in item.items():
+            if _is_nan(v):
+                item[k] = ""
+                changed = True
+    return changed
+
+
 def _write_archive_month(month, rows):
     """월별 아카이브를 .json.gz 하나로만 저장한다(화면도 이걸 그대로 받아 브라우저에서 푼다).
     mtime=0으로 고정해 같은 내용이면 같은 바이트가 되게 한다(불필요한 git diff 방지)."""
-    payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    _clean_archive_rows(rows)
+    payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
     with open(_archive_path(month), "wb") as f:
         f.write(gzip.compress(payload, compresslevel=9, mtime=0))
     legacy = os.path.join(NEWS_ARCHIVE_DIR, f"{month}.json")
@@ -1460,9 +1479,18 @@ def archive_expiring_news(expiring_df):
     """ARCHIVE_AFTER_DAYS보다 오래된 행들을 월별
     docs/archive/YYYY-MM.json.gz에 합쳐 저장한다(기사링크 기준 중복 제거).
     여러 번 실행해도 안전하도록(멱등) 기존 파일과 항상 합쳐쓴다."""
+    os.makedirs(NEWS_ARCHIVE_DIR, exist_ok=True)
+    # 예전에 NaN이 섞여 저장된 월 파일을 고쳐 쓴다(새 행이 안 붙는 지난달 파일도 고쳐지도록
+    # 매 실행 확인한다 - 고칠 게 없으면 다시 쓰지 않는다).
+    for fname in sorted(os.listdir(NEWS_ARCHIVE_DIR)):
+        if fname.endswith(ARCHIVE_EXT):
+            month = fname[:-len(ARCHIVE_EXT)]
+            rows = _read_archive_month(month)
+            if _clean_archive_rows(rows):
+                _write_archive_month(month, rows)
+                print(f"[뉴스 아카이브] {month}{ARCHIVE_EXT}의 NaN 값을 빈 칸으로 고쳐 저장")
     if expiring_df.empty:
         return
-    os.makedirs(NEWS_ARCHIVE_DIR, exist_ok=True)
     df = expiring_df.copy()
     pub_dt = pd.to_datetime(df.get("발행일시"), format="%Y-%m-%d %H:%M", errors="coerce")
     collect_dt = pd.to_datetime(df["수집일자"], format="%Y-%m-%d %H:%M", errors="coerce")
