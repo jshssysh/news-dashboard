@@ -639,6 +639,31 @@ def save_rejected_news(rejected):
         print(f"[탈락 기사 기록 예외 - 건너뜀] {e}")
 
 
+# 저장한 기사의 네이버 설명(검색어 근처 2~3줄 발췌). .md·보고서에 요약보다 긴 내용을 넣으려고
+# 따로 둔다(2026-11-12). news_list.csv에 칸을 더하면 약 41MB → 73MB로 커져 GitHub 50MB 경고를
+# 넘으므로(위 FALLBACK_SUMMARY_CHARS 주석) 기사링크로 잇는 작은 파일에 최근 며칠치만 남긴다.
+# Gemini 입력에 이미 쓰는 값을 적기만 하므로 Gemini 사용량은 늘지 않는다.
+NEWS_DESCRIPTIONS_PATH = "news_descriptions.csv"
+NEWS_DESCRIPTIONS_RETENTION_DAYS = 7
+
+
+def save_news_descriptions(rows, desc_by_link):
+    try:
+        new_df = pd.DataFrame(
+            [(r[0], r[8], desc_by_link.get(r[8], "")) for r in rows if desc_by_link.get(r[8])],
+            columns=["수집일자", "기사링크", "설명"])
+        added = len(new_df)
+        if os.path.exists(NEWS_DESCRIPTIONS_PATH):
+            new_df = pd.concat([pd.read_csv(NEWS_DESCRIPTIONS_PATH, encoding="utf-8-sig", dtype=str), new_df], ignore_index=True)
+        new_df = new_df.drop_duplicates(subset=["기사링크"], keep="first")  # 처음 수집했을 때 설명을 남긴다
+        cutoff = (datetime.now(KST) - timedelta(days=NEWS_DESCRIPTIONS_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        new_df = new_df[new_df["수집일자"].astype(str) >= cutoff]
+        new_df.to_csv(NEWS_DESCRIPTIONS_PATH, index=False, encoding="utf-8-sig")
+        print(f"[기사 설명 기록] 이번 실행 {added}건, 보관 {len(new_df)}건")
+    except Exception as e:
+        print(f"[기사 설명 기록 예외 - 건너뜀] {e}")
+
+
 # 예전에 클러스터링이 나쁘게 돌아간 날 생겨서 이미 수백 건씩 쌓인, 특정 기업/기관명이
 # 없는 포괄적 이슈명이다. 이런 이름은 "최근 자주 쓰였다"는 이유로 계속 재사용 후보 1순위로
 # 추천되면 관련 없는 기사들이 계속 여기로 흡수되는 자기 강화 루프가 생긴다 - 그래서 재사용
@@ -2117,6 +2142,7 @@ def main():
     if not SKIP_AI_ANALYSIS:
         update_issue_display_names()
         save_rejected_news(rejected)
+        save_news_descriptions(rows, {a["link"]: a["description"] for a in all_articles})
         save_gemini_usage("main.py(뉴스)", len(rows), today_str)
 
 if __name__ == "__main__":
