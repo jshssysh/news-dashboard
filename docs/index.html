@@ -150,6 +150,8 @@ a.badge-skipped:hover { text-decoration: underline; }
    데스크톱은 기존대로 카드 하단(.toggle-btn-bottom), 모바일은 제목 줄 옆
    (.toggle-btn-inline)에 짧게. 둘 다 같은 data-key라 어느 쪽을 눌러도 동작한다. */
 .toggle-btn-inline { display: none; }
+.card-slim .related-row { display: none; }
+.card-slim .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 3px 9px; font-size: 0.72em; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 4px 11px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
 .toggle-btn:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow); }
 
@@ -417,11 +419,6 @@ a.badge-skipped:hover { text-decoration: underline; }
 .archive-toggle-link { border: none; background: none; color: var(--app-primary); font-size: 0.82em; font-weight: 700; padding: 4px 2px; cursor: pointer; white-space: nowrap; }
 .archive-toggle-link:hover { opacity: 0.75; }
 .archive-search-body { margin: 10px 0 0; padding: 12px 14px; border: 1px dashed var(--app-border); border-radius: 8px; }
-.archive-search-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.archive-search-row input[type=text] { flex: 1 1 220px; min-width: 160px; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 12px; font-size: 0.85em; }
-.archive-search-btn { border: 1px solid var(--app-border); background: var(--app-primary); color: #fff; border-radius: 7px; padding: 7px 16px; font-size: 0.85em; font-weight: 700; cursor: pointer; }
-.archive-search-btn:hover { opacity: 0.88; }
-.archive-search-btn:disabled { opacity: 0.5; cursor: default; }
 .archive-search-status { font-size: 0.82em; opacity: 0.75; margin-top: 8px; min-height: 1.2em; }
 .archive-result-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 11px 14px; margin-top: 9px; }
 .archive-result-meta { font-size: 0.78em; opacity: 0.7; }
@@ -450,6 +447,30 @@ a.badge-skipped:hover { text-decoration: underline; }
 .decision-summary-row.expanded .decision-summary-toggle { transform: rotate(180deg); }
 #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.78em; }
 #catChipRow { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-bottom: 0; }
+/* 빈 담기 목록: 테두리 상자 대신 한 줄 글자(상자가 높이만 차지했다, 11/10) */
+.cart-empty-note { font-size: 0.8em; opacity: 0.6; padding: 2px 2px; }
+/* 좁은 화면 정리(2026-11-10): 카드가 4~5줄, 분야 칩이 4줄씩 차지하던 것을 줄인다. */
+@media (max-width: 700px) {
+  /* 카드 머리: 제목을 맨 위 한 줄로, 그 아래 한 줄에 분야·점수·날짜·건수. 출처 도메인과
+     '제재·규제' 표시는 뺀다('제재·심결' 선별 근거와 같은 내용이다). */
+  .article-card .card-head .article-title { order: -1; }
+  .article-card .card-head .chip-tag-warn, .article-card .meta-domain { display: none; }
+  .article-card .card-head { row-gap: 2px; }
+  /* 선별 근거와 회사 칩을 한 줄에: 근거 상자는 내용 폭만, 회사 칩은 남는 폭에서 옆으로 밀어 본다 */
+  /* 근거가 많아 회사 칩 자리가 100px도 안 남으면 그때만 회사 칩이 다음 줄로 내려간다. "선별 근거" 글자는
+     ? 표시만 남긴다(누르면 설명이 나온다). */
+  .related-row { flex-wrap: wrap; gap: 6px; row-gap: 6px; }
+  .article-card .related-row .reason-box { flex: 0 1 auto; min-width: 0; }
+  .article-card .reason-box .reason-label { font-size: 0; }
+  .article-card .reason-box .reason-label .help-tip { font-size: 11px; margin-left: 0; }
+  .related-row .company-chips { flex: 1 1 100px; min-width: 100px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .related-row .company-chips::-webkit-scrollbar { display: none; }
+  .company-chip { white-space: nowrap; flex-shrink: 0; }
+  /* 분야 칩은 한 줄로 두고 옆으로 밀어 본다(4줄 -> 1줄) */
+  #catChipRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  #catChipRow::-webkit-scrollbar { display: none; }
+  #catChipRow button { flex-shrink: 0; white-space: nowrap; }
+}
 #catChipRow button { padding: 5px 10px; font-size: 0.8em; }
 
 .bill-result-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -1016,7 +1037,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
           <select id="hoursBackSelect" style="display:none;"></select>
           <span id="customRangeInputs" class="custom-range-inputs" style="display:none;">
             <input type="date" id="customFromInput"> ~ <input type="date" id="customToInput">
-            <button type="button" id="archiveSearchToggle" class="archive-toggle-link">지정한 날짜 검색 →</button>
           </span>
           <select id="sortSelect">
             <option value="importance">중요도순</option>
@@ -1046,22 +1066,17 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <hr class="thin">
     </div>
 
-    <!-- 최근 35일 밖의 옛 기사는 평소엔 전혀 안 불러온다 - "날짜 지정"에서 위
-         "35일 이전도 검색" 버튼을 눌렀을 때만, 그 날짜 범위에 걸리는 달치
-         아카이브(docs/archive/YYYY-MM.json)를 받아온다. 날짜 입력창은 위
-         customFromInput/customToInput을 그대로 같이 쓴다(따로 안 둠). -->
-    <div id="archiveSearchBody" class="archive-search-body" style="display:none;">
-      <div class="archive-search-row">
-        <input type="text" id="archiveKeywordInput" placeholder="제목, 요약, 언론사에서 검색 (선택)">
-        <button id="archiveSearchBtn" class="archive-search-btn">검색</button>
-      </div>
-      <div id="archiveSearchStatus" class="archive-search-status"></div>
-      <div id="archiveSearchResults"></div>
-    </div>
-
     <div class="layout">
       <div class="main-col">
         <div id="mainListArea"></div>
+        <!-- 최근 35일 밖의 옛 기사(보관함, docs/archive/YYYY-MM.json.gz)는 평소엔 안 불러온다.
+             "날짜 지정"의 시작일이 화면에 있는 가장 오래된 수집일보다 앞이면 그때 자동으로
+             그 달치를 받아, 위 검색어·논조·분야를 그대로 적용해 여기 따로 보여 준다
+             (updateArchiveSearch). 검색창을 따로 두지 않는다(2026-11-11, 두 개라 헷갈렸음). -->
+        <div id="archiveSearchBody" class="archive-search-body" style="display:none;">
+          <div id="archiveSearchStatus" class="archive-search-status"></div>
+          <div id="archiveSearchResults"></div>
+        </div>
       </div>
       <div class="side-col">
         <!-- 급상승 이슈: 최근 24시간(지난 날짜는 전날 08시~그날 08시)에 발행된 기사를 이슈별로 세어
@@ -1341,7 +1356,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-11 07:59 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-11 11:15 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1511,7 +1526,7 @@ function renderCartPreview() {
         <a href="${it.link}" target="_blank" title="${(it.title||'').replace(/"/g,'&quot;')}">[${it.category || '기타'}] ${it.title}</a>
         <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
       </div>`).join('')
-    : "<div class='info-box' style='font-size:0.82em;padding:8px 10px;'>담은 항목이 없습니다.</div>";
+    : "<div class='cart-empty-note'>담은 항목이 없습니다.</div>";
   lists.forEach(listEl => {
     listEl.innerHTML = html;
     listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
@@ -2117,7 +2132,7 @@ function renderTopTiles() {
   const { startLabel, endLabel } = morningWindowBounds(state.currentDate);
 
   document.getElementById('statCollect').innerHTML =
-    `<div class="label">수집 기사 <span class="era-tag">${startLabel} 08시 - ${endLabel} 08시</span><span class="help-tip" data-help-key="collect" role="button" tabindex="0" aria-label="수집 기사 기준">?</span></div>
+    `<div class="label">수집 기사<span class="help-tip" data-help-key="collect" role="button" tabindex="0" aria-label="수집 기사 기준">?</span> <span class="era-tag">${startLabel} 08시 - ${endLabel} 08시</span></div>
      <div class="value-line">
        <span class="value">${fmtN(windowGroups.length)}건</span>
        <div class="collect-substats-block">
@@ -2998,8 +3013,11 @@ function renderMainList(scoped, allGroups) {
   document.getElementById('pageSizeSel').value = String(state.pageSize);
 
   const listEl = document.getElementById('mainListArea');
+  const archiveOn = updateArchiveSearch();
   if (!pageGroups.length) {
-    listEl.innerHTML = "<div class='info-box'>조건에 맞는 기사가 없습니다.</div>";
+    listEl.innerHTML = archiveOn
+      ? `<div class='info-box'>최근 기사(${fmtMonthDay(recentStartISO())} 이후 수집) 중에는 조건에 맞는 기사가 없습니다. 그 전 기사는 아래 보관함 검색 결과를 보세요.</div>`
+      : "<div class='info-box'>조건에 맞는 기사가 없습니다.</div>";
   } else {
     listEl.innerHTML = pageGroups.map(g => {
       const reasons = selectionReasons(g);
@@ -3030,11 +3048,13 @@ function renderMainList(scoped, allGroups) {
         </div>`;
       }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
-      return `<div class="article-card">
+      // 선별 근거도 회사도 없으면 셋째 줄이 '유사 기사' 버튼 하나뿐이라, 버튼을 제목 줄로 올리고 줄을 없앤다
+      const slim = !reasons.length && !g.companies.length;
+      return `<div class="article-card${slim ? ' card-slim' : ''}">
         <div class="card-head">
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
-          <span class="card-meta-group"><span class="importance-tag" data-help-key="importance" role="button" tabindex="0">${g.importance}/10</span><span class="card-meta-inline">${dt} · ${domain}</span></span>
+          <span class="card-meta-group"><span class="importance-tag" data-help-key="importance" role="button" tabindex="0">${g.importance}/10</span><span class="card-meta-inline">${dt}<span class="meta-domain"> · ${domain}</span></span></span>
           <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
@@ -5100,7 +5120,6 @@ document.getElementById('periodSelect').addEventListener('change', e => {
   const raw = e.target.value;
   state.period = raw === 'custom' ? 'custom' : parseInt(raw, 10);
   document.getElementById('customRangeInputs').style.display = raw === 'custom' ? '' : 'none';
-  if (raw === 'custom') updateArchiveToggleLabel();
   state.selectedCategory = '전체';
   state.page = 1;
   renderAll();
@@ -5111,34 +5130,19 @@ document.getElementById('hoursBackSelect').addEventListener('change', e => {
   state.page = 1;
   renderAll();
 });
-// "35일 이전도 검색" 버튼은 고정 문구 대신, 지금 고른 날짜를 그대로 보여준다
-// (예: "8월 25일 검색 →") - 눌러야 할 때가 언제인지 문구만 봐도 바로 와닿게.
 function fmtMonthDay(v) {
   if (!v) return '';
   const [, m, d] = v.split('-');
   return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
 }
-function updateArchiveToggleLabel() {
-  const btn = document.getElementById('archiveSearchToggle');
-  const isOpen = document.getElementById('archiveSearchBody').style.display !== 'none';
-  const fromV = document.getElementById('customFromInput').value;
-  const toV = document.getElementById('customToInput').value;
-  let label;
-  if (fromV && toV && fromV !== toV) label = `${fmtMonthDay(fromV)}~${fmtMonthDay(toV)} 검색`;
-  else if (fromV || toV) label = `${fmtMonthDay(fromV || toV)} 검색`;
-  else label = '지정한 날짜 검색';
-  btn.textContent = label + (isOpen ? ' ✕' : ' →');
-}
 document.getElementById('customFromInput').addEventListener('change', e => {
   state.customFrom = e.target.value || null;
   state.page = 1;
-  updateArchiveToggleLabel();
   renderAll();
 });
 document.getElementById('customToInput').addEventListener('change', e => {
   state.customTo = e.target.value || null;
   state.page = 1;
-  updateArchiveToggleLabel();
   renderAll();
 });
 document.getElementById('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
@@ -5495,7 +5499,10 @@ async function loadArchiveMonth(m) {
   if (typeof DecompressionStream !== 'function') throw new Error('unsupported');
   const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
   if (!res.ok || !res.body) throw new Error('archive/' + m + '.json.gz → HTTP ' + res.status);
-  return await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  // 예전 월 파일에는 빈 칸이 JSON 표준이 아닌 NaN으로 적힌 곳이 있다(main.py
+  // _clean_archive_rows가 다음 수집 때 고쳐 쓴다). 그 전에도 읽히도록 null로 바꿔 읽는다.
+  const text = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
+  return JSON.parse(text.replace(/":NaN(?=[,}])/g, '":null'));
 }
 function ensureArchiveMonths() {
   if (!archiveMonthsPromise) {
@@ -5503,14 +5510,6 @@ function ensureArchiveMonths() {
   }
   return archiveMonthsPromise;
 }
-document.getElementById('archiveSearchToggle').addEventListener('click', () => {
-  ensureArchiveMonths();
-  const body = document.getElementById('archiveSearchBody');
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : '';
-  updateArchiveToggleLabel();
-});
-
 function monthsBetween(fromStr, toStr) {
   const months = [];
   let y = parseInt(fromStr.slice(0,4),10), m = parseInt(fromStr.slice(5,7),10);
@@ -5536,63 +5535,75 @@ function archiveResultCardHtml(r) {
   </div>`;
 }
 
-document.getElementById('archiveSearchBtn').addEventListener('click', () => {
-  const fromV = document.getElementById('customFromInput').value;
-  const toV = document.getElementById('customToInput').value;
-  const kw = document.getElementById('archiveKeywordInput').value.trim().toLowerCase();
+// 화면(news.json)에 있는 가장 오래된 수집일. 이보다 앞 날짜는 보관함에만 있다.
+function recentStartISO() { return (allDates[0] || '').replace(/\//g, '-'); }
+
+// "날짜 지정"의 시작일이 recentStartISO()보다 앞이면, 걸치는 달의 보관함을 받아 위 검색어·
+// 논조·분야를 그대로 적용해 목록 아래에 따로 보여 준다. 보관함을 쓰는지 여부를 돌려준다.
+// renderAll마다 불리므로 같은 조건이면 다시 거르지 않는다(archiveLastKey).
+let archiveLastKey = null, archiveRunId = 0, archiveDebounce = null;
+function updateArchiveSearch() {
+  const body = document.getElementById('archiveSearchBody');
+  const start = recentStartISO();
+  let from = state.customFrom, to = state.customTo;
+  if (from && to && from > to) [from, to] = [to, from];
+  if (state.period !== 'custom' || !from || !to || !start || from >= start) {
+    body.style.display = 'none';
+    archiveLastKey = null;
+    return false;
+  }
+  body.style.display = '';
+  const kw = (state.search || '').trim().toLowerCase();
+  const key = [from, to, kw, state.sentiment, state.selectedCategory].join('|');
+  if (key === archiveLastKey) return true;
+  archiveLastKey = key;
   const statusEl = document.getElementById('archiveSearchStatus');
   const resultsEl = document.getElementById('archiveSearchResults');
-  const btn = document.getElementById('archiveSearchBtn');
-  if (!fromV || !toV) { statusEl.textContent = '시작일과 종료일을 모두 선택하세요.'; resultsEl.innerHTML = ''; return; }
-  if (fromV > toV) { statusEl.textContent = '시작일이 종료일보다 늦습니다.'; resultsEl.innerHTML = ''; return; }
-
-  const months = monthsBetween(fromV, toV);
-  btn.disabled = true;
-  statusEl.textContent = '조회 중...';
+  const runId = ++archiveRunId;
+  statusEl.textContent = '보관함 검색 중…';
   resultsEl.innerHTML = '';
+  clearTimeout(archiveDebounce);
+  // 검색어를 칠 때마다 바로 거르지 않고 잠깐 기다린다(달마다 수만 건이라)
+  archiveDebounce = setTimeout(() => runArchiveSearch(runId, from, to, kw, start), 300);
+  return true;
+}
 
-  ensureArchiveMonths().then(available => {
-    const availSet = new Set(available);
-    const toFetch = months.filter(m => availSet.has(m) && !archiveCache[m]);
-    let fetched = 0;
-    const failedMonths = [];
-    if (toFetch.length) statusEl.textContent = `불러오는 중… (0/${toFetch.length}개월)`;
-    return Promise.all(toFetch.map(m =>
-      loadArchiveMonth(m).then(rows => { archiveCache[m] = rows; })
-        .catch(err => { console.error(err); failedMonths.push(m); })
-        .finally(() => { statusEl.textContent = `불러오는 중… (${++fetched}/${toFetch.length}개월)`; })
-    )).then(() => {
-      // 다음 단계(한 번에 오래 걸리는 거르기)로 넘어가기 전에 안내 문구가 화면에 먼저 그려지게 한다
-      statusEl.textContent = '검색 중…';
-      return new Promise(r => setTimeout(r, 0));
-    }).then(() => {
-      const searched = months.filter(m => availSet.has(m));
-      let combined = [];
-      searched.forEach(m => { combined = combined.concat(archiveCache[m] || []); });
-      const fromISO = fromV, toISO = toV;
-      combined = combined.filter(r => {
-        // scopedRows()의 날짜 지정 필터와 같은 이유로 수집일(r.date) 대신
-        // 발행일(r.pub_ts)로 거른다 - 아카이브 행도 archive_expiring_news가
-        // pub_ts를 같이 저장해둔다(main.py 참고).
-        const d = (r.pub_ts || '').slice(0, 10);
-        if (!d || d < fromISO || d > toISO) return false;
-        if (kw && !matchesSearchTokens([r.title, r.summary, r.press], kw)) return false;
-        return true;
-      });
-      combined.sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
-      const CAP = 200;
-      const shown = combined.slice(0, CAP);
-      statusEl.textContent = searched.length === 0
-        ? '해당 기간에는 보관된 자료가 없습니다 (35일 이전부터 아카이브가 쌓입니다).'
-        : `총 ${fmtN(combined.length)}건${combined.length > CAP ? ' 중 최근 '+CAP+'건 표시' : ''}`;
-      if (failedMonths.length) {
-        // 못 받은 달이 있는데 "총 0건"처럼만 보이면 자료가 없는 것으로 오해하므로 따로 알린다
-        statusEl.textContent += ` — ${failedMonths.join(', ')} 자료를 불러오지 못했습니다(브라우저가 압축 해제를 지원하지 않거나 네트워크 오류). 다시 검색하면 재시도합니다.`;
-      }
-      resultsEl.innerHTML = shown.map(archiveResultCardHtml).join('');
-    });
-  }).finally(() => { btn.disabled = false; });
-});
+async function runArchiveSearch(runId, from, to, kw, start) {
+  const statusEl = document.getElementById('archiveSearchStatus');
+  const resultsEl = document.getElementById('archiveSearchResults');
+  const available = new Set(await ensureArchiveMonths());
+  const months = monthsBetween(from, to).filter(m => available.has(m));
+  const failed = [];
+  const toFetch = months.filter(m => !archiveCache[m]);
+  if (toFetch.length) statusEl.textContent = `보관함 불러오는 중… (${toFetch.length}개월)`;
+  await Promise.all(toFetch.map(m => loadArchiveMonth(m)
+    .then(rows => { archiveCache[m] = rows; })
+    .catch(err => { console.error(err); failed.push(m); })));
+  if (runId !== archiveRunId) return;  // 그사이 조건이 바뀌었다
+  let rows = [];
+  months.forEach(m => { rows = rows.concat(archiveCache[m] || []); });
+  // 날짜는 위 목록과 같이 발행일(pub_ts) 기준이다.
+  rows = rows.filter(r => {
+    const d = (r.pub_ts || '').slice(0, 10);
+    if (!d || d < from || d > to) return false;
+    // 위 목록처럼 분석 실패 기사는 논조에서 "판단 실패"를 고를 때만 보여 준다
+    if (state.sentiment ? r.sentiment !== state.sentiment : r.sentiment === '판단 실패') return false;
+    if (state.selectedCategory !== '전체' && r.category !== state.selectedCategory) return false;
+    if (kw && !matchesSearchTokens([r.title, r.summary, r.issue, r.press], kw)) return false;
+    return true;
+  });
+  rows.sort((a, b) => (b.pub_ts || b.ts || '').localeCompare(a.pub_ts || a.ts || ''));
+  const CAP = 200;
+  const startLabel = fmtMonthDay(start);
+  let msg = `보관함 ${fmtN(rows.length)}건${rows.length > CAP ? ` (최근 ${CAP}건만 표시)` : ''}`
+    + ` — ${startLabel} 전에 수집된 기사는 보관함에서 따로 찾아 여기 보여 줍니다.`
+    + ' 위 검색어·논조·분야는 그대로 적용되고, 이슈별로 묶지 않고 발행일 최신순으로 한 건씩 나옵니다.';
+  if (!months.length) msg = `${startLabel} 전 기사가 보관함에 없습니다.`;
+  if (failed.length) msg += ` ${failed.join(', ')} 보관함을 불러오지 못했습니다(네트워크 오류이거나 오래된 브라우저). 조건을 바꾸면 다시 시도합니다.`;
+  if (failed.length) archiveLastKey = null;
+  statusEl.textContent = msg;
+  resultsEl.innerHTML = rows.slice(0, CAP).map(archiveResultCardHtml).join('');
+}
 </script>
 </body>
 </html>
