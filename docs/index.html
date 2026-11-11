@@ -417,11 +417,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .current-tag { font-size: 0.82em; font-weight: 700; color: var(--app-primary); }
 
 .archive-toggle-link { border: none; background: none; color: var(--app-primary); font-size: 0.82em; font-weight: 700; padding: 4px 2px; cursor: pointer; white-space: nowrap; }
+.archive-note { font-size: 0.82em; opacity: 0.8; margin: 2px 0 10px; }
 .archive-toggle-link:hover { opacity: 0.75; }
-.archive-search-body { margin: 10px 0 0; padding: 12px 14px; border: 1px dashed var(--app-border); border-radius: 8px; }
-.archive-search-status { font-size: 0.82em; opacity: 0.75; margin-top: 8px; min-height: 1.2em; }
-.archive-result-card { border: 1px solid var(--app-border); border-radius: 10px; padding: 11px 14px; margin-top: 9px; }
-.archive-result-meta { font-size: 0.78em; opacity: 0.7; }
 /* 원심(하급심) 관계는 AI가 재서술하지 않고, collect_decisions.py가 원문에서
    정규식으로 그대로 뽑은 문구만 인용 형태로 보여준다 - 인용임을 시각적으로도
    구분하기 위해 나머지 카드 텍스트와 다른 톤(기울임, 옅은 색)을 쓴다. */
@@ -1068,15 +1065,9 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 
     <div class="layout">
       <div class="main-col">
+        <!-- 날짜 지정이 최근 35일보다 앞이면 보관함 기사도 섞어 보여 준다는 안내(archiveRowsForRange) -->
+        <div id="archiveNote" class="archive-note" style="display:none;"></div>
         <div id="mainListArea"></div>
-        <!-- 최근 35일 밖의 옛 기사(보관함, docs/archive/YYYY-MM.json.gz)는 평소엔 안 불러온다.
-             "날짜 지정"의 시작일이 화면에 있는 가장 오래된 수집일보다 앞이면 그때 자동으로
-             그 달치를 받아, 위 검색어·논조·분야를 그대로 적용해 여기 따로 보여 준다
-             (updateArchiveSearch). 검색창을 따로 두지 않는다(2026-11-11, 두 개라 헷갈렸음). -->
-        <div id="archiveSearchBody" class="archive-search-body" style="display:none;">
-          <div id="archiveSearchStatus" class="archive-search-status"></div>
-          <div id="archiveSearchResults"></div>
-        </div>
       </div>
       <div class="side-col">
         <!-- 급상승 이슈: 최근 24시간(지난 날짜는 전날 08시~그날 08시)에 발행된 기사를 이슈별로 세어
@@ -1356,7 +1347,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-11 12:40 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-11 12:56 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2718,11 +2709,13 @@ function scopedRows() {
     // 걸러야 "10/2~10/5 지정했는데 10/1 발행 기사가 나온다" 같은 혼선이 없다
     // (사용자 지적, 2026-10-06). 발행일시를 못 읽은(파싱 실패) 극소수 기사는
     // 날짜를 모르니 날짜 지정 검색에서는 그냥 빠진다(추측 안 함).
-    return NEWS_DATA.filter(r => {
+    // 최근 35일보다 앞 날짜면 보관함 기사도 섞는다(archiveRowsForRange, 받는 동안은 빈 배열).
+    return NEWS_DATA.concat(archiveRowsForRange(from, to)).filter(r => {
       const pubDate = (r.pub_ts || '').slice(0, 10);
       return pubDate && pubDate >= from && pubDate <= to;
     });
   }
+  setArchiveNote(null);
   if (state.period === 0) return isViewingLatestDate() ? todayRollingWindowRows() : dailyRows();
   if (state.period === 2) {
     const { from, to, label } = weekendBounds(state.currentDate);
@@ -3013,10 +3006,9 @@ function renderMainList(scoped, allGroups) {
   document.getElementById('pageSizeSel').value = String(state.pageSize);
 
   const listEl = document.getElementById('mainListArea');
-  const archiveOn = updateArchiveSearch();
   if (!pageGroups.length) {
-    listEl.innerHTML = archiveOn
-      ? `<div class='info-box'>최근 기사(${fmtMonthDay(recentStartISO())} 이후 수집) 중에는 조건에 맞는 기사가 없습니다. 그 전 기사는 아래 보관함 검색 결과를 보세요.</div>`
+    listEl.innerHTML = archiveLoading
+      ? "<div class='info-box'>보관함에서 기사를 불러오는 중입니다…</div>"
       : "<div class='info-box'>조건에 맞는 기사가 없습니다.</div>";
   } else {
     listEl.innerHTML = pageGroups.map(g => {
@@ -5521,88 +5513,61 @@ function monthsBetween(fromStr, toStr) {
   return months;
 }
 
-function archiveResultCardHtml(r) {
-  // 검색 자체를 발행일(r.pub_ts) 기준으로 거르므로, 메타줄도 수집일(r.date) 대신
-  // 발행일시만 보여준다 - 둘 다 보여주면 수집일이 검색 범위 밖일 수 있어
-  // ("10/2~10/5 지정했는데 10/1이라고 찍혀있다" 같은) 혼선을 그대로 재현한다.
-  const dt = fmtDt(r.pub_ts || r.ts) || r.date;
-  const domain = extractDomain(r.link);
-  const titleAttr = (r.title||'').replace(/"/g, '&quot;');
-  return `<div class="archive-result-card">
-    <a class="article-title" href="${r.link}" target="_blank" title="${titleAttr}">${r.title}</a>
-    <div class="archive-result-meta">${dt} · [${r.press}] ${domain} <span class="chip-category">${r.category||''}</span></div>
-    ${r.summary ? `<div class="summary-box-blue" style="margin-top:6px;">${r.summary}</div>` : ''}
-  </div>`;
-}
-
-// 화면(news.json)에 있는 가장 오래된 수집일. 이보다 앞 날짜는 보관함에만 있다.
+// 화면(news.json)에 있는 가장 오래된 수집일. 이보다 앞에 수집된 기사는 보관함에만 있다.
 function recentStartISO() { return (allDates[0] || '').replace(/\//g, '-'); }
 
-// "날짜 지정"의 시작일이 recentStartISO()보다 앞이면, 걸치는 달의 보관함을 받아 위 검색어·
-// 논조·분야를 그대로 적용해 목록 아래에 따로 보여 준다. 보관함을 쓰는지 여부를 돌려준다.
-// renderAll마다 불리므로 같은 조건이면 다시 거르지 않는다(archiveLastKey).
-let archiveLastKey = null, archiveRunId = 0, archiveDebounce = null;
-function updateArchiveSearch() {
-  const body = document.getElementById('archiveSearchBody');
+// "날짜 지정"의 시작일이 recentStartISO()보다 앞이면, 걸치는 달의 보관함을 받아 최근 기사와
+// 섞어 같은 목록(이슈별 묶음·분야 칩·정렬·쪽 넘기기)으로 보여 준다(2026-11-11, 예전엔 아래에
+// 한 건씩 따로 보여 줘서 이슈로 안 묶였다). 보관함과 news.json은 칸이 같다(main.py
+// archive_expiring_news). 아직 안 받은 달이 있으면 받기 시작하고, 다 받으면 다시 그린다.
+let archiveLoading = null;          // 지금 받는 달 목록을 이은 문자열
+const archiveFailed = new Set();
+let recentLinkSet = null;
+function archiveRowsForRange(from, to) {
   const start = recentStartISO();
-  let from = state.customFrom, to = state.customTo;
-  if (from && to && from > to) [from, to] = [to, from];
-  if (state.period !== 'custom' || !from || !to || !start || from >= start) {
-    body.style.display = 'none';
-    archiveLastKey = null;
-    return false;
+  if (!start || from >= start) { setArchiveNote(null); return []; }
+  if (!archiveMonthsLoaded) {
+    if (archiveLoading !== 'index') {
+      archiveLoading = 'index';
+      ensureArchiveMonths().then(list => { archiveMonthsLoaded = list; archiveLoading = null; renderAll(); });
+    }
+    setArchiveNote('loading', start);
+    return [];
   }
-  body.style.display = '';
-  const kw = (state.search || '').trim().toLowerCase();
-  const key = [from, to, kw, state.sentiment, state.selectedCategory].join('|');
-  if (key === archiveLastKey) return true;
-  archiveLastKey = key;
-  const statusEl = document.getElementById('archiveSearchStatus');
-  const resultsEl = document.getElementById('archiveSearchResults');
-  const runId = ++archiveRunId;
-  statusEl.textContent = '보관함 검색 중…';
-  resultsEl.innerHTML = '';
-  clearTimeout(archiveDebounce);
-  // 검색어를 칠 때마다 바로 거르지 않고 잠깐 기다린다(달마다 수만 건이라)
-  archiveDebounce = setTimeout(() => runArchiveSearch(runId, from, to, kw, start), 300);
-  return true;
-}
-
-async function runArchiveSearch(runId, from, to, kw, start) {
-  const statusEl = document.getElementById('archiveSearchStatus');
-  const resultsEl = document.getElementById('archiveSearchResults');
-  const available = new Set(await ensureArchiveMonths());
-  const months = monthsBetween(from, to).filter(m => available.has(m));
-  const failed = [];
-  const toFetch = months.filter(m => !archiveCache[m]);
-  if (toFetch.length) statusEl.textContent = `보관함 불러오는 중… (${toFetch.length}개월)`;
-  await Promise.all(toFetch.map(m => loadArchiveMonth(m)
-    .then(rows => { archiveCache[m] = rows; })
-    .catch(err => { console.error(err); failed.push(m); })));
-  if (runId !== archiveRunId) return;  // 그사이 조건이 바뀌었다
+  const months = monthsBetween(from, to).filter(m => archiveMonthsLoaded.includes(m));
+  const missing = months.filter(m => !archiveCache[m] && !archiveFailed.has(m));
+  if (missing.length) {
+    const key = missing.join(',');
+    if (archiveLoading !== key) {
+      archiveLoading = key;
+      Promise.all(missing.map(m => loadArchiveMonth(m)
+        .then(rows => { archiveCache[m] = rows; })
+        .catch(err => { console.error(err); archiveFailed.add(m); })))
+        .then(() => { if (archiveLoading === key) { archiveLoading = null; renderAll(); } });
+    }
+    setArchiveNote('loading', start, missing.length);
+    return [];
+  }
+  if (!recentLinkSet) recentLinkSet = new Set(NEWS_DATA.map(r => r.link));
   let rows = [];
-  months.forEach(m => { rows = rows.concat(archiveCache[m] || []); });
-  // 날짜는 위 목록과 같이 발행일(pub_ts) 기준이다.
-  rows = rows.filter(r => {
-    const d = (r.pub_ts || '').slice(0, 10);
-    if (!d || d < from || d > to) return false;
-    // 위 목록처럼 분석 실패 기사는 논조에서 "판단 실패"를 고를 때만 보여 준다
-    if (state.sentiment ? r.sentiment !== state.sentiment : r.sentiment === '판단 실패') return false;
-    if (state.selectedCategory !== '전체' && r.category !== state.selectedCategory) return false;
-    if (kw && !matchesSearchTokens([r.title, r.summary, r.issue, r.press], kw)) return false;
-    return true;
-  });
-  rows.sort((a, b) => (b.pub_ts || b.ts || '').localeCompare(a.pub_ts || a.ts || ''));
-  const CAP = 200;
-  const startLabel = fmtMonthDay(start);
-  let msg = `보관함 ${fmtN(rows.length)}건${rows.length > CAP ? ` (최근 ${CAP}건만 표시)` : ''}`
-    + ` — ${startLabel} 전에 수집된 기사는 보관함에서 따로 찾아 여기 보여 줍니다.`
-    + ' 위 검색어·논조·분야는 그대로 적용되고, 이슈별로 묶지 않고 발행일 최신순으로 한 건씩 나옵니다.';
-  if (!months.length) msg = `${startLabel} 전 기사가 보관함에 없습니다.`;
-  if (failed.length) msg += ` ${failed.join(', ')} 보관함을 불러오지 못했습니다(네트워크 오류이거나 오래된 브라우저). 조건을 바꾸면 다시 시도합니다.`;
-  if (failed.length) archiveLastKey = null;
-  statusEl.textContent = msg;
-  resultsEl.innerHTML = rows.slice(0, CAP).map(archiveResultCardHtml).join('');
+  months.forEach(m => (archiveCache[m] || []).forEach(r => { if (!recentLinkSet.has(r.link)) rows.push(r); }));
+  setArchiveNote(months.length ? 'done' : 'none', start, 0, months.filter(m => archiveFailed.has(m)));
+  return rows;
+}
+let archiveMonthsLoaded = null;
+
+// 목록 위 한 줄 안내. 보관함을 섞을 때만 보인다.
+function setArchiveNote(kind, start, n, failed) {
+  const el = document.getElementById('archiveNote');
+  if (!kind) { el.style.display = 'none'; return; }
+  const day = fmtMonthDay(start);
+  let msg;
+  if (kind === 'loading') msg = `${day} 전 기사를 보관함에서 불러오는 중…${n ? ` (${n}개월)` : ''}`;
+  else if (kind === 'none') msg = `${day} 전에 수집된 기사는 보관함에 없습니다.`;
+  else msg = `${day} 전에 수집된 기사는 보관함에서 불러와 함께 보여 줍니다. 보관함 기사에는 회사 칩이 붙지 않습니다.`;
+  if (failed && failed.length) msg += ` ${failed.join(', ')} 보관함을 불러오지 못했습니다(네트워크 오류이거나 오래된 브라우저). 새로고침하면 다시 시도합니다.`;
+  el.textContent = msg;
+  el.style.display = '';
 }
 </script>
 </body>
