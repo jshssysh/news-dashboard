@@ -146,12 +146,10 @@ a.badge-skipped:hover { text-decoration: underline; }
 /* "선별 근거"가 스타일 없는 맨 텍스트라 옆 칩(0.8em)보다 커서 혼자 튀어 보였다.
    다른 라벨(.chip-row-label 등)과 같은 결로 작고 흐리게 맞춘다. */
 .reason-label { font-size: 0.74em; font-weight: 700; opacity: 0.5; letter-spacing: -0.1px; margin-right: 1px; }
-/* 유사기사 토글은 두 벌을 두고 화면 크기에 따라 하나만 보여준다.
-   데스크톱은 기존대로 카드 하단(.toggle-btn-bottom), 모바일은 제목 줄 옆
-   (.toggle-btn-inline)에 짧게. 둘 다 같은 data-key라 어느 쪽을 눌러도 동작한다. */
-.toggle-btn-inline { display: none; }
-.card-slim .related-row { display: none; }
-.card-slim .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 3px 9px; font-size: 0.72em; }
+/* 유사기사 토글은 화면 폭과 카드 내용에 상관없이 늘 제목 줄 끝(날짜·도메인 옆) 한 곳에 둔다.
+   예전엔 데스크톱 카드 하단("유사 기사 N건")과 제목 줄("N건") 두 벌이 있었고, 근거·회사 칩이
+   없는 카드만 제목 줄로 올라가서 카드마다 위치와 문구가 달라 보였다(사용자 지적, 2026-11-12). */
+.toggle-btn-inline { flex-shrink: 0; padding: 3px 9px; font-size: 0.74em; }
 .toggle-btn { font-size: 0.82em; font-weight: 700; padding: 4px 11px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-secondary-bg); white-space: nowrap; }
 .toggle-btn:hover { border-color: var(--app-border-strong); box-shadow: var(--app-shadow); }
 
@@ -836,10 +834,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .signal-box { padding: 14px 14px; margin-bottom: 12px; }
   .signal-box.collapsed { padding: 8px 12px; margin-bottom: 10px; }
 
-  /* 유사기사 토글: 하단 긴 버튼 대신 제목 줄 옆에 짧게 */
-  .toggle-btn-bottom { display: none; }
-  .toggle-btn-inline { display: inline-block; flex-shrink: 0; padding: 5px 9px; font-size: 0.72em; }
-  /* 버튼이 빠지면 선별근거 상자만 남으므로 폭을 다 쓰게 한다.
+  .toggle-btn-inline { padding: 5px 9px; font-size: 0.72em; }
+  /* 셋째 줄엔 선별근거 상자만 남으므로 폭을 다 쓰게 한다.
      근거가 셋(반복/키워드/제재·심결)까지 붙어도 두 줄로 넘어가지 않게
      줄바꿈을 막고 칩과 라벨을 한 단계씩 줄인다. */
   .related-row .reason-box { flex: 1 1 auto; flex-wrap: nowrap; gap: 4px; padding: 4px 7px; }
@@ -1347,7 +1343,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-12 07:24 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-12 08:11 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -3040,21 +3036,18 @@ function renderMainList(scoped, allGroups) {
         </div>`;
       }).join('');
       const titleAttr = g.title.replace(/"/g, '&quot;');
-      // 선별 근거도 회사도 없으면 셋째 줄이 '유사 기사' 버튼 하나뿐이라, 버튼을 제목 줄로 올리고 줄을 없앤다
-      const slim = !reasons.length && !g.companies.length;
-      return `<div class="article-card${slim ? ' card-slim' : ''}">
+      return `<div class="article-card">
         <div class="card-head">
           <span class="card-tags">${tags}</span>
           <a class="article-title" href="${g.repLink}" target="_blank" title="${titleAttr}">${g.title}</a>
           <span class="card-meta-group"><span class="importance-tag" data-help-key="importance" role="button" tabindex="0">${g.importance}/10</span><span class="card-meta-inline">${dt}<span class="meta-domain"> · ${domain}</span></span></span>
-          <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}">${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
+          <button class="toggle-btn toggle-btn-inline" data-key="${issueKey}" title="같은 이슈를 다룬 다른 기사 보기">유사 ${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
         </div>
         <a href="${g.repLink}" target="_blank" class="summary-box-blue">${g.summary}</a>
-        <div class="related-row">
+        ${reasons.length || g.companies.length ? `<div class="related-row">
           <div class="reason-box">${reasons.length? ("<span class='reason-label'>선별 근거<span class='help-tip' data-help-key='reason' role='button' tabindex='0' aria-label='선별 근거 기준'>?</span></span>"+reasonChips) : ""}</div>
           ${g.companies.length ? `<div class="company-chips">${g.companies.map(c => `<button type="button" class="company-chip ${state.search === c ? 'active' : ''}" data-company="${escHtml(c)}" title="이 회사가 나온 기사로 검색(다시 누르면 해제)">${escHtml(c)}</button>`).join('')}</div>` : ''}
-          <button class="toggle-btn toggle-btn-bottom" data-key="${issueKey}">유사 기사 ${fmtN(g.pressCount)}건 ${isOpen?'▲':'▼'}</button>
-        </div>
+        </div>` : ''}
         <div class="related-list ${isOpen?'open':''}">${related}</div>
       </div>`;
     }).join('');
