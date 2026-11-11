@@ -76,6 +76,10 @@ NEW_PER_RUN_LIMIT = 40
 # 많이 재시도하면 곧바로 또 할당량을 다 써버릴 수 있어 한 번에 이만큼만 채운다.
 RETRY_INCOMPLETE_LIMIT = 30
 
+# 기존 의결서 과징금을 주문에서 다시 읽는 건수(한 실행당). 법제처 조회만 해서
+# Gemini 할당량과 상관없고, 기존 대상이 170건 남짓이라 한 번에 다 끝나게 둔다.
+PENALTY_RECHECK_LIMIT = 250
+
 
 # post_gemini_with_retry는 gemini_client.py로 옮겼다(2026-11-06) - 503이면 대기 후 재시도, 그래도 안 되면 대체 모델.
 
@@ -264,10 +268,55 @@ def build_ftc_body(detail):
     iyu_part = iyu if len(iyu) <= 3800 else iyu[:2200] + "\n…(중략)…\n" + iyu[-1600:]
     parts = []
     if jumun:
-        parts.append(f"[주문]\n{jumun[:2000]}")
+        # 2000자에서 잘랐더니 피심인 4곳짜리 주문(2,160자)의 마지막 회사 과징금이
+        # 잘려 나갔다(2026-11-11, 2025제카1838). 주문은 길어도 수천 자라 넉넉히 둔다.
+        parts.append(f"[주문]\n{jumun[:4000]}")
     if iyu_part:
         parts.append(f"[이유]\n{iyu_part}")
     return "\n".join(parts)
+
+
+_AMOUNT_RE = re.compile(r"(\d{1,3}(?:,\d{3})+|\d+)\s*원")
+# "가. 과징금액" / "가. 과징금액 : 88,000,000원" / "1. 과징금액" / "가. 납부금액: ..."
+# 부터 "나. 납부기한" 앞까지가 과징금 목록이다. "과징금액을 A원에서 B원으로
+# 변경한다"(이의신청 재결)처럼 뒤에 조사가 붙은 건 목록이 아니라 빼고, 납부기한이
+# 뒤따르지 않는 것도 목록으로 보지 않는다.
+_PENALTY_BLOCK_RE = re.compile(r"(?:과징금액|납부금액)(?![을이은의])(.{0,6000}?)납부기한", re.S)
+# 납부기한 연기·분할납부 결정: "과징금 262,000,000원에 대하여 ... 분할납부를 허용한다."
+_PENALTY_DEFER_RE = re.compile(r"과징금\s*(\d{1,3}(?:,\d{3})+)\s*원에\s*대하여")
+
+
+def format_won(n):
+    """747578000000 -> "7,475억 7,800만 원" (화면에 이미 쓰던 표기와 맞춤)."""
+    jo, rest = divmod(n, 10 ** 12)
+    eok, rest = divmod(rest, 10 ** 8)
+    man, won = divmod(rest, 10 ** 4)
+    parts = [f"{v:,}{u}" for v, u in ((jo, "조"), (eok, "억"), (man, "만")) if v]
+    if won:
+        parts.append(f"{won:,}")
+    return (" ".join(parts) or "0") + " 원"
+
+
+def penalty_from_jumun(jumun):
+    """의결서 "주문"에서 과징금을 직접 읽어 합계를 만든다. 못 읽으면 "".
+
+    AI에게 맡겼더니 피심인이 여러 곳이면 첫 회사 금액만 적었다(2026-11-11 확인:
+    4개사 합계 7,475억 7,800만 원인 2025제카1838이 첫 회사 몫 2,341억 4,100만 원으로
+    표시됨). 주문의 과징금 목록은 "1) 회사명 : 금액원"을 나열하는 고정 서식이라
+    정규식으로 정확히 더할 수 있다(실제 의결서 172건으로 서식 확인). 금액이 표
+    이미지로만 들어 있는 주문 등 못 읽는 경우는 빈 문자열을 돌려줘 AI 값을 쓰게 한다."""
+    if not jumun:
+        return ""
+    amounts = []
+    for block in _PENALTY_BLOCK_RE.findall(jumun):
+        amounts += [int(a.replace(",", "")) for a in _AMOUNT_RE.findall(block)]
+    if not amounts:
+        amounts = [int(a.replace(",", "")) for a in _PENALTY_DEFER_RE.findall(jumun)][:1]
+    amounts = [a for a in amounts if a > 0]
+    if not amounts:
+        return ""
+    total = format_won(sum(amounts))
+    return total if len(amounts) == 1 else f"{total} ({len(amounts)}곳 합계)"
 
 
 def fetch_prec_detail(prec_id):
@@ -300,7 +349,7 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
 [사건명] {case_name}
 [사건번호] {case_no}
 [원문]
-{body_text[:6000]}
+{body_text[:8000]}
 
 다음 4가지를 JSON으로 답하세요.
 1. summary: 반드시 (가) 문제된 행위가 무엇인지 + (나) 실제로 내려진 조치·결론이
@@ -322,7 +371,8 @@ def analyze_decision_with_gemini(case_name, case_no, body_text):
    예(나쁨, 당사자 주어로 시작): "원사업자가 목적물 수령일에 대한 하도급대금을
    60일 이내에 지급하지 않아 재발방지명령이 부과됨"
 2. penalty: 과징금·벌금 액수가 원문에 명시돼 있으면 "4억 6,200만원"처럼 사람이
-   읽기 쉬운 형태로. 명시돼 있지 않으면 빈 문자열.
+   읽기 쉬운 형태로. 피심인이 여러 곳이면 각 금액을 모두 더한 합계를 적을 것
+   (첫 회사 금액만 적지 말 것). 명시돼 있지 않으면 빈 문자열.
 3. sentence: 징역·집행유예 등 형사처벌 형량이 원문에 명시돼 있으면 그대로(예:
    "징역 1년, 집행유예 2년"). 없으면 빈 문자열.
 4. measures: 실제로 내려진 조치를 다음 용어 중에서만 골라 쉼표로 구분해
@@ -475,9 +525,11 @@ def main():
         new_records.append({
             "구분": row["문서유형"], "id": row["id"], "사건명": row["사건명"],
             "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": "공정거래위원회",
-            "사건종류": "", "AI요약": analysis["summary"], "과징금": analysis["penalty"],
+            "사건종류": "", "AI요약": analysis["summary"],
+            "과징금": penalty_from_jumun(detail["주문"]) or analysis["penalty"],
             "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
             "상세링크": f"{WORKER_LINK_BASE}?target=ftc&id={row['id']}",
+            "과징금확인": "1",
         })
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
 
@@ -526,25 +578,60 @@ def main():
             if not analysis["summary"]:
                 continue  # 이번에도 실패하면 다음 실행에 다시 시도(그대로 비워둠)
             retried += 1
+            penalty = analysis["penalty"]
+            if kind != "판례":
+                penalty = penalty_from_jumun(detail["주문"]) or penalty
             new_records.append({
                 "구분": kind, "id": rid, "사건명": r["사건명"], "사건번호": r["사건번호"],
                 "날짜": r["날짜"], "기관법원": r["기관법원"], "사건종류": r["사건종류"],
-                "AI요약": analysis["summary"], "과징금": analysis["penalty"],
+                "AI요약": analysis["summary"], "과징금": penalty,
                 "형량": analysis["sentence"], "조치유형": analysis["measures"],
                 "원심참조": r["원심참조"], "상세링크": r["상세링크"],
+                "과징금확인": "1" if kind != "판례" else "",
             })
             time.sleep(4.5)
+
+    # 과징금을 주문에서 직접 읽기 전(2026-11-11 이전)에 AI가 적은 기존 의결서 과징금을
+    # 한 번씩 다시 확인한다 - 피심인 여러 곳의 합계 대신 첫 회사 금액만 들어간 건이
+    # 많았다. 법제처 본문 조회만 하고 Gemini는 부르지 않는다. 확인한 행은
+    # "과징금확인"=1로 표시해 다음 실행부터는 건너뛴다.
+    rechecked = 0
+    if not odf.empty:
+        if "과징금확인" not in odf.columns:
+            odf["과징금확인"] = ""
+        redone = {(r["구분"], r["id"]) for r in new_records}
+        for idx, r in odf.iterrows():
+            if rechecked >= PENALTY_RECHECK_LIMIT:
+                break
+            if r["구분"] == "판례" or str(r["과징금확인"]).strip() or (r["구분"], r["id"]) in redone:
+                continue
+            if not (str(r["과징금"]).strip() or "과징금" in str(r["조치유형"])):
+                continue
+            detail = fetch_ftc_detail(r["id"])
+            if detail is None:
+                continue
+            fixed = penalty_from_jumun(detail["주문"])
+            if fixed and fixed != r["과징금"]:
+                print(f"[과징금 재확인] {r['사건번호']} {r['과징금']!r} → {fixed!r}")
+                odf.at[idx, "과징금"] = fixed
+            odf.at[idx, "과징금확인"] = "1"
+            rechecked += 1
+            time.sleep(0.5)
+        if rechecked:
+            print(f"[과징금 재확인] 기존 의결서 {rechecked}건 확인")
 
     if quota_exhausted:
         print("[경고] Gemini 무료 할당량을 초과해 이번 실행에서 남은 AI 요약을 건너뛰었습니다 - "
               "다음 실행 때 자동으로 재시도됩니다.")
 
-    if not new_records:
+    if not new_records and not rechecked:
         print("[법제처 수집 완료] 새로 추가할 건 없음")
         return
 
     new_df = pd.DataFrame(new_records)
-    if not odf.empty:
+    if new_df.empty:
+        combined = odf
+    elif not odf.empty:
         combined = pd.concat([odf, new_df], ignore_index=True)
     else:
         combined = new_df
