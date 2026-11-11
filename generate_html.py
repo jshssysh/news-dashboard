@@ -24,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 KST = timezone(timedelta(hours=9))
 
 # 중요 키워드 반복/과징금 금액 추출은 화면(html_template.html)에서 자바스크립트로
@@ -38,7 +40,7 @@ HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
 # "인사"는 관련도가 항상 5로 고정되고, "판단 실패"(점수 0)는 일부러 보여주는 것이라 예외.
 DISPLAY_MIN_ISSUE_SCORE = 6
 
-OUT_DIR = "docs"
+OUT_DIR = paths.DOCS_DIR
 OUT_PATH = os.path.join(OUT_DIR, "index.html")
 NEWS_JSON_PATH = os.path.join(OUT_DIR, "news.json")
 BILLS_JSON_PATH = os.path.join(OUT_DIR, "bills.json")
@@ -56,7 +58,7 @@ LEGISLATIVE_NOTICES_JSON_PATH = os.path.join(OUT_DIR, "legislative_notices.json"
 # 화면 어느 탭에도 안 쓰인다 - 계약서 문구 검토 Worker(worker/)가 GitHub Pages에서
 # 이 파일 하나만 fetch해서 AI 프롬프트의 후보 법령 코퍼스로 쓴다.
 CONTRACT_LAW_CORPUS_JSON_PATH = os.path.join(OUT_DIR, "contract_law_corpus.json")
-TEMPLATE_PATH = "html_template.html"
+TEMPLATE_PATH = paths.HTML_TEMPLATE
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
 BILL_LINK_PREFIX = "https://likms.assembly.go.kr/bill/billDetail.do?billId="
@@ -80,7 +82,7 @@ RECENT_DAYS_WINDOW = 35
 
 def load_data():
     try:
-        df = pd.read_csv("news_list.csv")
+        df = pd.read_csv(paths.NEWS_LIST)
     except Exception:
         return pd.DataFrame()
     # format을 명시하지 않으면, 옛 데이터의 발행일시="" 같은 불규칙한 값 때문에 pandas가
@@ -112,7 +114,7 @@ def load_data():
 
 
 def load_issue_display_names():
-    path = "issue_display_names.csv"
+    path = paths.ISSUE_DISPLAY_NAMES
     if not os.path.exists(path):
         return {}
     try:
@@ -123,7 +125,7 @@ def load_issue_display_names():
 
 
 def load_personnel():
-    path = "config/personnel.csv"
+    path = paths.PERSONNEL
     if not os.path.exists(path):
         return []
     try:
@@ -149,7 +151,7 @@ def load_cluster_warnings():
     몰려 클러스터링 이상이 의심된 날짜/카테고리 기록(기사 자체는 정상 저장됨, 참고용
     표시일 뿐). 화면은 이걸로 카테고리 칩 옆에 "!" 표시를 남긴다. news.json과 같은
     최근 창(RECENT_DAYS_WINDOW)만 남긴다."""
-    path = "cluster_warnings.csv"
+    path = paths.CLUSTER_WARNINGS
     if not os.path.exists(path):
         return []
     try:
@@ -177,7 +179,7 @@ def load_decisions():
     쌓인 걸 전부 최신순으로 내려보낸다. 원심(하급심) 관계는 자동으로 잇지 않고
     collect_decisions.py가 원문에서 그대로 뽑아둔 문구만("원심참조") 있으면 같이
     보여준다 - 화면에서도 AI가 관계를 재서술하지 않는다."""
-    path = "decision_list.csv"
+    path = paths.DECISION_LIST
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     try:
@@ -222,7 +224,7 @@ def load_law_penalties():
     decision_list.csv처럼 무기한 누적이 아니라 매번 전체를 새로 받아쓰는
     파일이라(법 개정이 반영되면 이전 조문은 그 자체가 사라짐) 별도 보관기간
     제한이 필요 없다."""
-    path = "law_penalty_list.csv"
+    path = paths.LAW_PENALTY_LIST
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     try:
@@ -253,7 +255,7 @@ def load_law_penalties():
 
 def load_subordinate_law_diffs():
     """collect_subordinate_laws.py가 받은 subordinate_law_diffs.json({MST: [조문별 신구 대비]})."""
-    path = "subordinate_law_diffs.json"
+    path = paths.SUBORDINATE_LAW_DIFFS
     if not os.path.exists(path):
         return {}
     try:
@@ -269,7 +271,7 @@ def load_subordinate_laws(diffs=None):
     시행예정 여부는 날짜에 따라 바뀌므로 여기서 정하지 않고 화면이 오늘 날짜로 가른다.
     articles(바뀐 조문 번호·제목)는 diffs에서 붙이고, 대비 본문은 따로 저장한다."""
     diffs = diffs or {}
-    path = "subordinate_law_list.csv"
+    path = paths.SUBORDINATE_LAW_LIST
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     try:
@@ -304,7 +306,7 @@ def load_law_texts():
     meta: 행정규칙 목록(제개정이유·별표서식 포함)과 법령별 별표·서식 파일 목록 - 작아서 탭을 열 때 받는다.
     texts: 조문 검색용 [{t, name, abbr, kind, a: [[조문번호, 제목, 본문], ...]}] - 커서 검색할 때만 받는다.
     법령 별표 본문은 a에 ["별표 2", 제목, 본문]으로 같이 넣어 조문과 똑같이 찾는다."""
-    path = "law_texts.json"
+    path = paths.LAW_TEXTS
     if not os.path.exists(path):
         return {"laws": [], "rules": [], "lawFiles": {}, "updated": ""}, []
     try:
@@ -408,7 +410,7 @@ def load_legislative_notices():
     """collect_legislative_notices.py가 받은 legislative_notice_list.csv(국민참여입법센터
     입법예고 중 챙기는 부처·법령). 입법 탭 단계 줄 "입법예고" 칩용. 접수 중/마감은
     날짜에 따라 바뀌므로 화면이 오늘 날짜로 가른다."""
-    path = "legislative_notice_list.csv"
+    path = paths.LEGISLATIVE_NOTICE_LIST
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     try:
@@ -439,7 +441,7 @@ def load_contract_law_corpus():
     가맹·대리점·약관 계열 법령의 조문 전체, 벌칙류로 안 좁힌 것)를 읽는다.
     화면 어느 탭에도 안 쓰이고, 계약서 문구 검토 Cloudflare Worker가 이
     JSON만 fetch해서 AI 프롬프트의 후보 법령으로 쓴다."""
-    path = "contract_law_corpus.csv"
+    path = paths.CONTRACT_LAW_CORPUS
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     try:
@@ -457,7 +459,7 @@ def load_contract_law_corpus():
 
 
 def load_bills():
-    path = "bill_list.csv"
+    path = paths.BILL_LIST
     if not os.path.exists(path):
         return []
     try:
@@ -593,7 +595,7 @@ def row_to_dict(row):
 def _load_company_aliases():
     """config/company_aliases.csv(별칭,대표이름) - 같은 회사의 다른 표기를 하나로 맞춘다."""
     try:
-        adf = pd.read_csv("config/company_aliases.csv", dtype=str, keep_default_na=False)
+        adf = pd.read_csv(paths.COMPANY_ALIASES, dtype=str, keep_default_na=False)
         return {r["별칭"].strip(): r["대표이름"].strip() for _, r in adf.iterrows() if r["별칭"].strip()}
     except Exception:
         return {}
@@ -648,7 +650,7 @@ SHOW_MEMBER_NEWS = False
 def load_member_news():
     """collect_member_news.py가 쌓은 member_news.csv를 의원 이름별로 묶는다.
     (최신순 정렬은 여기서 한 번만 해두면 화면은 그대로 앞에서부터 자르기만 하면 된다.)"""
-    path = "member_news.csv"
+    path = paths.MEMBER_NEWS
     if not os.path.exists(path):
         return {}
     try:
@@ -680,7 +682,7 @@ def load_members(bills):
     법안 목록(bills.json)이 있어야 하는데 그건 입법 탭을 볼 때만 받으므로,
     의원 탭만 열어도 보이게 한다. 세는 기준은 카드에 적히는 이름과 같은
     '대표발의자'다."""
-    path = "member_list.csv"
+    path = paths.MEMBER_LIST
     if not os.path.exists(path):
         return []
     try:

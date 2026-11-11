@@ -39,13 +39,15 @@ import requests
 import yaml
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, main.py와 같은 로직)
 KST = timezone(timedelta(hours=9))
 
-BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
-DECISION_LIST_PATH = "decision_list.csv"
+BILL_KEYWORDS_PATH = paths.BILL_KEYWORDS
+DECISION_LIST_PATH = paths.DECISION_LIST
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 # "상세링크"에 OC를 직접 박으면 그 값이 그대로 decision_list.csv/docs/decisions.json에
 # 실려서 공개 저장소에 실제 인증키가 노출된다(2026-10-01 보안 리뷰로 발견·확인 -

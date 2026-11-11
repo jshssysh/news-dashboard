@@ -61,11 +61,13 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 KST = timezone(timedelta(hours=9))
 
-SUBORDINATE_LAW_LIST_PATH = "subordinate_law_list.csv"
-SUBORDINATE_LAW_DIFFS_PATH = "subordinate_law_diffs.json"
+SUBORDINATE_LAW_LIST_PATH = paths.SUBORDINATE_LAW_LIST
+SUBORDINATE_LAW_DIFFS_PATH = paths.SUBORDINATE_LAW_DIFFS
 # 전부개정처럼 법 전체가 바뀐 공포본은 대비표가 수천 줄이라 앞부분만 남긴다.
 DIFF_MAX_LINES = 300
 DIFF_MAX_LINE_CHARS = 2000

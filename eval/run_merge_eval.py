@@ -23,6 +23,7 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
+import paths  # noqa: E402  저장소 안 파일 경로(paths.py)
 import main  # noqa: E402
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
@@ -135,7 +136,7 @@ def main_eval():
         sys.exit("GEMINI_API_KEY가 없습니다 - GitHub Actions에서 실행하세요.")
     path = sorted(glob.glob(os.path.join(HERE, "merge_pairs_*.csv")))[-1]
     pairs = pd.read_csv(path, encoding="utf-8-sig")
-    news = pd.read_csv(os.path.join(HERE, "..", "news_list.csv"), encoding="utf-8-sig",
+    news = pd.read_csv(paths.NEWS_LIST, encoding="utf-8-sig",
                        usecols=["수집일자", "대표이슈", "제목"])
     keys = {(r["이슈A"], r["날짜"]) for _, r in pairs.iterrows()} | {(r["이슈B"], r["날짜"]) for _, r in pairs.iterrows()}
     titles = {k: issue_titles(news, *k) for k in keys}

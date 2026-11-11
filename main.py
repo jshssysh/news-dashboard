@@ -10,6 +10,8 @@ from collections import defaultdict
 import requests
 import yaml
 import pandas as pd
+
+import paths  # 저장소 안 파일 경로(paths.py)
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
@@ -28,7 +30,7 @@ from gemini_client import (  # Gemini 호출 재시도·대체 모델·사용량
     GEMINI_USAGE, GEMINI_ERROR_SAMPLES, GEMINI_OVERLOAD, note_gemini_error, post_gemini_with_retry,
     gemini_daily_exhausted,
 )
-GEMINI_USAGE_PATH = "gemini_usage.csv"
+GEMINI_USAGE_PATH = paths.GEMINI_USAGE
 GEMINI_USAGE_RETENTION_DAYS = 60
 
 
@@ -119,7 +121,7 @@ def embed_texts(texts, model, task_type="CLUSTERING"):
         time.sleep(1)  # 무료 등급 분당 한도 여유
     return vectors
 
-KEYWORDS_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "keywords.yaml")
+KEYWORDS_CONFIG_PATH = paths.KEYWORDS_CONFIG
 
 def load_keywords(path=KEYWORDS_CONFIG_PATH):
     with open(path, "r", encoding="utf-8") as f:
@@ -311,7 +313,7 @@ def verify_and_adjust_category(category, title, description):
         else: return "공정거래"
     return category
 
-PERSONNEL_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "personnel.csv")
+PERSONNEL_CSV_PATH = paths.PERSONNEL
 
 def extract_personnel_appointments(candidates):
     """'공정위인사' 카테고리로 잡힌 기사에서 (부서, 직책, 담당자, 발령일)을 추출한다.
@@ -580,7 +582,7 @@ def analyze_batch_with_gemini(batch_items):
             note_gemini_error(f"응답 처리 예외 {type(e).__name__} {e}")
     return [(item["idx"], 0, ISSUE_TITLE_API_ERROR, "분석 에러", "판단 실패", None) for item in batch_items]
 
-def load_analyzed_links(file_name="news_list.csv"):
+def load_analyzed_links(file_name=paths.NEWS_LIST):
     """이미 정상적으로 분석이 끝난 기사링크 집합을 돌려준다.
     네이버는 매 실행마다 '최근 24시간'을 통째로 주기 때문에, 하루에 여러 번 돌리면
     같은 기사를 반복해서 Gemini에 보내게 된다. 이 목록에 있는 기사는 건너뛴다.
@@ -621,7 +623,7 @@ def load_analyzed_links(file_name="news_list.csv"):
 #   2) 정답 데이터를 만들 때 "놓친 기사"(나와야 하는데 버려진 기사)를 셀 수 있게 하기
 #      - 이 기록이 없으면 버려진 기사는 어디에도 남지 않아 놓침을 잴 수 없었다.
 # 네이버 수집 창(24시간)보다 넉넉히, 평가용으로 2주만 보관한다.
-REJECTED_NEWS_PATH = "rejected_news.csv"
+REJECTED_NEWS_PATH = paths.REJECTED_NEWS
 REJECTED_NEWS_RETENTION_DAYS = 14
 
 
@@ -643,7 +645,7 @@ def save_rejected_news(rejected):
 # 따로 둔다(2026-11-12). news_list.csv에 칸을 더하면 약 41MB → 73MB로 커져 GitHub 50MB 경고를
 # 넘으므로(위 FALLBACK_SUMMARY_CHARS 주석) 기사링크로 잇는 작은 파일에 최근 며칠치만 남긴다.
 # Gemini 입력에 이미 쓰는 값을 적기만 하므로 Gemini 사용량은 늘지 않는다.
-NEWS_DESCRIPTIONS_PATH = "news_descriptions.csv"
+NEWS_DESCRIPTIONS_PATH = paths.NEWS_DESCRIPTIONS
 NEWS_DESCRIPTIONS_RETENTION_DAYS = 7
 
 
@@ -679,7 +681,7 @@ GENERIC_ISSUE_TITLES_BLOCKLIST = {
 }
 
 
-def load_recent_issue_titles(file_name="news_list.csv", days=14, limit=80):
+def load_recent_issue_titles(file_name=paths.NEWS_LIST, days=14, limit=80):
     """최근 N일간 이미 저장된 대표이슈명을 반환한다 (등장 빈도 높은 순으로 최대 limit개).
     여러 날에 걸쳐 보도되는 사건이 매일 실행되는 클러스터링에서 서로 다른 이슈명으로
     쪼개지는 것을 막기 위해, master_cluster_with_gemini가 '기존 이슈명'을 참고할 수 있게 한다."""
@@ -1149,7 +1151,7 @@ EMBED_TITLE_OVERLAP_MIN_GRAMS = 2
 # [(이 유사도 미만이면, 겹침이 이 값 이상이어야)] - 위에서부터 처음 맞는 줄을 쓴다.
 EMBED_BORDERLINE_OVERLAP = [(0.83, 0.35), (0.86, 0.25)]
 EMBED_TITLE_GRAM_TITLES = 10  # 이슈 제목 글자를 모으는 제목 수(처음 수집된 것부터)
-EMBED_ATTACH_LOG_PATH = "embed_attach_log.csv"  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
+EMBED_ATTACH_LOG_PATH = paths.EMBED_ATTACH_LOG  # 어떤 기사가 어느 이슈에 어떤 근거로 붙었는지(2주 보관)
 EMBED_ATTACH_LOG_DAYS = 14
 
 
@@ -1185,7 +1187,7 @@ def _save_attach_log(rows):
 EMBED_RECENT_ISSUE_DAYS = 3
 EMBED_MIN_SCORE = 6
 EMBED_MAX_REPS_PER_RUN = 300  # 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한
-EMBED_CACHE_PATH = os.path.join(".cache", "embeddings.json.gz")
+EMBED_CACHE_PATH = paths.EMBED_CACHE
 EMBED_CACHE_DAYS = 4
 EMBED_LAST_RESULT = {"text": "실행 안 함"}  # gemini_usage.csv에 남기는 이번 실행 결과
 
@@ -1218,7 +1220,7 @@ def _save_embed_cache(cache):
         print(f"[임베딩 캐시 저장 예외 - 건너뜀] {e}")
 
 
-def assign_issues_by_embedding(new_items, model, history_file="news_list.csv"):
+def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
     """new_items: [{"link", "title", "description", "group_title", "score", "ts"}].
     {기사링크: 이슈명}을 돌려준다. 임베딩을 못 쓰면 None(호출한 쪽이 기존 방식으로 처리).
 
@@ -1425,7 +1427,7 @@ def apply_issue_merge(df, new_links=None):
 # cluster_warnings.csv에 남기고 화면에 "!" 표시로만 알린다(데이터는 그대로 저장).
 # 실제 포괄 바구니로 확인되면 위 GENERIC_ISSUE_TITLES_BLOCKLIST에 이름을 추가해
 # 재사용을 막는 방식으로 대응한다.
-CLUSTER_WARNINGS_PATH = "cluster_warnings.csv"
+CLUSTER_WARNINGS_PATH = paths.CLUSTER_WARNINGS
 CLUSTER_WARNINGS_RETENTION_DAYS = 35  # 화면의 "최근 30일" 조회 범위보다 넉넉하게 보관
 PER_ISSUE_MAX_ROWS_PER_DAY = 15   # 하루에 이슈 하나에 이만큼 몰리면 의심(정상 관측치는 2~3건)
 
@@ -1446,7 +1448,7 @@ ARCHIVE_AFTER_DAYS = 35
 # 100MB 제한과 무관하게(한 달치는 15MB 안팎) 계속 쌓을 수 있다. 화면은 평소엔 이
 # 파일들을 전혀 안 읽고, 사용자가 "옛 기사 검색"에서 그 달을 조회할 때만 해당
 # 파일 하나를 불러온다.
-NEWS_ARCHIVE_DIR = os.path.join("docs", "archive")
+NEWS_ARCHIVE_DIR = paths.NEWS_ARCHIVE_DIR
 
 
 ARCHIVE_EXT = ".json.gz"
@@ -1576,7 +1578,7 @@ def archive_expiring_news(expiring_df):
 # 파일에 적어 두고 GitHub Actions가 매 실행마다 반영한다. 한 번 반영돼도 지우지 않는다 -
 # 지운 기사가 네이버 24시간 창에서 다시 수집되거나, 정정한 기사가 다시 분석돼도 계속 적용된다.
 #   기사링크: 대상 기사 / 조치: "이슈변경" 또는 "삭제" / 새이슈: 이슈변경일 때 바꿀 이슈명
-NEWS_OVERRIDES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "news_overrides.csv")
+NEWS_OVERRIDES_PATH = paths.NEWS_OVERRIDES
 
 
 def load_news_overrides():
@@ -1718,7 +1720,7 @@ def save_cluster_warnings(warnings, today_str):
     combined.to_csv(CLUSTER_WARNINGS_PATH, index=False, encoding="utf-8-sig")
 
 
-def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None):
+def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None):
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시", "언급기업"]
     new_df = pd.DataFrame(new_rows, columns=columns)
 
@@ -1804,7 +1806,7 @@ def save_and_merge_data(new_rows, file_name="news_list.csv", embedded_links=None
 # 기사 제목들로 Gemini에 공통 이름을 다시 지어 화면에서만 그 이름을 쓴다(generate_html.py).
 # news_list.csv의 대표이슈는 바꾸지 않는다 - 과거 행 고정 원칙(apply_issue_merge)과
 # config/news_overrides.csv의 이슈 이름이 그대로 맞아야 해서다.
-ISSUE_DISPLAY_PATH = "issue_display_names.csv"
+ISSUE_DISPLAY_PATH = paths.ISSUE_DISPLAY_NAMES
 ISSUE_DISPLAY_DAYS = 14          # 이만큼 지난 이름은 지운다(화면은 35일치라 그 뒤엔 원래 이름)
 ISSUE_DISPLAY_RECENT_DAYS = 3    # 최근 이만큼 기사가 들어온 이슈만 본다
 ISSUE_DISPLAY_MIN_ARTICLES = 3
@@ -1890,7 +1892,7 @@ JSON 배열로만 답할 것: [{{"issue": "지금 이름", "name": "새 이름"}
         return {}
 
 
-def update_issue_display_names(news_path="news_list.csv"):
+def update_issue_display_names(news_path=paths.NEWS_LIST):
     """issue_display_names.csv(이슈, 표시이름, 기사수, 갱신일시)를 갱신한다. 기사 수가 그대로인
     이슈는 다시 묻지 않는다. 실패해도 수집에는 영향 없음."""
     try:

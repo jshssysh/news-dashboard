@@ -32,6 +32,8 @@ from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 import pandas as pd
+
+import paths  # 저장소 안 파일 경로(paths.py)
 import requests
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().replace('"', '').replace("'", "")
@@ -39,8 +41,8 @@ NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().replace(
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
 KST = timezone(timedelta(hours=9))
 
-MEMBER_LIST_PATH = "member_list.csv"
-OUT_PATH = "member_news.csv"
+MEMBER_LIST_PATH = paths.MEMBER_LIST
+OUT_PATH = paths.MEMBER_NEWS
 OUT_COLUMNS = ["의원명", "제목", "언론사", "링크", "발행일", "요약", "관련보도수"]
 DISPLAY_PER_QUERY = 20
 

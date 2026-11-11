@@ -37,6 +37,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 from collect_subordinate_laws import OTHER_MINISTRY_LAWS, EXCLUDE_NAME_KEYWORDS
 
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
@@ -44,7 +46,7 @@ LAW_API_BASE = "https://www.law.go.kr/DRF"
 SITE = "https://www.law.go.kr"
 KST = timezone(timedelta(hours=9))
 FTC_ORG_CODE = "1130000"
-LAW_TEXTS_PATH = "law_texts.json"
+LAW_TEXTS_PATH = paths.LAW_TEXTS
 RULE_EXCLUDE_KINDS = {"훈령"}
 CALL_GAP = 0.2
 

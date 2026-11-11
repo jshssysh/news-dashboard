@@ -28,10 +28,12 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 from collect_subordinate_laws import EXCLUDE_NAME_KEYWORDS, OTHER_MINISTRY_LAWS, _name_key
 
 KST = timezone(timedelta(hours=9))
-NOTICE_LIST_PATH = "legislative_notice_list.csv"
+NOTICE_LIST_PATH = paths.LEGISLATIVE_NOTICE_LIST
 BASE = "https://opinion.lawmaking.go.kr"
 LIST_URL = f"{BASE}/gcom/ogLmPp"
 DETAIL_URL = BASE + "/gcom/ogLmPp/{nid}"

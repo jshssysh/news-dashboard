@@ -41,10 +41,12 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 KST = timezone(timedelta(hours=9))
 
-NOTICE_LIST_PATH = "notice_list.csv"
+NOTICE_LIST_PATH = paths.NOTICE_LIST
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 # "상세링크"에 OC를 직접 박지 않는다 - collect_decisions.py와 같은 이유(2026-10-01
 # 보안 리뷰로 발견: OC를 그대로 저장하면 공개 저장소/GitHub Pages에 실제 인증키가

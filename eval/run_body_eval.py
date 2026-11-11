@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
+import paths  # noqa: E402  저장소 안 파일 경로(paths.py)
 import main  # noqa: E402
 
 SAMPLE_SIZE = 60
@@ -84,7 +85,7 @@ def analyze(items):
 def main_eval():
     if not main.GEMINI_API_KEY:
         sys.exit("GEMINI_API_KEY가 없습니다 - GitHub Actions에서 실행하세요.")
-    news = pd.read_csv(os.path.join(HERE, "..", "news_list.csv"), encoding="utf-8-sig")
+    news = pd.read_csv(paths.NEWS_LIST, encoding="utf-8-sig")
     news["중요도"] = pd.to_numeric(news["중요도"], errors="coerce").fillna(0)
     recent = news[(news["수집일자"] >= news["수집일자"].max()[:10]) & (news["중요도"] >= 6)
                   & (news["논조"] != "판단 실패")].copy()

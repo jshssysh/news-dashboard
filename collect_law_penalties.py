@@ -52,11 +52,13 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 
+import paths  # 저장소 안 파일 경로(paths.py)
+
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 KST = timezone(timedelta(hours=9))
 
-LAW_PENALTY_LIST_PATH = "law_penalty_list.csv"
-CONTRACT_LAW_CORPUS_PATH = "contract_law_corpus.csv"
+LAW_PENALTY_LIST_PATH = paths.LAW_PENALTY_LIST
+CONTRACT_LAW_CORPUS_PATH = paths.CONTRACT_LAW_CORPUS
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 
 FTC_ORG_CODE = "1130000"

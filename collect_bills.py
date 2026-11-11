@@ -44,6 +44,8 @@ from collections import Counter
 import requests
 import yaml
 import pandas as pd
+
+import paths  # 저장소 안 파일 경로(paths.py)
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 
@@ -52,12 +54,12 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').r
 from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, main.py와 같은 로직)
 KST = timezone(timedelta(hours=9))
 
-BILL_KEYWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_keywords.yaml")
-BILL_VETOED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "bill_vetoed.csv")
-BILL_LIST_PATH = "bill_list.csv"
-BILL_STATUS_LOG_PATH = "bill_status_log.csv"
+BILL_KEYWORDS_PATH = paths.BILL_KEYWORDS
+BILL_VETOED_PATH = paths.BILL_VETOED
+BILL_LIST_PATH = paths.BILL_LIST
+BILL_STATUS_LOG_PATH = paths.BILL_STATUS_LOG
 BILL_STATUS_LOG_COLUMNS = ["감지일시", "구분", "의안ID", "의안번호", "법안명", "소관위원회", "이전상태", "새상태"]
-MEMBER_LIST_PATH = "member_list.csv"
+MEMBER_LIST_PATH = paths.MEMBER_LIST
 
 # 인적사항 API는 역대 의원 3,300명을 모두 주는데, 이 대시보드는 22대 계류법안만
 # 다루므로 현역만 남긴다. 당선 대수 칸(GTELT_ERACO)이 "제21대, 제22대" 형태다.
