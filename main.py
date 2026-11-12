@@ -1186,10 +1186,61 @@ def _save_attach_log(rows):
         print(f"[임베딩 묶기 기록 예외 - 건너뜀] {e}")
 EMBED_RECENT_ISSUE_DAYS = 3
 EMBED_MIN_SCORE = 6
-EMBED_MAX_REPS_PER_RUN = 300  # 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한
+# 캐시에 없는 최근 이슈 대표 기사를 한 번에 채우는 상한. 300이었는데 11/12 12:01 임베딩 실패 뒤
+# 18:01 실행이 빠진 이슈를 채우느라 909건을 써서 다음 날 아침 몫까지 먹었다. 7점 이상 이슈만 채운다.
+EMBED_MAX_REPS_PER_RUN = 50
 EMBED_CACHE_PATH = paths.EMBED_CACHE
 EMBED_CACHE_DAYS = 4
 EMBED_LAST_RESULT = {"text": "실행 안 함"}  # gemini_usage.csv에 남기는 이번 실행 결과
+
+# 임베딩 하루 한도 나눠 쓰기(2026-11-13). 무료 등급 임베딩은 하루 1,000건이고 미국 서부 자정
+# (한국 16~17시)에 초기화돼, 한 '한도 하루'를 18:01과 다음 날 06:01·12:01 세 실행이 같이 쓴다.
+# 11/11 18:01이 547건, 11/12 18:01이 909건을 써서 다음 실행(11/12 12:01 442건, 11/13 06:01 192건 전부)이
+# 실패했고, 그 기사들은 이슈 이름 비교로 묶여 같은 사건이 카드 여러 개로 흩어졌다(엔비디아·LCC 3사·배민).
+# 이번 한도 하루에 이미 쓴 양은 gemini_usage.csv(커밋되는 파일)의 "새로 임베딩 N건 중 실패 M건"을 더해
+# 구하고, 한도가 풀리기 전에 남은 정기 실행 몫은 떼어 둔다. 예산 안에서는 7점 이상 새 기사 → 빠진
+# 이슈 대표 벡터 → 6점 새 기사 순서로 임베딩하고, 예산 밖 기사는 이슈 이름 비교로 묶는다.
+# 11/9~11/12 임베딩 대상의 59%가 6점(대부분 ESG 등급·행사 기사)이고, 7점 이상은 하루 400~550건이다.
+EMBED_DAILY_LIMIT = 950  # 하루 1,000건에서 여유를 둔 값. 유료 등급으로 바꾸면 None(예산 없이 전부 임베딩)
+EMBED_PRIORITY_SCORE = 7  # 이 점수 이상인 기사·이슈를 먼저 임베딩한다
+# (정기 실행 시각(한국 시·분), 그 실행 몫). 지금 실행 뒤, 한도가 풀리기 전에 돌 실행의 몫만 떼어 둔다.
+# 18:01 실행은 06:01·12:01 몫 550건을 남기고 400건까지, 06:01은 12:01 몫 300건을 남기고 쓴다.
+EMBED_RUN_RESERVES = [((18, 1), 400), ((6, 1), 250), ((12, 1), 300)]
+
+
+def _embed_quota_day_start(now_kst):
+    """임베딩 하루 한도가 마지막으로 초기화된 시각(미국 서부 자정)을 한국 시각으로 돌려준다."""
+    from zoneinfo import ZoneInfo
+    pt = now_kst.astimezone(ZoneInfo("America/Los_Angeles"))
+    return pt.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(KST)
+
+
+def embed_budget_for_run(now_kst=None, usage_path=GEMINI_USAGE_PATH):
+    """(이번 실행에 쓸 수 있는 임베딩 건수, 이번 한도 하루에 이미 쓴 건수). 예산이 없으면 (None, 0)."""
+    if not EMBED_DAILY_LIMIT:
+        return None, 0
+    now_kst = now_kst or datetime.now(KST)
+    start = _embed_quota_day_start(now_kst)
+    reset = (start.astimezone(timezone.utc) + timedelta(days=1)).astimezone(KST)  # 근사: 서머타임 바뀌는 날은 1시간 어긋남
+    used = 0
+    try:
+        if os.path.exists(usage_path):
+            u = pd.read_csv(usage_path, encoding="utf-8-sig", dtype=str)
+            u = u[u["실행일시"].fillna("") >= start.strftime("%Y-%m-%d %H:%M")]
+            for text in u.get("임베딩 묶기", pd.Series(dtype=str)).fillna(""):
+                m = re.search(r"새로 임베딩 (\d+)건 중 실패 (\d+)건", text)
+                if m:
+                    used += int(m.group(1)) - int(m.group(2))
+    except Exception as e:
+        print(f"[임베딩 예산 - 사용 기록 읽기 예외, 사용량 0으로 봄] {e}")
+    reserve = 0
+    for (h, mi), amount in EMBED_RUN_RESERVES:
+        nxt = now_kst.replace(hour=h, minute=mi, second=0, microsecond=0)
+        if nxt <= now_kst:
+            nxt += timedelta(days=1)
+        if nxt < reset:
+            reserve += amount
+    return max(0, EMBED_DAILY_LIMIT - used - reserve), used
 
 
 def _load_embed_cache():
@@ -1248,7 +1299,9 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
             print(f"[임베딩 묶기 - 최근 이슈 읽기 예외, 이번 기사끼리만 묶음] {e}")
             hist = pd.DataFrame()
 
-    to_embed = []  # (기사링크, 텍스트, 수집일자) - 새 기사를 먼저 넣어 한도가 모자라도 새 기사부터 임베딩된다
+    # (기사링크, 텍스트, 수집일자). 예산이 모자라면 앞에서부터 쓰도록
+    # 7점 이상 새 기사 → 빠진 이슈 대표 벡터 → 6점 새 기사 순으로 놓는다(embed_budget_for_run 참고).
+    new_hi, new_lo, rep_embed = [], [], []
     items = sorted(new_items, key=lambda x: -x["score"])
     # 같은 유사 제목 묶음(group_key)에서는 점수가 가장 높은 기사 한 건만 임베딩한다
     seen_keys, group_rep = set(), {}
@@ -1258,18 +1311,28 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
             continue
         group_rep[key] = x["link"]
         if x["link"] not in cache and key not in seen_keys:
-            to_embed.append((x["link"], f"{x['title']} {x['description']}".strip(), x["ts"]))
+            (new_hi if x["score"] >= EMBED_PRIORITY_SCORE else new_lo).append(
+                (x["link"], f"{x['title']} {x['description']}".strip(), x["ts"]))
         seen_keys.add(key)
 
-    # 캐시에 벡터가 하나도 없는 최근 이슈는 대표 기사(최고점·최신) 하나만 임베딩해 채운다.
-    # 캐시가 빈 첫 실행에 1,300건 넘게 몰려 하루 한도를 다 쓰지 않도록 최근 이슈부터 상한까지만.
+    # 캐시에 벡터가 하나도 없는 최근 이슈(최고점 7점 이상)는 대표 기사(최고점·최신) 하나만 임베딩해 채운다.
     if not hist.empty:
         cached_issue = hist[hist["기사링크"].isin(cache)]["대표이슈"].unique()
         missing = hist[~hist["대표이슈"].isin(cached_issue)]
+        missing = missing[missing.groupby("대표이슈")["중요도"].transform("max") >= EMBED_PRIORITY_SCORE]
         reps = missing.sort_values(["중요도", "수집일자"]).groupby("대표이슈").tail(1)
         for _, r in reps.sort_values("수집일자", ascending=False).head(EMBED_MAX_REPS_PER_RUN).iterrows():
             summary = r["AI요약"] if isinstance(r["AI요약"], str) else ""
-            to_embed.append((r["기사링크"], f"{r['제목']} {summary}".strip(), str(r["수집일자"])))
+            rep_embed.append((r["기사링크"], f"{r['제목']} {summary}".strip(), str(r["수집일자"])))
+
+    to_embed = new_hi + rep_embed + new_lo
+    budget, used_today = embed_budget_for_run()
+    deferred = 0
+    if budget is not None and len(to_embed) > budget:
+        deferred = len(to_embed) - budget
+        to_embed = to_embed[:budget]
+    budget_text = "" if budget is None else f"예산 {budget}건(이번 한도 하루 앞서 {used_today}건 사용), 예산 밖으로 미룸 {deferred}건, "
+    print(f"[임베딩 예산] {budget_text or '예산 없음'} 7점 이상 {len(new_hi)}건, 대표 벡터 {len(rep_embed)}건, 6점 {len(new_lo)}건")
 
     vectors = embed_texts([t for _, t, _ in to_embed], model) if to_embed else []
     failed = sum(v is None for v in vectors)
@@ -1286,7 +1349,7 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
     skipped = [x for x in items if x["link"] not in cache]
     items = [x for x in items if x["link"] in cache]
     if not items:
-        EMBED_LAST_RESULT["text"] = f"실패(임베딩 {failed}/{len(to_embed)}건 실패) -> 기존 방식"
+        EMBED_LAST_RESULT["text"] = f"실패({budget_text}임베딩 {failed}/{len(to_embed)}건 실패) -> 기존 방식"
         print(f"[임베딩 묶기 실패 - 기존 이슈명 병합으로 처리] {EMBED_LAST_RESULT['text']}")
         return None
 
@@ -1352,7 +1415,7 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
                         "새 묶음" + (" (번짐 방지)" if near_miss else "") + (" (제목 겹침 부족)" if text_miss else ""),
                         "", "", ""))
     _save_attach_log(log)
-    EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, "
+    EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, {budget_text}"
                                  f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
                                  f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 번짐 방지로 막음 {blocked}건, "
                                  f"제목 겹침 부족으로 막음 {blocked_text}건, "
