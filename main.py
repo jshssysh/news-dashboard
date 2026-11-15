@@ -1271,6 +1271,53 @@ def _save_embed_cache(cache):
         print(f"[임베딩 캐시 저장 예외 - 건너뜀] {e}")
 
 
+# 이슈끼리 합칠 후보 기록(2026-11-16, 아직 합치지는 않음). 지금은 기사를 이슈에 붙이기만 하고, 한 번
+# 갈라진 이슈를 나중에 합치는 단계가 없다. 11/11 18:01 국고채 담합 1.6조 과징금 발표 기사들이
+# 아침에 생긴 '국고채 담합 제재'(출발점이 "발표 임박" 기사)에 번짐 방지로 막혀 같은 실행 안에서
+# 새 묶음 6개로 갈라졌고, 주말 내내 새 기사가 그 6개에 나눠 붙었다. 이슈 중심끼리 얼마나 비슷한지
+# 실제 값을 며칠 모은 뒤 합치는 기준을 정한다. 실행마다 중심 유사도 상위 쌍만 남긴다(7일 보관).
+ISSUE_MERGE_LOG_PATH = paths.ISSUE_MERGE_CANDIDATES
+ISSUE_MERGE_LOG_MIN_SIM = 0.85
+ISSUE_MERGE_LOG_TOP = 60
+ISSUE_MERGE_LOG_DAYS = 7
+
+
+def _save_issue_merge_candidates(names, cents, anchors, grams, counts):
+    import numpy as np
+    try:
+        if len(cents) < 2:
+            return
+        C = np.vstack(cents)
+        A = np.vstack(anchors)
+        sim = C @ C.T
+        iu = np.triu_indices(len(names), 1)
+        order = np.argsort(-sim[iu])[:ISSUE_MERGE_LOG_TOP * 3]
+        now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+        rows, seen = [], set()
+        for k in order:
+            i, j = int(iu[0][k]), int(iu[1][k])
+            s = float(sim[i, j])
+            if s < ISSUE_MERGE_LOG_MIN_SIM or len(rows) >= ISSUE_MERGE_LOG_TOP:
+                break
+            if names[i] == names[j] or (names[i], names[j]) in seen:
+                continue
+            seen.add((names[i], names[j]))
+            gi, gj = grams[i], grams[j]
+            rows.append((now, names[i], names[j], round(s, 3), round(float(A[i] @ A[j]), 3),
+                         round(float(C[i] @ A[j]), 3), round(float(C[j] @ A[i]), 3),
+                         round(len(gi & gj) / max(min(len(gi), len(gj)), 1), 3),
+                         counts.get(names[i], 0), counts.get(names[j], 0)))
+        new = pd.DataFrame(rows, columns=["실행일시", "이슈A", "이슈B", "중심 유사도", "출발점 유사도",
+                                          "A중심-B출발점", "B중심-A출발점", "제목 겹침", "A기사수", "B기사수"])
+        if os.path.exists(ISSUE_MERGE_LOG_PATH):
+            new = pd.concat([pd.read_csv(ISSUE_MERGE_LOG_PATH, encoding="utf-8-sig"), new], ignore_index=True)
+        cutoff = (datetime.now(KST) - timedelta(days=ISSUE_MERGE_LOG_DAYS)).strftime("%Y-%m-%d")
+        new[new["실행일시"].astype(str) >= cutoff].to_csv(ISSUE_MERGE_LOG_PATH, index=False, encoding="utf-8-sig")
+        print(f"[이슈 합칠 후보] 중심 유사도 {ISSUE_MERGE_LOG_MIN_SIM} 이상 {len(rows)}쌍 기록")
+    except Exception as e:
+        print(f"[이슈 합칠 후보 기록 예외 - 건너뜀] {e}")
+
+
 def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
     """new_items: [{"link", "title", "description", "group_title", "score", "ts"}].
     {기사링크: 이슈명}을 돌려준다. 임베딩을 못 쓰면 None(호출한 쪽이 기존 방식으로 처리).
@@ -1415,6 +1462,10 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
                         "새 묶음" + (" (번짐 방지)" if near_miss else "") + (" (제목 겹침 부족)" if text_miss else ""),
                         "", "", ""))
     _save_attach_log(log)
+    counts = hist["대표이슈"].value_counts().to_dict() if not hist.empty else {}
+    for issue in mapping.values():
+        counts[issue] = counts.get(issue, 0) + 1
+    _save_issue_merge_candidates(names, cents, anchors, grams, counts)
     EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, {budget_text}"
                                  f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
                                  f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 번짐 방지로 막음 {blocked}건, "

@@ -30,6 +30,7 @@ NEWS_DESCRIPTIONS = _p("news_descriptions.csv")
 REJECTED_NEWS = _p("rejected_news.csv")
 CLUSTER_WARNINGS = _p("cluster_warnings.csv")
 EMBED_ATTACH_LOG = _p("embed_attach_log.csv")
+ISSUE_MERGE_CANDIDATES = _p("issue_merge_candidates.csv")  # 이슈끼리 합칠 후보(중심 유사도) 기록
 ISSUE_DISPLAY_NAMES = _p("issue_display_names.csv")
 EMBED_CACHE = _p(".cache", "embeddings.json.gz")  # 커밋 안 함, Actions 캐시
 
