@@ -1,7 +1,7 @@
-"""Gemini 호출 공용 도우미 - main.py(뉴스)·collect_bills.py(법안)·collect_decisions.py(심결)가 같이 쓴다.
+"""Gemini 호출 공용 도우미 - collect_news.py(뉴스)·collect_bills.py(법안)·collect_decisions.py(심결)가 같이 쓴다.
 
 예전엔 세 파일이 "503이면 5초 뒤 한 번 더" 함수를 각자 복사해 갖고 있어서, 11/05~06 Gemini 과부하
-(503 high demand) 때 main.py만 고치고 법안 쪽은 그대로 실패했다(11/05 발의 법안 39건 중 20건 요약 없음).
+(503 high demand) 때 collect_news.py만 고치고 법안 쪽은 그대로 실패했다(11/05 발의 법안 39건 중 20건 요약 없음).
 이제 재시도·대체 모델 로직은 여기 한 곳에만 둔다. 각 스크립트는 따로 실행되는 프로세스라
 호출 수·대기 시간 기록(GEMINI_USAGE, GEMINI_OVERLOAD)도 스크립트마다 따로 센다.
 """
@@ -58,7 +58,7 @@ class _QuotaExhaustedResponse:
 
 def gemini_daily_exhausted():
     """원래 모델과 쓸 수 있는 대체 모델이 모두 하루 한도를 다 썼으면 True.
-    main.py 뉴스 분석은 이걸 보고 남은 묶음을 보내지 않고 '분석 대기'로 남긴다."""
+    collect_news.py 뉴스 분석은 이걸 보고 남은 묶음을 보내지 않고 '분석 대기'로 남긴다."""
     if GEMINI_PRIMARY_MODEL not in GEMINI_OVERLOAD["daily_exhausted"]:
         return False
     return not _gemini_fallback_models()

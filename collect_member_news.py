@@ -42,7 +42,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').r
 KST = timezone(timedelta(hours=9))
 
 MEMBER_LIST_PATH = paths.MEMBER_LIST
-OUT_PATH = paths.MEMBER_NEWS
+MEMBER_NEWS_PATH = paths.MEMBER_NEWS
 OUT_COLUMNS = ["의원명", "제목", "언론사", "링크", "발행일", "요약", "관련보도수"]
 DISPLAY_PER_QUERY = 20
 
@@ -218,8 +218,8 @@ def main():
         return
     print(f"[의원 뉴스] 현직 {len(names)}명 검색 시작")
 
-    if os.path.exists(OUT_PATH):
-        existing_df = pd.read_csv(OUT_PATH).fillna("")
+    if os.path.exists(MEMBER_NEWS_PATH):
+        existing_df = pd.read_csv(MEMBER_NEWS_PATH).fillna("")
     else:
         existing_df = pd.DataFrame(columns=OUT_COLUMNS)
 
@@ -310,15 +310,15 @@ def main():
         combined = existing_df
 
     if combined.empty:
-        pd.DataFrame(columns=OUT_COLUMNS).to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
+        pd.DataFrame(columns=OUT_COLUMNS).to_csv(MEMBER_NEWS_PATH, index=False, encoding="utf-8-sig")
         print("[의원 뉴스] 저장할 기사가 없습니다.")
         return
 
     # 과거에 무슨 이슈가 있었는지 계속 남겨두고 싶다는 요청이라, 사람당 상한 없이
     # 전부 누적한다.
     combined = combined.sort_values("발행일", ascending=False)
-    combined.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
-    print(f"[의원 뉴스 저장 완료] 총 {len(combined)}건 -> {OUT_PATH}")
+    combined.to_csv(MEMBER_NEWS_PATH, index=False, encoding="utf-8-sig")
+    print(f"[의원 뉴스 저장 완료] 총 {len(combined)}건 -> {MEMBER_NEWS_PATH}")
 
 
 if __name__ == "__main__":

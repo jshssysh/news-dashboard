@@ -313,7 +313,7 @@ def verify_and_adjust_category(category, title, description):
         else: return "공정거래"
     return category
 
-PERSONNEL_CSV_PATH = paths.PERSONNEL
+PERSONNEL_PATH = paths.PERSONNEL
 
 def extract_personnel_appointments(candidates):
     """'공정위인사' 카테고리로 잡힌 기사에서 (부서, 직책, 담당자, 발령일)을 추출한다.
@@ -388,9 +388,9 @@ def update_personnel_csv(detected):
     if not detected:
         return
     try:
-        with open(PERSONNEL_CSV_PATH, "r", encoding="utf-8") as f:
+        with open(PERSONNEL_PATH, "r", encoding="utf-8") as f:
             original_lines = f.readlines()
-        df = pd.read_csv(PERSONNEL_CSV_PATH, comment="#")
+        df = pd.read_csv(PERSONNEL_PATH, comment="#")
     except Exception as e:
         print(f"[personnel.csv 로드 실패] {e}")
         return
@@ -413,7 +413,7 @@ def update_personnel_csv(detected):
 
     updated = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
     comment_lines = [line for line in original_lines if line.startswith("#")]
-    with open(PERSONNEL_CSV_PATH, "w", encoding="utf-8", newline="") as f:
+    with open(PERSONNEL_PATH, "w", encoding="utf-8", newline="") as f:
         f.writelines(comment_lines)
         updated.to_csv(f, index=False)
     print(f"[공정위 인사 자동 감지] {len(new_rows)}건 personnel.csv에 추가 (확인상태=자동감지, 검토 필요)")
@@ -1276,7 +1276,7 @@ def _save_embed_cache(cache):
 # 아침에 생긴 '국고채 담합 제재'(출발점이 "발표 임박" 기사)에 번짐 방지로 막혀 같은 실행 안에서
 # 새 묶음 6개로 갈라졌고, 주말 내내 새 기사가 그 6개에 나눠 붙었다. 이슈 중심끼리 얼마나 비슷한지
 # 실제 값을 며칠 모은 뒤 합치는 기준을 정한다. 실행마다 중심 유사도 상위 쌍만 남긴다(7일 보관).
-ISSUE_MERGE_LOG_PATH = paths.ISSUE_MERGE_CANDIDATES
+ISSUE_MERGE_CANDIDATES_PATH = paths.ISSUE_MERGE_CANDIDATES
 ISSUE_MERGE_LOG_MIN_SIM = 0.85
 ISSUE_MERGE_LOG_TOP = 60
 ISSUE_MERGE_LOG_DAYS = 7
@@ -1309,10 +1309,10 @@ def _save_issue_merge_candidates(names, cents, anchors, grams, counts):
                          counts.get(names[i], 0), counts.get(names[j], 0)))
         new = pd.DataFrame(rows, columns=["실행일시", "이슈A", "이슈B", "중심 유사도", "출발점 유사도",
                                           "A중심-B출발점", "B중심-A출발점", "제목 겹침", "A기사수", "B기사수"])
-        if os.path.exists(ISSUE_MERGE_LOG_PATH):
-            new = pd.concat([pd.read_csv(ISSUE_MERGE_LOG_PATH, encoding="utf-8-sig"), new], ignore_index=True)
+        if os.path.exists(ISSUE_MERGE_CANDIDATES_PATH):
+            new = pd.concat([pd.read_csv(ISSUE_MERGE_CANDIDATES_PATH, encoding="utf-8-sig"), new], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=ISSUE_MERGE_LOG_DAYS)).strftime("%Y-%m-%d")
-        new[new["실행일시"].astype(str) >= cutoff].to_csv(ISSUE_MERGE_LOG_PATH, index=False, encoding="utf-8-sig")
+        new[new["실행일시"].astype(str) >= cutoff].to_csv(ISSUE_MERGE_CANDIDATES_PATH, index=False, encoding="utf-8-sig")
         print(f"[이슈 합칠 후보] 중심 유사도 {ISSUE_MERGE_LOG_MIN_SIM} 이상 {len(rows)}쌍 기록")
     except Exception as e:
         print(f"[이슈 합칠 후보 기록 예외 - 건너뜀] {e}")
@@ -1920,7 +1920,7 @@ def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None
 # 기사 제목들로 Gemini에 공통 이름을 다시 지어 화면에서만 그 이름을 쓴다(generate_html.py).
 # news_list.csv의 대표이슈는 바꾸지 않는다 - 과거 행 고정 원칙(apply_issue_merge)과
 # config/news_overrides.csv의 이슈 이름이 그대로 맞아야 해서다.
-ISSUE_DISPLAY_PATH = paths.ISSUE_DISPLAY_NAMES
+ISSUE_DISPLAY_NAMES_PATH = paths.ISSUE_DISPLAY_NAMES
 ISSUE_DISPLAY_DAYS = 14          # 이만큼 지난 이름은 지운다(화면은 35일치라 그 뒤엔 원래 이름)
 ISSUE_DISPLAY_RECENT_DAYS = 3    # 최근 이만큼 기사가 들어온 이슈만 본다
 ISSUE_DISPLAY_MIN_ARTICLES = 3
@@ -2012,7 +2012,7 @@ def update_issue_display_names(news_path=paths.NEWS_LIST):
     try:
         df = pd.read_csv(news_path)
         now = datetime.now(KST).replace(tzinfo=None)
-        old = pd.read_csv(ISSUE_DISPLAY_PATH, dtype=str).fillna("") if os.path.exists(ISSUE_DISPLAY_PATH) else \
+        old = pd.read_csv(ISSUE_DISPLAY_NAMES_PATH, dtype=str).fillna("") if os.path.exists(ISSUE_DISPLAY_NAMES_PATH) else \
             pd.DataFrame(columns=["이슈", "표시이름", "기사수", "갱신일시"])
         known = {r["이슈"]: r["기사수"] for _, r in old.iterrows()}
         cands = [(i, t) for i, t in issue_display_candidates(df, now) if known.get(i) != str(len(t))]
@@ -2024,7 +2024,7 @@ def update_issue_display_names(news_path=paths.NEWS_LIST):
         merged = pd.concat([old[~old["이슈"].isin(new["이슈"] if len(new) else [])], new], ignore_index=True)
         cutoff = (now - timedelta(days=ISSUE_DISPLAY_DAYS)).strftime("%Y-%m-%d")
         merged = merged[merged["갱신일시"].astype(str) >= cutoff]
-        merged.to_csv(ISSUE_DISPLAY_PATH, index=False, encoding="utf-8-sig")
+        merged.to_csv(ISSUE_DISPLAY_NAMES_PATH, index=False, encoding="utf-8-sig")
         changed = [f"{i} -> {names[i]}" for i, _ in cands if i in names and names[i] != i]
         print(f"[이슈 표시 이름] 후보 {len(cands)}개, 이름 바뀜 {len(changed)}개" + (": " + "; ".join(changed) if changed else ""))
     except Exception as e:
@@ -2259,7 +2259,7 @@ def main():
         update_issue_display_names()
         save_rejected_news(rejected)
         save_news_descriptions(rows, {a["link"]: a["description"] for a in all_articles})
-        save_gemini_usage("main.py(뉴스)", len(rows), today_str)
+        save_gemini_usage("collect_news.py(뉴스)", len(rows), today_str)
 
 if __name__ == "__main__":
     main()

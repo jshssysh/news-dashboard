@@ -105,7 +105,7 @@ def load_data():
     exempt = (df['분야'] == '인사') | (df['논조'] == '판단 실패') | df['대표이슈'].isna()
     df = df[exempt | (issue_max >= DISPLAY_MIN_ISSUE_SCORE)]
 
-    # 여러 당사자 기사가 묶인 이슈는 main.py가 지은 공통 이름으로 보여 준다(issue_display_names.csv).
+    # 여러 당사자 기사가 묶인 이슈는 collect_news.py가 지은 공통 이름으로 보여 준다(issue_display_names.csv).
     # 데이터(news_list.csv)의 대표이슈는 그대로라, 덮어쓰기(config/news_overrides.csv)는 원래 이름으로 쓴다.
     names = load_issue_display_names()
     if names:
@@ -147,7 +147,7 @@ def load_personnel():
 
 
 def load_cluster_warnings():
-    """main.py가 남긴 cluster_warnings.csv를 읽는다 - 이슈 하나에 기사가 비정상적으로
+    """collect_news.py가 남긴 cluster_warnings.csv를 읽는다 - 이슈 하나에 기사가 비정상적으로
     몰려 클러스터링 이상이 의심된 날짜/카테고리 기록(기사 자체는 정상 저장됨, 참고용
     표시일 뿐). 화면은 이걸로 카테고리 칩 옆에 "!" 표시를 남긴다. news.json과 같은
     최근 창(RECENT_DAYS_WINDOW)만 남긴다."""
@@ -586,7 +586,7 @@ def row_to_dict(row):
         "importance": int(row["중요도"]) if pd.notna(row["중요도"]) else 5,
         "link": nz(row["기사링크"], ""),
         **({"digest": 1} if digest else {}),
-        # Gemini가 뽑은 언급 회사(main.py COMPANIES_BY_TITLE, 2026-11-10부터). 없으면 칸을 안 쓴다(news.json 크기)
+        # Gemini가 뽑은 언급 회사(collect_news.py COMPANIES_BY_TITLE, 2026-11-10부터). 없으면 칸을 안 쓴다(news.json 크기)
         # 모음 기사는 다른 꼭지의 회사가 붙으므로(11/10 '젠슨 황…[오늘아침]'에 배민·쿠팡) 꼬리표를 안 단다.
         **({"companies": companies} if (not digest and (companies := company_tags(row.get("언급기업")))) else {}),
     }

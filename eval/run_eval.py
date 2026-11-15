@@ -4,7 +4,7 @@ GitHub Actions의 "[평가] 뉴스 필터 - 채점" 워크플로가 실행한다
 뉴스 데이터는 건드리지 않고, 결과만 eval/results/latest.md(요약)와 latest.csv(기사별
 점수)로 저장한다 - 워크플로가 이 두 파일만 커밋한다.
 
-1) 채점: 정답 데이터를 만든 날의 점수(당시)와 지금 main.py 지시문으로 다시 매긴 점수를
+1) 채점: 정답 데이터를 만든 날의 점수(당시)와 지금 collect_news.py 지시문으로 다시 매긴 점수를
    같은 기사로 비교한다. 층별 표본(층·층 모집단 열이 있는 파일)은 층 크기로 가중해 전체
    수집분 기준 비율로 바꾼다 - 탈락 기사까지 넣어야 "예전엔 버려지던 기사가 올라오는"
    경우를 볼 수 있다(10/14 정답 데이터만으로 평가했다가 이걸 놓쳤음).
@@ -27,7 +27,7 @@ import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
-import main  # noqa: E402
+import collect_news as main  # noqa: E402  뉴스 수집기
 from scoring_variants import VARIANTS  # noqa: E402
 
 HIDDEN = {"삼성그룹", "삼성물산", "공정위인사"}

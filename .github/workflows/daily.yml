@@ -73,7 +73,7 @@ jobs:
           python-version: '3.10'
 
       # 기사 임베딩 벡터(.cache/embeddings.json.gz)를 실행 사이에 보관한다. 저장소에 커밋하면
-      # 매번 수 MB가 다시 올라가 저장소가 커지므로 Actions 캐시를 쓴다(main.py EMBED_CACHE_PATH).
+      # 매번 수 MB가 다시 올라가 저장소가 커지므로 Actions 캐시를 쓴다(collect_news.py EMBED_CACHE_PATH).
       # 키가 실행마다 달라 매번 새로 저장되고, 복원은 가장 최근 것을 쓴다.
       - name: 임베딩 캐시 복원
         uses: actions/cache@v4
@@ -97,7 +97,7 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           SKIP_AI_ANALYSIS: ${{ github.event.inputs.skip_ai }}
         run: |
-          python main.py
+          python collect_news.py
 
       - name: 법안 + 의원 정보 수집 (국회 열린국회정보 Open API)
         if: ${{ !cancelled() && github.event.inputs.skip_bills != 'true' }}
@@ -205,12 +205,9 @@ jobs:
             echo "::error::95MB를 넘은 파일이 있어 push가 거부될 수 있습니다: $huge"
             exit 1
           fi
-          for f in news_list.csv news_descriptions.csv bill_list.csv bill_status_log.csv member_list.csv member_news.csv cluster_warnings.csv gemini_usage.csv issue_display_names.csv rejected_news.csv embed_attach_log.csv issue_merge_candidates.csv decision_list.csv law_penalty_list.csv subordinate_law_list.csv contract_law_corpus.csv docs/index.html docs/news.json docs/bills.json docs/members.json docs/warnings.json docs/decisions.json docs/law_penalties.json docs/subordinate_laws.json subordinate_law_diffs.json docs/subordinate_law_diffs.json legislative_notice_list.csv docs/legislative_notices.json docs/contract_law_corpus.json law_texts.json docs/law_meta.json docs/law_texts.json; do
-            [ -f "$f" ] && git add "$f"
-          done
-          # 보관 기간(90일)이 지나 news_list.csv에서 빠진 기사는 docs/archive/YYYY-MM.json에만 남는다
-          # ("옛 기사 검색"이 읽는 파일). 커밋 대상에 없으면 러너와 함께 사라지므로 같이 add 한다.
-          if [ -d docs/archive ]; then git add docs/archive; fi
+          # 수집 결과는 모두 data/ 아래(paths.py), 화면은 docs/ 아래에 있으므로 폴더째 커밋한다.
+          # (예전에는 파일을 하나씩 나열해서, 새 파일을 만들면 여기 추가하는 걸 잊기 쉬웠다)
+          git add data docs
           if ! git diff --quiet || ! git diff --staged --quiet; then
             git commit -m "Update news data"
             # 이 스크립트가 실행되는 동안 다른 커밋(예: 코드 수정)이 먼저 푸시되어

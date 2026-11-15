@@ -33,7 +33,7 @@ import paths  # 저장소 안 파일 경로(paths.py)
 from collect_subordinate_laws import EXCLUDE_NAME_KEYWORDS, OTHER_MINISTRY_LAWS, _name_key
 
 KST = timezone(timedelta(hours=9))
-NOTICE_LIST_PATH = paths.LEGISLATIVE_NOTICE_LIST
+LEGISLATIVE_NOTICE_LIST_PATH = paths.LEGISLATIVE_NOTICE_LIST
 BASE = "https://opinion.lawmaking.go.kr"
 LIST_URL = f"{BASE}/gcom/ogLmPp"
 DETAIL_URL = BASE + "/gcom/ogLmPp/{nid}"
@@ -165,10 +165,10 @@ def fetch_detail(nid):
 
 
 def load_existing():
-    if not os.path.exists(NOTICE_LIST_PATH) or os.path.getsize(NOTICE_LIST_PATH) == 0:
+    if not os.path.exists(LEGISLATIVE_NOTICE_LIST_PATH) or os.path.getsize(LEGISLATIVE_NOTICE_LIST_PATH) == 0:
         return {}
     try:
-        old = pd.read_csv(NOTICE_LIST_PATH, dtype=str, keep_default_na=False)
+        old = pd.read_csv(LEGISLATIVE_NOTICE_LIST_PATH, dtype=str, keep_default_na=False)
     except Exception:
         return {}
     return {row["예고ID"]: row.to_dict() for _, row in old.iterrows()}
@@ -219,9 +219,9 @@ def main():
     keep_from = (now - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
     rows = [r for r in merged.values() if (r.get("예고종료일") or today) >= keep_from]
     df = pd.DataFrame(rows, columns=CSV_COLUMNS).sort_values(["예고시작일", "예고ID"], ascending=[False, False])
-    df.to_csv(NOTICE_LIST_PATH, index=False, encoding="utf-8-sig")
+    df.to_csv(LEGISLATIVE_NOTICE_LIST_PATH, index=False, encoding="utf-8-sig")
     print(f"[입법예고 수집 완료] 목록 {len(listed)}건 중 챙기는 부처·법령 {len(df)}건 "
-          f"(본문 새로 조회 {fetched}건) -> {NOTICE_LIST_PATH}")
+          f"(본문 새로 조회 {fetched}건) -> {LEGISLATIVE_NOTICE_LIST_PATH}")
 
 
 if __name__ == "__main__":

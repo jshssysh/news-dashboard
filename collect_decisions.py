@@ -43,7 +43,7 @@ import paths  # 저장소 안 파일 경로(paths.py)
 
 LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
-from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, main.py와 같은 로직)
+from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, collect_news.py와 같은 로직)
 KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = paths.BILL_KEYWORDS

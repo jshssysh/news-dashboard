@@ -24,7 +24,10 @@
   (데이터 파일과 코드 파일이 겹치지 않아 보통 충돌이 없다).
 
 ## 데이터 파일
-- `*.csv`, `docs/` 같은 수집 결과는 GitHub Actions(`.github/workflows/daily.yml`)의
+- 수집 결과는 `data/<분야>/`(news·bills·members·decisions·law), 화면은 `docs/`에 있다.
+  경로는 `paths.py` 한 곳에서 정한다. 새 데이터 파일은 `paths.py`에 상수를 더하고 `data/` 아래에 둔다
+  (daily.yml이 `data/`·`docs/`를 폴더째 커밋한다).
+- 이 수집 결과는 GitHub Actions(`.github/workflows/daily.yml`)의
   수집 봇이 만들고 커밋한다. 로컬에서 수집한 데이터는 미리보기 확인용으로만 쓰고
   저장소 밖(scratchpad)에 두며 커밋하지 않는다.
 - 데이터를 손으로 고쳐야 하면 `config/news_overrides.csv`처럼 서버에서 반영되는 방법을 쓴다.
@@ -62,13 +65,13 @@
 
 - 언제 무엇을 쓰나
   - ① 화면만 다시 만들기: `html_template.html`·`generate_html.py`를 고친 뒤. 1~2분.
-  - `config/news_overrides.csv`(기사 이슈 바꾸기·삭제)는 `main.py`가 돌 때만 반영되므로 ①로는 안 바뀐다.
+  - `config/news_overrides.csv`(기사 이슈 바꾸기·삭제)는 `collect_news.py`가 돌 때만 반영되므로 ①로는 안 바뀐다.
     손으로 돌리지 않고 다음 정기 실행(06:01/12:01/18:01)을 기다린다.
   - ② 법령 지금 수집: 법령 쪽 수집기(`collect_law_*.py`, `collect_subordinate_laws.py`,
     `collect_legislative_notices.py`)를 고친 뒤. 법령 벌칙, 공포·시행, 조문·행정규칙, 입법예고를 모두 돈다.
     본문을 새로 받아야 하면 20분 넘게 걸린다.
   - ③ 심·판결 지금 수집: `collect_decisions.py`를 고친 뒤.
   - ④ 법안만 다시 받기: `collect_bills.py`를 고친 뒤.
-  - 뉴스 수집(`main.py`)을 고친 것은 손으로 돌리지 않고 다음 정기 실행(06:01/12:01/18:01)을 기다린다
+  - 뉴스 수집(`collect_news.py`)을 고친 것은 손으로 돌리지 않고 다음 정기 실행(06:01/12:01/18:01)을 기다린다
     (Gemini 무료 한도를 아끼려고).
 - 표 안내 뒤에는 "끝나면 알려 주세요"라고 하고, 끝났다고 하면 커밋된 결과 파일로 확인한다.

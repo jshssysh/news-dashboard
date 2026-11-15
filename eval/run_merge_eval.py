@@ -24,7 +24,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 import paths  # noqa: E402  저장소 안 파일 경로(paths.py)
-import main  # noqa: E402
+import collect_news as main  # noqa: E402  뉴스 수집기
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 TITLES_PER_ISSUE = 5

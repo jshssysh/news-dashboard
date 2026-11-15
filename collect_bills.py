@@ -51,7 +51,7 @@ from datetime import datetime, timedelta, timezone
 
 ASSEMBLY_API_KEY = os.environ.get("ASSEMBLY_API_KEY", "").strip().replace('"', '').replace("'", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').replace("'", "")
-from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, main.py와 같은 로직)
+from gemini_client import post_gemini_with_retry  # 503 재시도·대체 모델(공용, collect_news.py와 같은 로직)
 KST = timezone(timedelta(hours=9))
 
 BILL_KEYWORDS_PATH = paths.BILL_KEYWORDS
