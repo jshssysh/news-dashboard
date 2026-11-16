@@ -32,6 +32,7 @@ from gemini_client import (  # Gemini 호출 재시도·대체 모델·사용량
 )
 GEMINI_USAGE_PATH = paths.GEMINI_USAGE
 GEMINI_USAGE_RETENTION_DAYS = 60
+RETRY_LAST_RESULT = {"text": ""}  # 이번 실행의 실패 기사 재분석 결과(load_failed_for_retry 참고)
 
 
 def save_gemini_usage(script, articles, today_str):
@@ -45,7 +46,8 @@ def save_gemini_usage(script, articles, today_str):
                                         f"({', '.join(GEMINI_OVERLOAD['fallbacks'] or []) or '후보 없음'})"
                                         + (f", 하루 한도 소진: {', '.join(sorted(GEMINI_OVERLOAD['daily_exhausted']))}"
                                            if GEMINI_OVERLOAD["daily_exhausted"] else "")
-                                        if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else "")}])
+                                        if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else ""),
+                             "실패 재분석": RETRY_LAST_RESULT["text"]}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=GEMINI_USAGE_RETENTION_DAYS)).strftime("%Y-%m-%d")
@@ -616,6 +618,51 @@ def load_analyzed_links(file_name=paths.NEWS_LIST):
         except Exception as e:
             print(f"[탈락 기사 기록 로드 예외 - 탈락 기사도 다시 분석] {e}")
     return links
+
+
+# 분석 실패 기사 다시 분석(2026-11-17). 실패한 기사는 네이버 검색(최근 24시간)에 다시 걸려야만
+# 재분석됐다. 11/16 18:01 Gemini 503 장애로 1,282건이 실패했는데 다음 실행에 다시 걸린 건 660건뿐이라
+# 622건은 그대로 '판단 실패'(화면에서 숨김)로 남았다. 최근 며칠 실패 기사 중 이번 수집에 다시
+# 걸리지 않은 것을 저장된 제목·설명으로 새 기사 뒤에 붙여 함께 분석한다. 새 기사를 먼저 분석하므로
+# 한도가 모자라면 재분석 몫부터 밀린다(analyze_norm_titles의 하루 한도 확인).
+RETRY_FAILED_DAYS = 3      # 이 기간에 수집된 실패 기사만(화면 '최근' 범위)
+RETRY_FAILED_MAX = 300     # 한 실행에 다시 보내는 상한(유사 제목 묶기 뒤 Gemini 호출은 대략 이 수의 1/20~1/40)
+
+
+def load_failed_for_retry(skip_links, max_items=RETRY_FAILED_MAX, file_name=paths.NEWS_LIST):
+    """다시 분석할 실패 기사를 main()의 기사 dict 모양으로 돌려준다(최근 수집분부터).
+    수집일자·언론사는 처음 저장된 값을 그대로 쓴다 - 재분석돼도 원래 수집한 날 기사로 남는다."""
+    if not os.path.exists(file_name):
+        return []
+    try:
+        df = pd.read_csv(file_name, encoding="utf-8-sig", dtype=str)
+        cutoff = (datetime.now(KST) - timedelta(days=RETRY_FAILED_DAYS)).strftime("%Y-%m-%d")
+        df = df[(df["논조"] == "판단 실패") & (df["수집일자"].fillna("") >= cutoff)
+                & df["기사링크"].notna() & ~df["기사링크"].isin(skip_links)]
+        df = df.sort_values("수집일자", ascending=False).head(max_items)
+        desc = {}
+        if os.path.exists(NEWS_DESCRIPTIONS_PATH):
+            d = pd.read_csv(NEWS_DESCRIPTIONS_PATH, encoding="utf-8-sig", dtype=str)
+            desc = dict(zip(d["기사링크"], d["설명"].fillna("")))
+    except Exception as e:
+        print(f"[실패 기사 재분석 - 목록 읽기 예외, 이번엔 건너뜀] {e}")
+        return []
+    items = []
+    for _, r in df.iterrows():
+        title = str(r["제목"] or "")
+        if not title:
+            continue
+        summary = r["AI요약"] if isinstance(r["AI요약"], str) else ""
+        items.append({
+            "category": r["분야"] if isinstance(r["분야"], str) and r["분야"] else "기타",
+            "title": title, "norm_t": normalize_title(title),
+            # 처음 수집 때 저장한 네이버 설명. 없으면(7일 보관) 실패 행 요약 칸의 설명 발췌를 쓴다
+            "description": desc.get(r["기사링크"]) or summary,
+            "link": r["기사링크"], "known_press": r["언론사"] if isinstance(r["언론사"], str) else None,
+            "today_str": r["수집일자"], "pub_date": r["발행일시"] if isinstance(r["발행일시"], str) else "",
+            "retry": True,
+        })
+    return items
 
 
 # 관련도 4점 이하로 저장하지 않은 기사 기록. 두 가지 용도다:
@@ -1834,7 +1881,8 @@ def save_cluster_warnings(warnings, today_str):
     combined.to_csv(CLUSTER_WARNINGS_PATH, index=False, encoding="utf-8-sig")
 
 
-def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None):
+def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None, drop_links=None):
+    """drop_links: 기존 행에서 지울 기사링크(다시 분석해 관련도가 낮게 나온 실패 기사)."""
     columns = ["수집일자", "분야", "대표이슈", "제목", "언론사", "AI요약", "논조", "중요도", "기사링크", "발행일시", "언급기업"]
     new_df = pd.DataFrame(new_rows, columns=columns)
 
@@ -1858,6 +1906,8 @@ def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None
                 old_df["중요도"] = 5  # 구버전 데이터: 중요도 정보 없음 → 중간값으로 채움
             if "발행일시" not in old_df.columns:
                 old_df["발행일시"] = ""  # 구버전 데이터: 발행 시각 미보존
+            if drop_links:
+                old_df = old_df[~(old_df["기사링크"].isin(drop_links) & (old_df["논조"] == "판단 실패"))]
             combined_df = pd.concat([old_df, new_df], ignore_index=True)
         except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, KeyError, OSError) as e:
             # 기존 누적 CSV를 못 읽었는데 new_df만으로 덮어쓰면 과거 이력이 통째로 사라진다 - 저장하지 않고 중단
@@ -2087,6 +2137,22 @@ def main():
         print(f"[증분 분석] 수집 {skipped_already_analyzed + len(all_articles)}건 중 "
               f"{skipped_already_analyzed}건은 이미 분석돼 있어 건너뜀 → 신규 {len(all_articles)}건만 분석")
 
+    # 이번 수집에 다시 걸리지 않은 최근 실패 기사를 새 기사 뒤에 붙여 함께 다시 분석한다
+    # (load_failed_for_retry 주석). 새 기사 뒤에 두어 Gemini 분석 순서도 새 기사가 먼저다.
+    retry_links = set()
+    if not SKIP_AI_ANALYSIS:
+        for article_data in load_failed_for_retry(seen_links):
+            article_data["idx"] = idx
+            all_articles.append(article_data)
+            retry_links.add(article_data["link"])
+            if article_data["norm_t"] not in unique_for_api:
+                api_data = article_data.copy()
+                api_data["description"] = article_data["description"][:ANALYZE_DESCRIPTION_CHARS]
+                unique_for_api[article_data["norm_t"]] = api_data
+            idx += 1
+        if retry_links:
+            print(f"[실패 기사 재분석] 최근 {RETRY_FAILED_DAYS}일 실패 기사 {len(retry_links)}건을 새 기사 뒤에 붙여 다시 분석")
+
     rows = []
 
     if SKIP_AI_ANALYSIS:
@@ -2229,7 +2295,7 @@ def main():
         # 대상으로 한다 (all_articles 기준 - rows에 들어가기 전 단계라 관련도 필터링의 영향을 안 받음)
         personnel_candidates = [
             {"title": a["title"], "description": a["description"], "link": a["link"]}
-            for a in all_articles if a["category"] == "공정위인사"
+            for a in all_articles if a["category"] == "공정위인사" and not a.get("retry")
         ]
         detected = extract_personnel_appointments(personnel_candidates)
         update_personnel_csv(detected)
@@ -2254,7 +2320,17 @@ def main():
                     r[2] = force_merge_by_keywords(r[3], issue_by_link[r[8]])
             embedded_links = set(issue_by_link)
 
-    save_and_merge_data(rows, embedded_links=embedded_links)
+    # 다시 분석했더니 관련도가 낮은 기사는 rows에 없어(탈락 기록으로 감) 예전 실패 행이 그대로 남는다 -
+    # 그 행은 지운다. 다음 실행부터는 탈락 기록에 있어 다시 수집돼도 분석하지 않는다.
+    saved_links = {r[8] for r in rows}
+    drop_links = {l for l in retry_links if l not in saved_links}
+    if retry_links:
+        retried = [r for r in rows if r[8] in retry_links]
+        print(f"[실패 기사 재분석 결과] {len(retry_links)}건 중 성공 {sum(r[6] != '판단 실패' for r in retried)}건, "
+              f"다시 실패 {sum(r[6] == '판단 실패' for r in retried)}건, 관련도 낮아 지움 {len(drop_links)}건")
+        RETRY_LAST_RESULT["text"] = (f"{len(retry_links)}건 중 성공 {sum(r[6] != '판단 실패' for r in retried)}, "
+                                     f"다시 실패 {sum(r[6] == '판단 실패' for r in retried)}, 관련도 낮아 지움 {len(drop_links)}")
+    save_and_merge_data(rows, embedded_links=embedded_links, drop_links=drop_links)
     if not SKIP_AI_ANALYSIS:
         update_issue_display_names()
         save_rejected_news(rejected)
