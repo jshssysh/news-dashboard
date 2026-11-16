@@ -1343,7 +1343,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-16 07:57 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-16 09:09 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -5484,7 +5484,7 @@ async function loadArchiveMonth(m) {
   if (typeof DecompressionStream !== 'function') throw new Error('unsupported');
   const res = await fetch('archive/' + m + '.json.gz', { cache: 'no-cache' });
   if (!res.ok || !res.body) throw new Error('archive/' + m + '.json.gz → HTTP ' + res.status);
-  // 예전 월 파일에는 빈 칸이 JSON 표준이 아닌 NaN으로 적힌 곳이 있다(main.py
+  // 예전 월 파일에는 빈 칸이 JSON 표준이 아닌 NaN으로 적힌 곳이 있다(collect_news.py
   // _clean_archive_rows가 다음 수집 때 고쳐 쓴다). 그 전에도 읽히도록 null로 바꿔 읽는다.
   const text = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
   return JSON.parse(text.replace(/":NaN(?=[,}])/g, '":null'));
@@ -5511,7 +5511,7 @@ function recentStartISO() { return (allDates[0] || '').replace(/\//g, '-'); }
 
 // "날짜 지정"의 시작일이 recentStartISO()보다 앞이면, 걸치는 달의 보관함을 받아 최근 기사와
 // 섞어 같은 목록(이슈별 묶음·분야 칩·정렬·쪽 넘기기)으로 보여 준다(2026-11-11, 예전엔 아래에
-// 한 건씩 따로 보여 줘서 이슈로 안 묶였다). 보관함과 news.json은 칸이 같다(main.py
+// 한 건씩 따로 보여 줘서 이슈로 안 묶였다). 보관함과 news.json은 칸이 같다(collect_news.py
 // archive_expiring_news). 아직 안 받은 달이 있으면 받기 시작하고, 다 받으면 다시 그린다.
 let archiveLoading = null;          // 지금 받는 달 목록을 이은 문자열
 const archiveFailed = new Set();
