@@ -38,6 +38,7 @@ REJECTED_NEWS = _p("data", "news", "rejected_news.csv")
 CLUSTER_WARNINGS = _p("data", "news", "cluster_warnings.csv")
 EMBED_ATTACH_LOG = _p("data", "news", "embed_attach_log.csv")
 ISSUE_MERGE_CANDIDATES = _p("data", "news", "issue_merge_candidates.csv")  # 이슈끼리 합칠 후보(중심 유사도) 기록
+ISSUE_AUTO_MERGES = _p("data", "news", "issue_auto_merges.csv")  # 이슈 자동 합치기 기록(Gemini 판정 포함)
 ISSUE_DISPLAY_NAMES = _p("data", "news", "issue_display_names.csv")
 EMBED_CACHE = _p(".cache", "embeddings.json.gz")  # 커밋 안 함, Actions 캐시
 

@@ -1365,6 +1365,139 @@ def _save_issue_merge_candidates(names, cents, anchors, grams, counts):
         print(f"[이슈 합칠 후보 기록 예외 - 건너뜀] {e}")
 
 
+# 이슈 자동 합치기(2026-11-17). 기사는 이슈에 붙기만 하고 갈라진 이슈끼리 합치는 단계가 없어,
+# 국고채 담합·대통령 자본시장 간담회·반도체 설계SW 담합·배민쿠팡 과징금 등이 카드 여러 개로 남아
+# 손으로 정정해 왔다. 11/16~17 후보 기록(113쌍)을 보면 중심 유사도만으로는 못 가른다 - 같은 사건이
+# 0.90~0.97인데, 다른 사건도 0.92 안팎이었다('KB라이프 ESG평가'↔'매일유업 공정거래협약' 0.924,
+# '대통령 주주보호 지배구조'↔'상속세법 개정' 0.925, 쿠팡 조사 거부↔쿠팡 과징금 0.905).
+# 그래서 유사도로 후보만 고르고, 두 이슈의 기사 제목을 Gemini에 보여 같은 사건인지 확인한 쌍만 합친다
+# (11/03 평가에서 Gemini 판정은 같은 사건 96%를 묶고 다른 사건은 2%만 묶었다).
+# 기사 분석이 끝난 뒤에 돌고, 하루 한도를 다 썼거나 503 장애로 오래 기다린 실행에선 건너뛴다.
+ISSUE_AUTO_MERGE_MIN_SIM = 0.90
+ISSUE_AUTO_MERGE_MAX_PAIRS = 40       # 실행당 Gemini에 묻는 쌍 수(20쌍씩 묶어 최대 2회 호출)
+ISSUE_AUTO_MERGE_PAIRS_PER_CALL = 20
+ISSUE_AUTO_MERGE_TITLES = 5           # 쌍마다 이슈별로 보여 주는 기사 제목 수
+ISSUE_AUTO_MERGE_SKIP_WAITED = 300    # 이번 실행에서 503으로 이만큼(초) 넘게 기다렸으면 건너뜀
+ISSUE_AUTO_MERGE_APPLY_DAYS = 7       # 합친 이름으로 바꾸는 기존 기사 범위(수집일 기준)
+ISSUE_AUTO_MERGE_LOG_PATH = paths.ISSUE_AUTO_MERGES
+ISSUE_AUTO_MERGE_LOG_DAYS = 30
+ISSUE_MERGES = {}  # 이번 실행에 합친 {없앤 이슈: 남긴 이슈} - save_and_merge_data가 기존 행에도 반영
+
+
+def judge_same_event_with_gemini(pairs):
+    """pairs: [{"id", "a", "b", "a_titles", "b_titles"}]. 같은 사건이라고 답한 id 집합. 실패하면 빈 집합."""
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
+    data = [{"id": p["id"], "A": p["a_titles"], "B": p["b_titles"]} for p in pairs]
+    prompt = f"""당신은 뉴스 대시보드에서 같은 사건을 다룬 카드를 하나로 합치는 편집자입니다.
+각 항목(id)은 카드 A와 카드 B에 묶인 기사 제목들입니다. 두 카드가 같은 사건인지 판정하세요.
+입력: {json.dumps(data, ensure_ascii=False)}
+
+같은 사건(true):
+- 같은 당사자의 같은 일(같은 제재·소송·발표·거래·행사)과 그에 대한 후속·반응·해설 기사
+- 같은 기관의 한 번의 발표에 여러 회사가 나오는 경우(예: 동반성장지수 발표, 한 번의 과징금 처분)
+다른 사건(false):
+- 같은 회사라도 다른 일(예: 과징금 처분 ↔ 조사 거부 소송, 실적 발표 ↔ 제재, 지배구조 ↔ 상생 활동)
+- 같은 주제라도 다른 당사자의 별개 일(예: 서로 다른 회사의 각자 ESG 평가·협약)
+- 헷갈리면 false
+
+JSON 배열로만 답할 것: [{{"id": 1, "same": true}}]
+"""
+    payload = {"contents": [{"parts": [{"text": prompt}]}],
+               "generationConfig": {"response_mime_type": "application/json", "thinkingConfig": {"thinkingLevel": "low"}}}
+    try:
+        res = post_gemini_with_retry(url, payload)
+        if res.status_code != 200:
+            print(f"[이슈 자동 합치기 - Gemini 오류] {res.status_code}")
+            return set()
+        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+        valid = {p["id"] for p in pairs}
+        return {r["id"] for r in json.loads(raw)
+                if isinstance(r, dict) and r.get("id") in valid and r.get("same") is True}
+    except Exception as e:
+        print(f"[이슈 자동 합치기 - 예외, 이번엔 건너뜀] {e}")
+        return set()
+
+
+def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
+    """같은 사건으로 확인된 이슈 쌍을 합칠 계획 {없앨 이슈: 남길 이슈}과 기록 행을 돌려준다.
+    protected: 사람이 정정(config/news_overrides.csv)에 쓴 이슈 이름. 정정은 실행마다 다시 적용되므로
+    그 이름을 없애면 정정 대상 기사가 매번 도로 갈라진다 - 그런 이름은 남기는 쪽으로만 쓰고,
+    둘 다 정정 이름이면 합치지 않는다."""
+    import numpy as np
+    if not GEMINI_API_KEY or len(cents) < 2:
+        return {}, []
+    if gemini_daily_exhausted() or GEMINI_OVERLOAD["waited"] >= ISSUE_AUTO_MERGE_SKIP_WAITED:
+        print(f"[이슈 자동 합치기] Gemini 한도 소진·장애(503 대기 {GEMINI_OVERLOAD['waited']}초)로 이번엔 건너뜀")
+        return {}, []
+    C = np.vstack(cents)
+    sim = C @ C.T
+    iu = np.triu_indices(len(names), 1)
+    order = np.argsort(-sim[iu])
+    pairs, seen = [], set()
+    for k in order:
+        i, j = int(iu[0][k]), int(iu[1][k])
+        s = float(sim[i, j])
+        if s < ISSUE_AUTO_MERGE_MIN_SIM or len(pairs) >= ISSUE_AUTO_MERGE_MAX_PAIRS:
+            break
+        a, b = names[i], names[j]
+        if a == b or (a, b) in seen or (a in protected and b in protected):
+            continue
+        if not titles_by_issue.get(a) or not titles_by_issue.get(b):
+            continue
+        seen.add((a, b))
+        pairs.append({"id": len(pairs) + 1, "a": a, "b": b, "sim": round(s, 3),
+                      "a_titles": titles_by_issue[a][:ISSUE_AUTO_MERGE_TITLES],
+                      "b_titles": titles_by_issue[b][:ISSUE_AUTO_MERGE_TITLES]})
+    if not pairs:
+        return {}, []
+    same = set()
+    for start in range(0, len(pairs), ISSUE_AUTO_MERGE_PAIRS_PER_CALL):
+        same |= judge_same_event_with_gemini(pairs[start:start + ISSUE_AUTO_MERGE_PAIRS_PER_CALL])
+
+    parent = {}
+
+    def find(x):
+        while parent.get(x, x) != x:
+            x = parent[x]
+        return x
+
+    def keep_rank(x):  # 정정 이름 > 기사 많은 쪽
+        return (x in protected, counts.get(x, 0))
+
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+    log = []
+    for p in pairs:
+        ra, rb = find(p["a"]), find(p["b"])
+        verdict = p["id"] in same
+        merged = ""
+        if verdict and ra != rb:
+            if ra in protected and rb in protected:
+                merged = "건너뜀(둘 다 정정 이름)"
+            else:
+                keep, drop = (ra, rb) if keep_rank(ra) >= keep_rank(rb) else (rb, ra)
+                parent[drop] = keep
+                merged = f"합침 → {keep}"
+        log.append((now, p["a"], p["b"], p["sim"], counts.get(p["a"], 0), counts.get(p["b"], 0),
+                    "같은 사건" if verdict else "다른 사건", merged,
+                    " / ".join(p["a_titles"][:2]), " / ".join(p["b_titles"][:2])))
+    plan = {x: find(x) for x in parent}
+    return plan, log
+
+
+def _save_issue_auto_merge_log(log):
+    try:
+        new = pd.DataFrame(log, columns=["실행일시", "이슈A", "이슈B", "중심 유사도", "A기사수", "B기사수",
+                                         "Gemini 판정", "결과", "A제목 예시", "B제목 예시"])
+        if os.path.exists(ISSUE_AUTO_MERGE_LOG_PATH):
+            new = pd.concat([pd.read_csv(ISSUE_AUTO_MERGE_LOG_PATH, encoding="utf-8-sig"), new], ignore_index=True)
+        cutoff = (datetime.now(KST) - timedelta(days=ISSUE_AUTO_MERGE_LOG_DAYS)).strftime("%Y-%m-%d")
+        new[new["실행일시"].astype(str) >= cutoff].to_csv(ISSUE_AUTO_MERGE_LOG_PATH, index=False, encoding="utf-8-sig")
+    except Exception as e:
+        print(f"[이슈 자동 합치기 기록 예외 - 건너뜀] {e}")
+
+
 def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
     """new_items: [{"link", "title", "description", "group_title", "score", "ts"}].
     {기사링크: 이슈명}을 돌려준다. 임베딩을 못 쓰면 None(호출한 쪽이 기존 방식으로 처리).
@@ -1513,6 +1646,28 @@ def assign_issues_by_embedding(new_items, model, history_file=paths.NEWS_LIST):
     for issue in mapping.values():
         counts[issue] = counts.get(issue, 0) + 1
     _save_issue_merge_candidates(names, cents, anchors, grams, counts)
+
+    # 이슈 자동 합치기 - 이슈별 제목(이번에 붙은 기사 먼저, 그다음 최근 기사)으로 Gemini가 같은 사건인지 확인
+    titles_by_issue = defaultdict(list)
+    for x in items:
+        if x["link"] in mapping and x["title"] not in titles_by_issue[mapping[x["link"]]]:
+            titles_by_issue[mapping[x["link"]]].append(x["title"])
+    if not hist.empty:
+        for _, r in hist.sort_values("수집일자", ascending=False).iterrows():
+            t = titles_by_issue[r["대표이슈"]]
+            if len(t) < ISSUE_AUTO_MERGE_TITLES and isinstance(r["제목"], str) and r["제목"] not in t:
+                t.append(r["제목"])
+    relabel, _ = load_news_overrides()
+    plan, merge_log = plan_issue_merges(names, cents, titles_by_issue, counts, set(relabel.values()))
+    if merge_log:
+        _save_issue_auto_merge_log(merge_log)
+    if plan:
+        ISSUE_MERGES.update(plan)
+        mapping = {link: plan.get(issue, issue) for link, issue in mapping.items()}
+        for drop, keep in plan.items():
+            print(f"[이슈 자동 합치기] '{drop}' → '{keep}'")
+    if merge_log:
+        print(f"[이슈 자동 합치기] 후보 {len(merge_log)}쌍 확인, {len(plan)}개 이슈 합침")
     EMBED_LAST_RESULT["text"] = (f"{'일부 성공' if skipped else '성공'}(대상 {len(items) + len(skipped)}건, {budget_text}"
                                  f"새로 임베딩 {len(to_embed)}건 중 실패 {failed}건, 최근 이슈 {n_recent}개와 비교, "
                                  f"기존 이슈에 붙음 {attached}건, 새 묶음 {created}개, 번짐 방지로 막음 {blocked}건, "
@@ -1957,6 +2112,12 @@ def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None
     # (11/02 '서울중수청 하도급법 위반 사업자 송치' 13건 / '서울중수청 하도급법 위반 송치' 11건)
     # 이름이 거의 같아도 합쳐 줄 단계가 없었다. 이슈명 병합은 이제 같은 당사자끼리·최근 3일
     # 이슈로만 붙이므로(교차 뿌리 병합 꺼짐) 임베딩 결과를 엉뚱하게 바꿀 위험이 작다.
+    # 이번 실행에서 Gemini 확인으로 합친 이슈(plan_issue_merges)를 최근 기존 기사에도 반영한다
+    if ISSUE_MERGES:
+        recent = combined_df["수집일자"].astype(str) >= (datetime.now(KST) - timedelta(days=ISSUE_AUTO_MERGE_APPLY_DAYS)).strftime("%Y-%m-%d")
+        hit = recent & combined_df["대표이슈"].isin(ISSUE_MERGES)
+        combined_df.loc[hit, "대표이슈"] = combined_df.loc[hit, "대표이슈"].map(ISSUE_MERGES)
+        print(f"[이슈 자동 합치기] 기존 기사 {int(hit.sum())}건 이슈명 변경")
     combined_df = apply_issue_merge(combined_df, new_links=set(new_df["기사링크"].dropna()))
     # 사람이 정한 정정이 자동 병합보다 우선한다(정정 대상 기사가 이번에 다시 수집된 경우 대비)
     combined_df = apply_news_overrides(combined_df)
