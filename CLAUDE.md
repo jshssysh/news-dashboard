@@ -25,7 +25,8 @@
 
 ## 데이터 파일
 - 수집 결과는 `data/<분야>/`(news·bills·members·decisions·law), 화면은 `docs/`에 있다.
-  경로는 `paths.py` 한 곳에서 정한다. 새 데이터 파일은 `paths.py`에 상수를 더하고 `data/` 아래에 둔다
+  코드(수집기·`generate_html.py`·`html_template.html`)는 `src/`에 있고, 워크플로는 `python src/<파일>.py`로 돌린다.
+  경로는 `src/paths.py` 한 곳에서 정한다. 새 데이터 파일은 `paths.py`에 상수를 더하고 `data/` 아래에 둔다
   (daily.yml이 `data/`·`docs/`를 폴더째 커밋한다).
 - 이 수집 결과는 GitHub Actions(`.github/workflows/daily.yml`)의
   수집 봇이 만들고 커밋한다. 로컬에서 수집한 데이터는 미리보기 확인용으로만 쓰고

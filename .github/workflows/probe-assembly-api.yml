@@ -43,4 +43,4 @@ jobs:
           BILL_NAME: ${{ github.event.inputs.bill_name }}
           BILL_NOS: ${{ github.event.inputs.bill_nos }}
           BILL_IDS: ${{ github.event.inputs.bill_ids }}
-        run: python probe_assembly_api.py "$BILL_NAME"
+        run: python src/probe_assembly_api.py "$BILL_NAME"

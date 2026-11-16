@@ -1,6 +1,6 @@
 """저장소 안 파일 경로를 한 곳에 모은 파일.
 
-수집기·collect_news.py·generate_html.py·eval 스크립트는 파일 이름을 직접 적지 않고 여기 상수를 쓴다.
+코드는 모두 src/에 있고, 수집기·generate_html.py·eval 스크립트는 파일 이름을 직접 적지 않고 여기 상수를 쓴다.
 파일을 옮길 때는 이 파일만 고치면 된다. 수집 결과는 모두 data/ 아래에 두고,
 .github/workflows/daily.yml은 data/와 docs/를 폴더째 커밋한다.
 
@@ -11,7 +11,8 @@
 """
 import os
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))  # 코드 폴더(src/)
+ROOT = os.path.dirname(SRC_DIR)  # 저장소 루트
 
 
 def _p(*parts):
@@ -64,6 +65,6 @@ GEMINI_USAGE = _p("data", "gemini_usage.csv")
 
 # ── 화면 (generate_html.py → docs/, GitHub Pages가 그대로 보여 줌) ──
 # docs/ 위치와 그 안 파일 이름은 화면(html_template.html)과 Worker가 주소로 직접 받으므로 바꾸지 않는다.
-HTML_TEMPLATE = _p("html_template.html")
+HTML_TEMPLATE = _p("src", "html_template.html")
 DOCS_DIR = _p("docs")
 NEWS_ARCHIVE_DIR = _p("docs", "archive")

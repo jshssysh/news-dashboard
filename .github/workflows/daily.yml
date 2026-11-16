@@ -97,7 +97,7 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           SKIP_AI_ANALYSIS: ${{ github.event.inputs.skip_ai }}
         run: |
-          python collect_news.py
+          python src/collect_news.py
 
       - name: 법안 + 의원 정보 수집 (국회 열린국회정보 Open API)
         if: ${{ !cancelled() && github.event.inputs.skip_bills != 'true' }}
@@ -105,7 +105,7 @@ jobs:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python collect_bills.py
+          python src/collect_bills.py
 
       - name: 의원별 뉴스 수집 (네이버 API + Gemini)
         # member_list.csv는 저장소에 커밋된 파일이라 위 스텝을 건너뛰어도(skip_bills)
@@ -121,7 +121,7 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python collect_member_news.py
+          python src/collect_member_news.py
 
       - name: 심·판결 수집 (법제처 국가법령정보 Open API + Gemini)
         # 이 스텝 자체는 다른 스텝들처럼 매번(하루 5번) 실행되지만, 의결서/판례는
@@ -134,7 +134,7 @@ jobs:
           DECISIONS_SKIP_WAIT: ${{ github.event.inputs.skip_decisions_wait }}
           DECISIONS_LOOKBACK_DAYS: ${{ github.event.inputs.decisions_lookback_days }}
         run: |
-          python collect_decisions.py
+          python src/collect_decisions.py
 
       - name: 법령 벌칙/과징금 수집 (법제처 국가법령정보 Open API)
         # 이 스텝 자체는 다른 스텝들처럼 매번(하루 5번) 실행되지만, 법 개정도
@@ -146,7 +146,7 @@ jobs:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           LAW_PENALTIES_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
         run: |
-          python collect_law_penalties.py
+          python src/collect_law_penalties.py
 
       - name: 법률·시행령·시행규칙 공포·시행 이력 수집 (법제처 국가법령정보 Open API)
         # workflow_dispatch 입력은 10개가 한도라(이미 9개) 새 입력을 만들지 않고
@@ -157,7 +157,7 @@ jobs:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
         run: |
-          python collect_subordinate_laws.py
+          python src/collect_subordinate_laws.py
 
       - name: 법령 조문·행정규칙·별표서식 수집 (법제처 국가법령정보 Open API)
         # 법령 탭 "조문 검색"과 행정규칙·별표서식 목록용. 공포·시행 수집과 같은 입력·시각(06시대)으로 돈다.
@@ -167,7 +167,7 @@ jobs:
           LAW_GO_KR_OC: ${{ secrets.LAW_GO_KR_OC }}
           SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
         run: |
-          python collect_law_texts.py
+          python src/collect_law_texts.py
 
       - name: 입법예고 수집 (법제처 국민참여입법센터)
         # 법령 공포·시행 수집과 같은 입력·시각(06시대)으로 돈다. 목록을 못 받으면 기존 파일을 둔다.
@@ -175,14 +175,14 @@ jobs:
         env:
           SUBORDINATE_LAWS_SKIP_WAIT: ${{ github.event.inputs.skip_law_penalties_wait }}
         run: |
-          python collect_legislative_notices.py
+          python src/collect_legislative_notices.py
 
       - name: 정적 대시보드(docs/) 생성
         # 앞 수집 스텝 하나가 실패해도(예: 뉴스 CSV를 못 읽어 저장을 중단) 나머지 스텝의
         # 결과는 커밋되게 한다. 실패한 스텝이 있으면 잡은 끝에 실패로 표시된다.
         if: ${{ !cancelled() }}
         run: |
-          python generate_html.py
+          python src/generate_html.py
 
       - name: 결과 CSV + 정적 대시보드 깃허브에 커밋 및 푸시
         if: ${{ !cancelled() }}

@@ -37,7 +37,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           mkdir -p eval/results
-          python probe_law_api.py "$LAW_NAME" 2>&1 | tee eval/results/probe_law_api.txt
+          python src/probe_law_api.py "$LAW_NAME" 2>&1 | tee eval/results/probe_law_api.txt
 
       - name: 확인 결과 커밋
         run: |

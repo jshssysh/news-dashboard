@@ -19,7 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", "src"))  # 코드 폴더
 import paths  # noqa: E402  저장소 안 파일 경로(paths.py)
 import collect_news as main  # noqa: E402  뉴스 수집기
 

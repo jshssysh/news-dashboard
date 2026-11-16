@@ -26,7 +26,7 @@ import pandas as pd
 import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", "src"))  # 코드 폴더
 import collect_news as main  # noqa: E402  뉴스 수집기
 from scoring_variants import VARIANTS  # noqa: E402
 
