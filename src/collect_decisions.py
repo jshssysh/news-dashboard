@@ -18,6 +18,9 @@
 - target=prec(판례, 전체 법원 대상 범용 검색): config/bill_keywords.yaml에 이미
   있는 법률명 키워드(계류법안 분류에 쓰는 것과 같은 목록)로 검색해 관련 판례만
   좁혀 모은다.
+- 보조 출처: 공정위 사건 검색 사이트(case.ftc.go.kr) 의결서 목록. 법제처가 1~2주
+  늦게 받아서, 최근 의결서 중 법제처에 아직 없는 것만 여기서 채운다
+  (fetch_ftc_site_list 위 주석 참고).
 
 이 사건의 "원심"(1심/2심 등)이 무엇인지는 API가 구조화된 링크로 알려주지 않는다 -
 실측 결과 <원심결> 같은 필드는 항상 비어 있고, 실제 참조는 본문 자유텍스트 안에만
@@ -28,6 +31,7 @@ AI에게 관계를 판단·서술시키지 않는다(대조할 구조화된 필�
 
 실행: python collect_decisions.py
 """
+import html as html_lib
 import os
 import re
 import time
@@ -258,6 +262,160 @@ def fetch_ftc_detail(decision_id):
         return None
 
 
+# ── 공정위 사건 검색 사이트(보조 출처) ─────────────────────────────────────
+# 법제처 target=ftc는 공정위가 의결서를 올린 뒤 1~2주 늦게 들어온다(2026-11-17 확인:
+# 11/12에 공정위에 올라온 한세모빌리티·셀트리온 의결서가 11/14 수집 때 법제처에 없었음).
+# 공공데이터포털의 "공정거래위원회_결정문" API도 법제처 API로 가는 링크일 뿐이라,
+# 공정위 사건 검색 화면(case.ftc.go.kr 의결서 목록)을 직접 읽어 법제처에 아직 없는
+# 의결서만 채운다. 법제처 수집은 그대로 두고, 같은 의결서는 사건번호+의결일로 걸러
+# 한 번만 넣는다(dedup_keys 참고).
+# - 목록은 서버가 그린 HTML이고 한 페이지 10건, 의결일 최신순. 첫 접속에서 받은
+#   쿠키가 있어야 열려서(없으면 같은 주소로 계속 되돌아감) Session으로 부른다.
+# - 본문은 "개방문서" 보기(dscvHtmlView.do)가 의결서 전문을 HTML 글자로 준다
+#   (주요사항·주문·이유). PDF를 풀 필요가 없다. 이 주소는 쿠키 없이도 열린다.
+# - 한 의결서에 사건번호가 여러 개면 목록에 사건번호마다 한 줄씩 나오고 문서번호
+#   (docId)가 같다 - 법제처처럼 사건번호를 ", "로 이어 한 건으로 합친다.
+# - id는 "case-<docId>"로 둬서 법제처 일련번호(숫자)와 겹치지 않게 하고, 본문을
+#   다시 읽을 때(AI요약 보완 등) 이 접두어로 출처를 구분한다.
+FTC_SITE_BASE = "https://case.ftc.go.kr"
+FTC_SITE_ID_PREFIX = "case-"
+# 법제처가 늦는 기간이 1~2주라, 그보다 넉넉히 최근 이만큼만 본다(한 페이지 10건,
+# 한 달에 30~40건 안팎이라 10페이지 남짓).
+FTC_SITE_LOOKBACK_DAYS = 90
+FTC_SITE_MAX_PAGES = 30
+_FTC_SITE_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; news-dashboard collector)"}
+
+
+def _hidden_value(block, name):
+    m = re.search(rf'name="{name}"\s+value="([^"]*)"', block)
+    return html_lib.unescape(m.group(1)).strip() if m else ""
+
+
+def fetch_ftc_site_list(days=FTC_SITE_LOOKBACK_DAYS, max_pages=FTC_SITE_MAX_PAGES):
+    """공정위 사건 검색의 의결서 목록을 최신순으로 훑어 최근 N일 이내만 모은다.
+    접속이 안 되면(사이트 점검·해외 IP 차단 등) 빈 목록을 돌려줘 법제처 수집만 하게 한다."""
+    cutoff = datetime.now(KST).date() - timedelta(days=days)
+    session = requests.Session()
+    session.headers.update(_FTC_SITE_HEADERS)
+    docs = {}  # docId -> row (사건번호는 여러 개를 모은다)
+    for page in range(1, max_pages + 1):
+        try:
+            res = session.get(f"{FTC_SITE_BASE}/ocp/co/ltfr.do", params={"pageIndex": page}, timeout=30)
+            if res.status_code != 200:
+                print(f"[공정위 사이트 목록 실패] {page}페이지: status={res.status_code}")
+                break
+            text = res.text
+        except Exception:
+            print(f"[공정위 사이트 목록 예외] {page}페이지:\n{traceback.format_exc()}")
+            break
+        rows = [b for b in re.split(r"<tr[\s>]", text) if 'name="csno"' in b]
+        if not rows:
+            if page == 1:
+                print("[공정위 사이트 목록] 의결서 줄을 못 찾음 - 화면 구조가 바뀌었는지 확인 필요")
+            break
+        reached_cutoff = False
+        for b in rows:
+            d = parse_kr_date(_hidden_value(b, "apdate"))
+            if not d:
+                continue
+            if d < cutoff:
+                reached_cutoff = True
+                continue
+            # 개방문서(fn_htmlView) 옆 숨은 값 3개: docId, docCnvrMnNo(변환문서 번호), id
+            m = re.search(r"fn_htmlView\(this\);[^>]*>\s*</a>\s*"
+                          r'<input type="hidden" value="([^"]*)">\s*'
+                          r'<input type="hidden" value="([^"]*)">\s*'
+                          r'<input type="hidden" value="([^"]*)">', b)
+            if not m or not m.group(2):
+                continue  # 개방문서가 없는 건은 본문을 못 읽으니 법제처에 맡긴다
+            doc_id, cnvr_no, open_id = m.groups()
+            case_no = _hidden_value(b, "csno")
+            if doc_id in docs:
+                if case_no and case_no not in docs[doc_id]["사건번호목록"]:
+                    docs[doc_id]["사건번호목록"].append(case_no)
+                continue
+            docs[doc_id] = {
+                "id": FTC_SITE_ID_PREFIX + doc_id,
+                "사건명": _hidden_value(b, "csname"),
+                "사건번호목록": [case_no] if case_no else [],
+                "의결번호": _hidden_value(b, "blno"),
+                "날짜": f"{d.year}.{d.month}.{d.day}.",  # 법제처 표기("2026.10.16.")에 맞춘다
+                "docId": doc_id, "docCnvrMnNo": cnvr_no,
+                "상세링크": (f"{FTC_SITE_BASE}/ocp/co/openDocView.do?docTy=LTFR"
+                         f"&docId={doc_id}&docCnvrMnNo={cnvr_no}&id={open_id}"),
+            }
+        if reached_cutoff:
+            break
+        time.sleep(0.5)
+    rows = list(docs.values())
+    for r in rows:
+        r["사건번호"] = ", ".join(sorted(r.pop("사건번호목록")))
+    return rows
+
+
+def _html_to_text(fragment):
+    fragment = re.sub(r"<i class='be-line-number'>.*?</i>", "", fragment, flags=re.S)
+    fragment = re.sub(r"(?is)<(script|style)\b.*?</\1>", "", fragment)
+    fragment = re.sub(r"(?i)<br\s*/?>|</(div|p|tr|li)>", "\n", fragment)
+    text = html_lib.unescape(re.sub(r"<[^>]+>", " ", fragment)).replace("\xa0", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    return re.sub(r"\s*\n\s*", "\n", text).strip()
+
+
+def fetch_ftc_site_detail(doc_id, cnvr_no):
+    """개방문서 본문을 법제처 fetch_ftc_detail과 같은 모양({이유, 주문, 피심정보내용})으로
+    돌려준다 - build_ftc_body·penalty_from_jumun·extract_prior_instance_ref를 그대로 쓰려고."""
+    try:
+        res = requests.get(f"{FTC_SITE_BASE}/com/dscv/dscvHtmlView.do",
+                           params={"docId": doc_id, "docCnvrMnNo": cnvr_no},
+                           headers=_FTC_SITE_HEADERS, timeout=30)
+        if res.status_code != 200:
+            return None
+        page = res.text
+    except Exception:
+        print(f"[공정위 사이트 본문 예외] docId={doc_id}:\n{traceback.format_exc()}")
+        return None
+    start = page.find('id="article"')
+    page = page[start:] if start >= 0 else page
+    # 각주는 본문 중간에 말풍선(bx-pop footNote)으로 한 번, 문서 맨 끝(위원 서명 뒤)에
+    # 목록(footnoteStyle)으로 또 한 번 나온다. 그대로 두면 build_ftc_body가 "이유" 뒷부분을
+    # 결론으로 알고 각주만 잘라 보내서, 둘 다 빼고 결론까지만 남긴다.
+    page = re.sub(r'(?s)<span class="bx-pop footNote">.*?</span>', "", page)
+    foot = page.find('<div class="footnoteStyle">')
+    page = page[:foot] if foot >= 0 else page
+    # 항목 제목은 <div class='iemNmStyleN'>주문</div> 꼴(왼쪽 목차의 링크와 구분된다)
+    heading = lambda word: re.search(rf"<div class='iemNmStyle\d+'>\s*{word}\s*</div>", page)
+    m_jumun, m_iyu = heading("주\\s*문"), heading("이\\s*유")
+    if not m_jumun:
+        return {"이유": _html_to_text(page), "주문": "", "피심정보내용": ""}
+    head = page[:m_jumun.start()]
+    if m_iyu and m_iyu.start() > m_jumun.end():
+        jumun, iyu = page[m_jumun.end():m_iyu.start()], page[m_iyu.end():]
+    else:
+        jumun, iyu = page[m_jumun.end():], ""
+    return {"이유": _html_to_text(iyu), "주문": _html_to_text(jumun), "피심정보내용": _html_to_text(head)}
+
+
+def fetch_any_ftc_detail(decision_id, link=""):
+    """구분이 의결서인 기존 행의 본문을 출처에 맞게 다시 읽는다(id 접두어로 구분)."""
+    if not str(decision_id).startswith(FTC_SITE_ID_PREFIX):
+        return fetch_ftc_detail(decision_id)
+    m = re.search(r"docCnvrMnNo=([^&]+)", link or "")
+    if not m:
+        return None
+    return fetch_ftc_site_detail(decision_id[len(FTC_SITE_ID_PREFIX):], m.group(1))
+
+
+def dedup_keys(case_no, date_str):
+    """같은 의결서인지 비교할 열쇠들: (의결일, 사건번호 하나) 묶음.
+    법제처는 사건번호 여러 개를 ", "로 이어 한 건으로 두고, 공정위 사이트는 사건번호마다
+    한 줄이라 하나라도 겹치면 같은 의결서로 본다."""
+    d = parse_kr_date(date_str)
+    if not d:
+        return set()
+    return {(d, c.strip()) for c in str(case_no).split(",") if c.strip()}
+
+
 def build_ftc_body(detail):
     """실제 조치(시정명령/과징금 등)는 "주문"(실측 중앙값 400자 안팎)에 적혀
     있는데, 기존엔 "이유 or 주문"이라 "이유"가 조금이라도 있으면 "주문"을
@@ -458,9 +616,12 @@ def main():
             odf = pd.DataFrame()
     else:
         odf = pd.DataFrame()
+    seen_cases = set()  # 의결서의 (의결일, 사건번호) - 법제처·공정위 사이트 사이 중복 거르기
     if not odf.empty:
         for _, r in odf.iterrows():
             existing[(r["구분"], r["id"])] = True
+            if r["구분"] != "판례":
+                seen_cases |= dedup_keys(r["사건번호"], r["날짜"])
             # AI요약이 통째로 빈 것뿐 아니라, 의결서/재결서인데 조치유형까지
             # 빈 것도 재시도 대상이다 - "주문"을 못 보고 배경 설명만 요약한
             # 건들(예: "...기초사실 및 시장 현황을 다룸")이라 build_ftc_body
@@ -495,7 +656,9 @@ def main():
     # 이미 있는 건 빼고, 최신 결정일부터 한 실행에 NEW_PER_RUN_LIMIT건까지만 처리한다.
     # 판례는 키워드별로 따로 검색해 합친 목록이라 날짜순으로 다시 정렬한다.
     by_date_desc = lambda r: parse_kr_date(r["날짜"]) or date.min
-    ftc_rows = sorted((r for r in ftc_rows if (r["문서유형"], r["id"]) not in existing),
+    # 공정위 사이트에서 먼저 받아 둔 의결서는 법제처에 나중에 올라와도 다시 넣지 않는다.
+    ftc_rows = sorted((r for r in ftc_rows if (r["문서유형"], r["id"]) not in existing
+                       and not (dedup_keys(r["사건번호"], r["날짜"]) & seen_cases)),
                       key=by_date_desc, reverse=True)
     prec_rows = sorted((r for r in prec_rows if ("판례", r["id"]) not in existing),
                        key=by_date_desc, reverse=True)
@@ -533,7 +696,40 @@ def main():
             "상세링크": f"{WORKER_LINK_BASE}?target=ftc&id={row['id']}",
             "과징금확인": "1",
         })
+        seen_cases |= dedup_keys(row["사건번호"], row["날짜"])
         time.sleep(4.5)  # 무료 등급은 분당 15회 제한
+
+    # 법제처에 아직 없는 최근 의결서를 공정위 사이트에서 채운다(FTC_SITE_BASE 위 주석 참고).
+    # 법제처 몫을 먼저 처리해 seen_cases에 넣었으므로, 같은 실행에서 겹치면 법제처 것을 쓴다.
+    site_rows = [] if quota_exhausted else fetch_ftc_site_list()
+    site_new = sorted((r for r in site_rows if ("의결서", r["id"]) not in existing
+                       and not (dedup_keys(r["사건번호"], r["날짜"]) & seen_cases)),
+                      key=by_date_desc, reverse=True)
+    print(f"[공정위 사이트] 최근 {FTC_SITE_LOOKBACK_DAYS}일 의결서 {len(site_rows)}건 조회, "
+          f"법제처에 없는 것 {len(site_new)}건 (최대 {NEW_PER_RUN_LIMIT}건 처리)")
+    for row in site_new[:NEW_PER_RUN_LIMIT]:
+        if quota_exhausted:
+            break
+        detail = fetch_ftc_site_detail(row["docId"], row["docCnvrMnNo"])
+        if detail is None or not (detail["주문"] or detail["이유"]):
+            continue
+        body = build_ftc_body(detail)
+        prior_ref = extract_prior_instance_ref(detail["이유"] + " " + detail["피심정보내용"])
+        analysis = analyze_decision_with_gemini(row["사건명"], row["사건번호"], body)
+        if analysis["quota_exceeded"]:
+            quota_exhausted = True
+        print(f"[공정위 사이트 추가] {row['날짜']} {row['의결번호']} {row['사건명'][:30]}")
+        new_records.append({
+            "구분": "의결서", "id": row["id"], "사건명": row["사건명"],
+            "사건번호": row["사건번호"], "날짜": row["날짜"], "기관법원": "공정거래위원회",
+            "사건종류": "", "AI요약": analysis["summary"],
+            "과징금": penalty_from_jumun(detail["주문"]) or analysis["penalty"],
+            "형량": analysis["sentence"], "조치유형": analysis["measures"], "원심참조": prior_ref,
+            "상세링크": row["상세링크"],
+            "과징금확인": "1",
+        })
+        seen_cases |= dedup_keys(row["사건번호"], row["날짜"])
+        time.sleep(4.5)
 
     for row in prec_rows:
         if quota_exhausted:
@@ -570,7 +766,7 @@ def main():
                     continue
                 body = (detail["판결요지"] or detail["판시사항"]) + " " + detail["판례내용"]
             else:
-                detail = fetch_ftc_detail(rid)
+                detail = fetch_any_ftc_detail(rid, r["상세링크"])
                 if detail is None:
                     continue
                 body = build_ftc_body(detail)
@@ -609,7 +805,7 @@ def main():
                 continue
             if not (str(r["과징금"]).strip() or "과징금" in str(r["조치유형"])):
                 continue
-            detail = fetch_ftc_detail(r["id"])
+            detail = fetch_any_ftc_detail(r["id"], r["상세링크"])
             if detail is None:
                 continue
             fixed = penalty_from_jumun(detail["주문"])
