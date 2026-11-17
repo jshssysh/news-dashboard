@@ -648,17 +648,20 @@ RETRY_FAILED_DAYS = 3      # 이 기간에 수집된 실패 기사만(화면 '�
 RETRY_FAILED_MAX = 300     # 한 실행에 다시 보내는 상한(유사 제목 묶기 뒤 Gemini 호출은 대략 이 수의 1/20~1/40)
 
 
-def load_failed_for_retry(skip_links, max_items=RETRY_FAILED_MAX, file_name=paths.NEWS_LIST):
+def load_failed_for_retry(skip_links, max_items=RETRY_FAILED_MAX, file_name=paths.NEWS_LIST, only_links=None):
     """다시 분석할 실패 기사를 main()의 기사 dict 모양으로 돌려준다(최근 수집분부터).
-    수집일자·언론사는 처음 저장된 값을 그대로 쓴다 - 재분석돼도 원래 수집한 날 기사로 남는다."""
+    수집일자·언론사는 처음 저장된 값을 그대로 쓴다 - 재분석돼도 원래 수집한 날 기사로 남는다.
+    only_links를 주면 기간·상한 없이 그 기사들만 돌려준다(수동 판정 반영용)."""
     if not os.path.exists(file_name):
         return []
     try:
         df = pd.read_csv(file_name, encoding="utf-8-sig", dtype=str)
-        cutoff = (datetime.now(KST) - timedelta(days=RETRY_FAILED_DAYS)).strftime("%Y-%m-%d")
-        df = df[(df["논조"] == "판단 실패") & (df["수집일자"].fillna("") >= cutoff)
-                & df["기사링크"].notna() & ~df["기사링크"].isin(skip_links)]
-        df = df.sort_values("수집일자", ascending=False).head(max_items)
+        df = df[(df["논조"] == "판단 실패") & df["기사링크"].notna() & ~df["기사링크"].isin(skip_links)]
+        if only_links is not None:
+            df = df[df["기사링크"].isin(only_links)]
+        else:
+            cutoff = (datetime.now(KST) - timedelta(days=RETRY_FAILED_DAYS)).strftime("%Y-%m-%d")
+            df = df[df["수집일자"].fillna("") >= cutoff].sort_values("수집일자", ascending=False).head(max_items)
         desc = {}
         if os.path.exists(NEWS_DESCRIPTIONS_PATH):
             d = pd.read_csv(NEWS_DESCRIPTIONS_PATH, encoding="utf-8-sig", dtype=str)
@@ -682,6 +685,33 @@ def load_failed_for_retry(skip_links, max_items=RETRY_FAILED_MAX, file_name=path
             "retry": True,
         })
     return items
+
+
+# 분석 실패 기사 수동 판정(2026-11-18). Gemini 503 장애로 실패해 화면에서 숨겨진 기사를 Claude가 제목·
+# 네이버 설명으로 판정해 config/news_manual_analysis.csv에 적는다(데이터 파일은 수집 봇만 고치는 규칙).
+# 실행마다 아직 '판단 실패'로 남은 해당 기사를 이 값으로 채운다 - Gemini 분석은 건너뛰고, 그 뒤 임베딩
+# 묶기·이슈 자동 합치기는 새 기사와 똑같이 거친다(대표이슈 칸은 새 묶음이 될 때의 이름으로만 쓰인다).
+# 중요도 4점 이하는 탈락 기록으로 옮기고 실패 행을 지운다. 한 번 채워지면 다음 실행부터는 대상이 아니다.
+NEWS_MANUAL_ANALYSIS_PATH = paths.NEWS_MANUAL_ANALYSIS
+
+
+def load_manual_analysis():
+    """{기사링크: (중요도, 대표이슈, 논조, 분야)}. 파일이 없거나 못 읽으면 {}."""
+    if not os.path.exists(NEWS_MANUAL_ANALYSIS_PATH):
+        return {}
+    try:
+        m = pd.read_csv(NEWS_MANUAL_ANALYSIS_PATH, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception as e:
+        print(f"[수동 판정 읽기 예외 - 이번엔 건너뜀] {e}")
+        return {}
+    out = {}
+    for _, r in m.iterrows():
+        try:
+            score = int(r["중요도"])
+        except (TypeError, ValueError):
+            continue
+        out[r["기사링크"]] = (score, r["대표이슈"].strip(), r["논조"].strip() or "중립", r["분야"].strip())
+    return out
 
 
 # 관련도 4점 이하로 저장하지 않은 기사 기록. 두 가지 용도다:
@@ -2319,9 +2349,20 @@ def main():
 
     # 이번 수집에 다시 걸리지 않은 최근 실패 기사를 새 기사 뒤에 붙여 함께 다시 분석한다
     # (load_failed_for_retry 주석). 새 기사 뒤에 두어 Gemini 분석 순서도 새 기사가 먼저다.
-    retry_links = set()
+    retry_links, manual_links = set(), set()
+    manual = {} if SKIP_AI_ANALYSIS else load_manual_analysis()
+    if manual:
+        # 수동 판정이 있는 실패 기사 - Gemini에 보내지 않으므로 unique_for_api에는 넣지 않는다
+        for article_data in load_failed_for_retry(seen_links, only_links=set(manual)):
+            article_data["idx"] = idx
+            article_data["manual"] = manual[article_data["link"]]
+            all_articles.append(article_data)
+            manual_links.add(article_data["link"])
+            idx += 1
+        if manual_links:
+            print(f"[수동 판정 반영] 아직 실패로 남은 기사 {len(manual_links)}건을 수동 판정 값으로 채움")
     if not SKIP_AI_ANALYSIS:
-        for article_data in load_failed_for_retry(seen_links):
+        for article_data in load_failed_for_retry(seen_links | set(manual)):
             article_data["idx"] = idx
             all_articles.append(article_data)
             retry_links.add(article_data["link"])
@@ -2445,6 +2486,24 @@ def main():
 
         for item in all_articles:
             norm_t = item["norm_t"]
+            if item.get("manual"):
+                m_score, m_issue, m_sent, m_cat = item["manual"]
+                category = m_cat or item["category"]
+                if m_score < 5:
+                    rejected.append({
+                        "수집일자": item["today_str"], "분야": category,
+                        "제목": item["title"], "설명": item["description"][:ANALYZE_DESCRIPTION_CHARS],
+                        "관련도": m_score, "기사링크": item["link"], "발행일시": item["pub_date"],
+                    })
+                    continue
+                group_title = force_merge_by_keywords(item["title"], m_issue or normalize_title(item["title"]))
+                rows.append([
+                    item["today_str"], category, group_title, item["title"],
+                    press_display_name(item["known_press"], item["link"]),
+                    naver_description_summary(item["description"], item["title"]), m_sent, m_score,
+                    item["link"], item["pub_date"], ""
+                ])
+                continue
             if norm_t in analyzed_results:
                 score, group_title, summary, sentiment, category = analyzed_results[norm_t]
                 # 기술적 분석 실패("판단 실패")는 항상 노출하고, 저관련도(score<5)만 걸러낸다
@@ -2503,13 +2562,17 @@ def main():
     # 다시 분석했더니 관련도가 낮은 기사는 rows에 없어(탈락 기록으로 감) 예전 실패 행이 그대로 남는다 -
     # 그 행은 지운다. 다음 실행부터는 탈락 기록에 있어 다시 수집돼도 분석하지 않는다.
     saved_links = {r[8] for r in rows}
-    drop_links = {l for l in retry_links if l not in saved_links}
+    drop_links = {l for l in retry_links | manual_links if l not in saved_links}
     if retry_links:
         retried = [r for r in rows if r[8] in retry_links]
         print(f"[실패 기사 재분석 결과] {len(retry_links)}건 중 성공 {sum(r[6] != '판단 실패' for r in retried)}건, "
               f"다시 실패 {sum(r[6] == '판단 실패' for r in retried)}건, 관련도 낮아 지움 {len(drop_links)}건")
         RETRY_LAST_RESULT["text"] = (f"{len(retry_links)}건 중 성공 {sum(r[6] != '판단 실패' for r in retried)}, "
-                                     f"다시 실패 {sum(r[6] == '판단 실패' for r in retried)}, 관련도 낮아 지움 {len(drop_links)}")
+                                     f"다시 실패 {sum(r[6] == '판단 실패' for r in retried)}, "
+                                     f"관련도 낮아 지움 {len(drop_links - manual_links)}")
+    if manual_links:
+        kept = sum(r[8] in manual_links for r in rows)
+        RETRY_LAST_RESULT["text"] += (" / " if RETRY_LAST_RESULT["text"] else "") +             f"수동 판정 {len(manual_links)}건 반영(저장 {kept}, 관련도 낮아 지움 {len(manual_links) - kept})"
     save_and_merge_data(rows, embedded_links=embedded_links, drop_links=drop_links)
     if not SKIP_AI_ANALYSIS:
         update_issue_display_names()

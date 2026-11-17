@@ -26,6 +26,7 @@ BILL_KEYWORDS = _p("config", "bill_keywords.yaml")
 BILL_VETOED = _p("config", "bill_vetoed.csv")
 COMPANY_ALIASES = _p("config", "company_aliases.csv")
 NEWS_OVERRIDES = _p("config", "news_overrides.csv")
+NEWS_MANUAL_ANALYSIS = _p("config", "news_manual_analysis.csv")  # 분석 실패 기사 수동 판정(collect_news.load_manual_analysis)
 PERSONNEL = _p("config", "personnel.csv")
 
 # ── 수집 결과(수집 봇이 만들고 커밋) ─────────────────────
