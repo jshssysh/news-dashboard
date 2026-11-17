@@ -28,7 +28,7 @@ KST = timezone(timedelta(hours=9))
 
 from gemini_client import (  # Gemini 호출 재시도·대체 모델·사용량 집계(공용, gemini_client.py 참고)
     GEMINI_USAGE, GEMINI_ERROR_SAMPLES, GEMINI_OVERLOAD, note_gemini_error, post_gemini_with_retry,
-    gemini_daily_exhausted,
+    gemini_daily_exhausted, workers_ai_summary,
 )
 GEMINI_USAGE_PATH = paths.GEMINI_USAGE
 GEMINI_USAGE_RETENTION_DAYS = 60
@@ -42,11 +42,13 @@ def save_gemini_usage(script, articles, today_str):
                              "429(한도 초과)": GEMINI_USAGE["rate_limited"], "기타 오류": GEMINI_USAGE["errors"],
                              "저장 기사 수": articles, "임베딩 묶기": EMBED_LAST_RESULT["text"],
                              "오류 예시": " | ".join(f"{t} ({n}회)" for t, n in GEMINI_ERROR_SAMPLES.items()),
-                             "503 대처": (f"대기 {GEMINI_OVERLOAD['waited']}초, 대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회"
-                                        f"({', '.join(GEMINI_OVERLOAD['fallbacks'] or []) or '후보 없음'})"
-                                        + (f", 하루 한도 소진: {', '.join(sorted(GEMINI_OVERLOAD['daily_exhausted']))}"
-                                           if GEMINI_OVERLOAD["daily_exhausted"] else "")
-                                        if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else ""),
+                             "503 대처": ", ".join(s for s in [
+                                 (f"대기 {GEMINI_OVERLOAD['waited']}초, 대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회"
+                                  f"({', '.join(GEMINI_OVERLOAD['fallbacks'] or []) or '후보 없음'})"
+                                  + (f", 하루 한도 소진: {', '.join(sorted(GEMINI_OVERLOAD['daily_exhausted']))}"
+                                     if GEMINI_OVERLOAD["daily_exhausted"] else "")
+                                  if GEMINI_OVERLOAD["fallbacks"] is not None or GEMINI_OVERLOAD["waited"] else ""),
+                                 workers_ai_summary()] if s),
                              "실패 재분석": RETRY_LAST_RESULT["text"]}])
         if os.path.exists(GEMINI_USAGE_PATH):
             row = pd.concat([pd.read_csv(GEMINI_USAGE_PATH, encoding="utf-8-sig"), row], ignore_index=True)
@@ -55,7 +57,8 @@ def save_gemini_usage(script, articles, today_str):
         row.to_csv(GEMINI_USAGE_PATH, index=False, encoding="utf-8-sig")
         print(f"[Gemini 사용량] 호출 {GEMINI_USAGE['calls']}회, 429 {GEMINI_USAGE['rate_limited']}회, "
               f"기타 오류 {GEMINI_USAGE['errors']}회, 503 대기 {GEMINI_OVERLOAD['waited']}초, "
-              f"대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회")
+              f"대체 모델 성공 {GEMINI_OVERLOAD['fallback_ok']}회"
+              + (f", {workers_ai_summary()}" if workers_ai_summary() else ""))
     except Exception as e:
         print(f"[Gemini 사용량 기록 예외 - 건너뜀] {e}")
 
