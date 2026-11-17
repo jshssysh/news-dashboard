@@ -1343,7 +1343,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-18 07:58 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-18 08:42 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2759,13 +2759,17 @@ function warningTooltip(entries) {
 // 75%, 노동·ESG의 약 75~80%가 받는 "느슨하게 관련" 점수라, 이 기준이 없으면 '한튀르키예
 // 경제 협력'·'KB국민은행 대부업이자지원' 같은 일반 경제 기사가 기사 수만으로 위를 차지했다.
 // 7 이상 기준으로도 상생 이슈 14%, 노동·ESG 이슈 약 10%는 남는다(최근 30일).
+// 최고점 대신 중앙값으로 바꿈(2026-11-18). 최고점 기준은 한 기사만 잘못 높게 매겨져도 카드 전체가
+// 올라왔다 - '아모레퍼시픽 공정거래 CP 강화'(사내 준법 선포식 기사 49건, 중앙값 5점)가 8점 기사 1건
+// 때문에 급상승에 떴다. 중앙값 7 이상이면 쿠팡 지정자료 허위제출(9)·담합 자율준수 제도(8)·조이웍스
+// 불공정거래 신고(7)는 남고, 아모레 CP(5)·동반성장지수 발표(6)는 빠졌다(11/18 06시 기준).
 const TREND_MIN_COUNT = 5, TREND_MIN_RATIO = 2, TREND_TOP = 5, TREND_PREV_DAYS = 7, TREND_MIN_IMPORTANCE = 7;
 const TREND_EXCLUDE = new Set(['인사', '기타']);
 // 급상승 "?" 도움말 - 위 숫자를 그대로 써서, 기준을 바꾸면 설명도 같이 바뀐다.
 HELP_TEXT.trend = `보도량이 평소보다 갑자기 늘어난 이슈입니다. 기사 발행시각으로 셉니다.
 · 세는 범위: 오늘을 볼 때는 지금부터 24시간, 지난 날짜를 볼 때는 전날 08시~그날 08시
 · 비교 대상: 같은 이슈의 직전 ${TREND_PREV_DAYS}일 하루 평균 기사 수
-· 조건: ${TREND_MIN_COUNT}건 이상, 평균의 ${TREND_MIN_RATIO}배 이상, 중요도 ${TREND_MIN_IMPORTANCE}점 이상 기사가 1건 이상
+· 조건: ${TREND_MIN_COUNT}건 이상, 평균의 ${TREND_MIN_RATIO}배 이상, 이슈 기사 중요도의 중앙값 ${TREND_MIN_IMPORTANCE}점 이상(일부 기사만 높은 홍보성 이슈는 빠짐)
 · 늘어난 건수(지금 − 평균)가 큰 순서로 ${TREND_TOP}개, 직전 ${TREND_PREV_DAYS}일에 기사가 없던 이슈는 '새 이슈'
 · ${[...TREND_EXCLUDE].join('·')} 분야 이슈와 AI 분석에 실패한 기사는 세지 않음
 · 기간·검색·논조·분야 필터와 상관없이 계산
@@ -2788,6 +2792,11 @@ function shiftTsDays(ts, days) {
   const pad = n => String(n).padStart(2, '0');
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
 }
+function medianOf(arr) {
+  if (!arr.length) return 0;
+  const a = [...arr].sort((x, y) => x - y), m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
 function computeTrends(cur) {
   const { startStr, endStr } = trendWindow(cur);
   const cacheKey = startStr + '|' + endStr;
@@ -2804,16 +2813,16 @@ function computeTrends(cur) {
     if (!r.issue || !r.pub_ts || r.sentiment === '판단 실패') return;
     // 끝 경계는 목록(todayRollingWindowRows)과 같게 포함한다.
     if (r.pub_ts >= startStr && r.pub_ts <= endStr) {
-      const t = today[r.issue] || (today[r.issue] = { n: 0, cats: {}, maxImp: 0 });
+      const t = today[r.issue] || (today[r.issue] = { n: 0, cats: {}, imps: [] });
       t.n++;
-      t.maxImp = Math.max(t.maxImp, Number(r.importance) || 0);
+      t.imps.push(Number(r.importance) || 0);
       t.cats[r.category] = (t.cats[r.category] || 0) + 1;
     } else if (r.pub_ts >= prevStart && r.pub_ts < startStr) {
       past[r.issue] = (past[r.issue] || 0) + 1;
     }
   });
   const days = Math.max(1, prevDays);
-  const items = prevDays ? Object.keys(today).filter(issue => today[issue].maxImp >= TREND_MIN_IMPORTANCE).map(issue => {
+  const items = prevDays ? Object.keys(today).filter(issue => medianOf(today[issue].imps) >= TREND_MIN_IMPORTANCE).map(issue => {
     const t = today[issue];
     // 같은 이슈가 날마다 다른 분야로 갈리기도 해서(지배구조/공정거래) 가장 많은 쪽을 쓴다.
     const cat = Object.keys(t.cats).sort((a, b) => t.cats[b] - t.cats[a])[0];
