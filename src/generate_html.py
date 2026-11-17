@@ -80,6 +80,33 @@ def nz(value, default=None):
 RECENT_DAYS_WINDOW = 35
 
 
+# 홍보성 기사 점수 상한(2026-11-18). 채점 지시문(collect_news.SCORING_RULES)에 같은 기준을 넣었지만
+# 이미 6~7점으로 저장된 기사가 많아(11/1~18 화면 기사 중 약 1,480건: 기업별 동반성장지수 등급 홍보,
+# CP 선포식·준법교육, ESG 등급·인증·수상 홍보) 화면에서 한 번 더 깎는다. 데이터는 그대로 두므로
+# 이 규칙을 지우면 원래 점수로 돌아간다. 동반성장위·공정위 발표나 문제가 된 기사는 그대로 둔다.
+PROMO_CAPS = [
+    (re.compile(r"자율준수|CP\s?(전용|선포|강화|도입|운영|교육)|준법(경영)?\s?(선포|교육|서약)|공정거래(법)?\s?(교육|아카데미)|준법\s?문화"), 4),
+    (re.compile(r"동반성장지수|동반성장\s?(데이|최우수|우수)|명예기업|협력사.{0,6}감사패|우수\s?협력사.{0,6}(선정|시상)"), 5),
+    (re.compile(r"CCM|소비자중심경영|부패방지|ISO\s?37\d{3}|PR\s?대상|IR\s?(대상|부문)|윤리경영\s?대상"
+                r"|ESG\s?(통합\s?)?(등급|평가).{0,12}(A\+?|B\+?|AAA|우수|획득|상향|유지)|ESG\s?A\+?\s?등급|(A|B)\+?\s?등급\s?획득"), 3),
+]
+PROMO_KEEP = re.compile(r"^\s*\[?(동반위|동반성장위|공정위|공정거래위)|동반성장위원회.{0,10}(발표|공개|평가 결과)|\d+곳|\d+개사"
+                        r"|서스틴베스트|미흡|하락|강등|제외|취소|논란|의혹|실효성|담합|과징금|제재")
+
+
+def promo_cap(title, category):
+    """홍보성 기사면 화면 점수 상한, 아니면 None. 삼성그룹·삼성물산은 내부 추적용이라 빼고, 인사도 뺀다."""
+    if category in ("삼성그룹", "삼성물산", "인사"):
+        return None
+    t = str(title or "")
+    if PROMO_KEEP.search(t):
+        return None
+    for pat, cap in PROMO_CAPS:
+        if pat.search(t):
+            return cap
+    return None
+
+
 def load_data():
     try:
         df = pd.read_csv(paths.NEWS_LIST)
@@ -92,6 +119,10 @@ def load_data():
     if '중요도' not in df.columns:
         df['중요도'] = 5
     df['중요도'] = pd.to_numeric(df['중요도'], errors='coerce').fillna(5).astype(int)
+    # 홍보성 기사는 저장된 점수와 상관없이 화면 점수 상한을 둔다(promo_cap 주석).
+    caps = [promo_cap(t, c) for t, c in zip(df['제목'], df['분야'])]
+    capped = [min(v, cap) if cap is not None else v for v, cap in zip(df['중요도'], caps)]
+    df['중요도'] = capped
     df['pub_dt'] = pd.to_datetime(df['발행일시'], format='%Y-%m-%d %H:%M', errors='coerce') if '발행일시' in df.columns else pd.NaT
     df = df[~df['분야'].isin(HIDDEN_CATEGORIES)]
     # "미분석"은 skip_ai 개발/테스트 실행이 남긴 더미 데이터라 대시보드에 절대 노출하지 않는다

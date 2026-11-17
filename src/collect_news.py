@@ -448,7 +448,8 @@ SCORING_RULES = """2. relevance_score: 공정거래·기업지배구조 감시 �
      그 쟁점, 정무위 국감에서 나온 공정위 관련 질타
    - 6~7점: 상생·하도급·가맹·납품대금 제도, 대기업·플랫폼이 협력사·중소기업·소상공인에게
      교육·기술·스마트공장·디지털 전환·자금을 실제로 지원하는 사업(업무협약 형식이어도
-     지원 내용이 구체적이면 해당, 동반성장지수 평가 결과 포함), 대기업의 사업부 매각·
+     지원 내용이 구체적이면 해당), 동반성장위원회의 동반성장지수 전체 평가 결과 발표(개별
+     기업의 등급 획득 홍보는 아래 5점), 대기업의 사업부 매각·
      인수·통합과 민영화, 회생·구조조정 중인 대형 유통사의 납품·거래 정상화, 금융회사
      지배구조·내부통제·임원추천, 시민단체·행동주의펀드의 지배구조 요구, 오너 일가 승계,
      파업·정년·원청 사용자성 같은 노동 현안, 그리고 아래 지배구조·기업 구조 변화:
@@ -474,6 +475,13 @@ SCORING_RULES = """2. relevance_score: 공정거래·기업지배구조 감시 �
      · 대기업의 해외 공장 준공·투자, 실적 반등 예고·목표가, 신사업·AI 전략 소개 → 2~3점
      · 노동법·인사관리 해설 칼럼, 사내 징계·교섭 절차 설명 → 3점
      · 준법경영·ISO 인증 취득, 브랜드평판 순위 → 3~4점
+     · 기업이 스스로 알리는 공정거래 자율준수(CP) 선포식·임직원 준법교육·공정거래법 교육·CP 전용
+       페이지 개설 → 3~4점. 단 공정위의 CP 등급평가 결과·제도 개편, CP 실효성을 따진 분석
+       (예: "담합 제재 기업이 준법 인증 더 많아")은 6점 이상
+     · 개별 기업이 동반성장지수 등급·우수기업 선정을 알리는 기사, 협력사 감사패·동반성장데이 같은
+       자체 행사 → 5점(저장은 하되 화면에는 안 나오게). 등급이 떨어지거나 미흡 판정을 받은
+       기업처럼 문제가 된 경우는 6점
+     · 소비자중심경영(CCM)·부패방지 인증, PR·IR·윤리경영 대상 수상, ESG 등급 획득 홍보 → 3점
      · 공정위와 무관한 기관(국세청·식약처 등)의 광고·표시 기준 → 3점
    기사 일부에 상생·동반성장 같은 말이 섞여 있어도 주제가 위 5점 이하 유형이면 5점 이하로
    줄 것(예: "삼성전자, 반도체대전서 HBM4E 공개…상생협력 비전"은 기술 전시 홍보라 4점,
@@ -1960,9 +1968,26 @@ def load_news_overrides():
     return relabel, delete
 
 
+def load_news_score_overrides():
+    """{기사링크: 중요도}. 조치 "중요도"인 줄의 새이슈 칸에 숫자를 적는다(2026-11-18, 이미 저장된
+    홍보성 기사의 점수를 내려 화면에서 빼되 검색에는 남기려고)."""
+    if not os.path.exists(NEWS_OVERRIDES_PATH):
+        return {}
+    try:
+        odf = pd.read_csv(NEWS_OVERRIDES_PATH, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception:
+        return {}
+    out = {}
+    for _, r in odf.iterrows():
+        if r["조치"] == "중요도" and r["새이슈"].strip().isdigit():
+            out[r["기사링크"]] = int(r["새이슈"])
+    return out
+
+
 def apply_news_overrides(df):
     relabel, delete = load_news_overrides()
-    if not relabel and not delete:
+    scores = load_news_score_overrides()
+    if not relabel and not delete and not scores:
         return df
     links = df["기사링크"].fillna("")
     removed = links.isin(delete)
@@ -1970,8 +1995,15 @@ def apply_news_overrides(df):
     hit = df["기사링크"].isin(relabel)
     changed = hit & (df["대표이슈"] != df["기사링크"].map(relabel))
     df.loc[hit, "대표이슈"] = df.loc[hit, "기사링크"].map(relabel)
-    if removed.any() or changed.any():
-        print(f"[기사 정정] 삭제 {removed.sum()}건, 이슈명 변경 {changed.sum()}건 반영")
+    shit = df["기사링크"].isin(scores)
+    if shit.any():
+        new_scores = df.loc[shit, "기사링크"].map(scores)
+        scored = int((pd.to_numeric(df.loc[shit, "중요도"], errors="coerce") != new_scores).sum())
+        df.loc[shit, "중요도"] = new_scores
+    else:
+        scored = 0
+    if removed.any() or changed.any() or scored:
+        print(f"[기사 정정] 삭제 {removed.sum()}건, 이슈명 변경 {changed.sum()}건, 중요도 변경 {scored}건 반영")
     return df
 
 

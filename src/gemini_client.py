@@ -47,6 +47,145 @@ GEMINI_OVERLOAD = {"waited": 0, "sticky_left": 0, "fallbacks": None, "bad": set(
                    "daily_exhausted": set()}   # 하루 한도를 다 쓴 모델 - 이번 실행에선 더 보내지 않는다
 
 
+# ── Cloudflare Workers AI: Gemini가 모두 실패했을 때 마지막으로 보내는 곳 (2026-11-18) ──
+# 11/10~11/18 26회 실행에서 호출 1,925회 중 약 30%가 실패했다(대부분 503 high demand). 대체 모델
+# gemini-3.5-flash는 하루 20회 한도라 금방 바닥나서, 그 뒤로는 "대체 모델 없음"으로 끝났다.
+# 그래서 원래 모델 → Gemini 대체 모델 → Workers AI 순서로 보낸다. 전부 Workers AI로 옮기지 않는
+# 까닭: 뉴스 채점 지시문을 Gemini 기준으로 eval로 맞춰 왔고(eval/), Llama의 한국어 판단 품질은
+# 아직 재 보지 않았다. 실패해서 '분석 대기'로 남는 것보다는 낫다는 판단으로 실패분만 넘긴다.
+# Worker 없이 Actions의 Python에서 REST API로 바로 부른다. worker/와 같은 모델이다
+# (worker/src/index.js 주석: 8B급은 JSON을 자주 깨뜨려 70B로 올림).
+# 토큰에 "Workers AI" 권한이 없으면 401/403이 나고, 그 실행에서는 다시 보내지 않는다.
+CF_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+CF_AI_TOKEN = (os.environ.get("CLOUDFLARE_AI_TOKEN") or os.environ.get("CLOUDFLARE_API_TOKEN") or "").strip()
+WORKERS_AI_MODEL = os.environ.get("WORKERS_AI_MODEL", "").strip() or "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# 한 실행에서 Workers AI로 보내는 최대 횟수. 무료 몫(하루 10,000 뉴런)으로는 70B 묶음 분석이
+# 하루 20회 안팎밖에 안 되고(추정), 유료 플랜이면 그만큼 요금이 붙으므로 상한을 둔다.
+WORKERS_AI_MAX_CALLS = int(os.environ.get("WORKERS_AI_MAX_CALLS", "") or 40)
+WORKERS_AI_MAX_TOKENS = 4096   # Workers AI 기본값(256)이면 20건 묶음 응답이 중간에 잘린다
+WORKERS_AI = {"calls": 0, "ok": 0, "fail": 0, "off": ""}   # off: 이번 실행에서 끈 까닭
+
+
+def workers_ai_available():
+    if not (CF_ACCOUNT_ID and CF_AI_TOKEN):
+        return False
+    return not WORKERS_AI["off"] and WORKERS_AI["calls"] < WORKERS_AI_MAX_CALLS
+
+
+def workers_ai_summary():
+    """gemini_usage.csv·로그에 붙일 한 줄. 이번 실행에서 한 번도 안 썼으면 빈 문자열."""
+    if not WORKERS_AI["calls"] and not WORKERS_AI["off"]:
+        return ""
+    s = f"Workers AI 성공 {WORKERS_AI['ok']}/{WORKERS_AI['calls']}회"
+    return s + (f"({WORKERS_AI['off']})" if WORKERS_AI["off"] else "")
+
+
+def _clean_json_text(raw):
+    """Llama는 JSON 앞뒤에 설명이나 ``` 를 붙이기도 해서, 읽히는 JSON만 남겨 돌려준다.
+    호출하는 쪽은 Gemini 응답처럼 바로 json.loads 하므로 여기서 정리해 둔다."""
+    if isinstance(raw, (dict, list)):
+        return json.dumps(raw, ensure_ascii=False)
+    text = str(raw or "").strip()
+    try:
+        json.loads(text)
+        return text
+    except ValueError:
+        pass
+    starts = [i for i in (text.find("{"), text.find("[")) if i != -1]
+    if starts:
+        start = min(starts)
+        end = text.rfind("}" if text[start] == "{" else "]")
+        if end > start:
+            try:
+                return json.dumps(json.loads(text[start:end + 1]), ensure_ascii=False)
+            except ValueError:
+                pass
+    return text   # 그래도 안 읽히면 원문 그대로 - 호출하는 쪽이 파싱 실패로 처리한다
+
+
+class _WorkersAIResponse:
+    """Workers AI 결과를 Gemini generateContent 응답 모양으로 감싼다(호출하는 쪽 코드를 안 바꾸려고)."""
+    status_code = 200
+
+    def __init__(self, text, usage):
+        self._body = {
+            "candidates": [{"content": {"parts": [{"text": text}]}}],
+            "usageMetadata": {"promptTokenCount": usage.get("prompt_tokens", 0),
+                              "candidatesTokenCount": usage.get("completion_tokens", 0),
+                              "totalTokenCount": usage.get("total_tokens", 0)},
+            "modelVersion": WORKERS_AI_MODEL,
+        }
+        self.text = json.dumps(self._body, ensure_ascii=False)
+
+    def json(self):
+        return self._body
+
+
+def _payload_prompt(payload):
+    """Gemini payload의 글을 하나로 모은다. 이 프로젝트의 호출은 모두 contents[0].parts[0].text 하나다."""
+    parts = []
+    sys_inst = payload.get("systemInstruction") or payload.get("system_instruction") or {}
+    parts += [p.get("text", "") for p in sys_inst.get("parts", [])]
+    for c in payload.get("contents", []):
+        parts += [p.get("text", "") for p in c.get("parts", [])]
+    return "\n\n".join(p for p in parts if p)
+
+
+def _post_workers_ai(payload, timeout=120):
+    """Gemini가 모두 실패한 generateContent 호출을 Workers AI로 한 번 보낸다. 성공하면 응답, 아니면 None."""
+    if not workers_ai_available():
+        return None
+    prompt = _payload_prompt(payload)
+    if not prompt:
+        return None
+    gen = payload.get("generationConfig", {})
+    wants_json = "json" in str(gen.get("response_mime_type") or gen.get("responseMimeType") or "")
+    system = ("당신은 한국어 글을 정확하게 읽고 지시대로 답하는 어시스턴트입니다."
+              + (" 설명이나 ``` 없이 지시받은 JSON 하나만 출력하세요." if wants_json else ""))
+    body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            "max_tokens": WORKERS_AI_MAX_TOKENS, "temperature": 0.2}
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{WORKERS_AI_MODEL}"
+    WORKERS_AI["calls"] += 1
+    try:
+        res = requests.post(url, json=body, headers={"Authorization": f"Bearer {CF_AI_TOKEN}"}, timeout=timeout)
+    except requests.exceptions.RequestException as e:
+        WORKERS_AI["fail"] += 1
+        note_gemini_error(f"Workers AI {type(e).__name__} {e}")
+        return None
+    if res.status_code != 200:
+        WORKERS_AI["fail"] += 1
+        note_gemini_error(f"Workers AI {res.status_code} {res.text[:140]}")
+        if res.status_code in (400, 401, 403, 404):
+            # 토큰 권한·계정 ID·모델 이름 문제 - 이번 실행에서 다시 보내도 같다.
+            WORKERS_AI["off"] = f"{res.status_code} 응답으로 끔" + (" - 토큰에 Workers AI 권한 필요"
+                                                           if res.status_code in (401, 403) else "")
+            print(f"[Workers AI 끔] {WORKERS_AI['off']}: {res.text[:200]}")
+        elif res.status_code == 429:
+            WORKERS_AI["off"] = "429 한도로 끔"
+        return None
+    try:
+        result = res.json().get("result") or {}
+        text = result.get("response")
+        if text is None or text == "":
+            raise ValueError("빈 응답")
+        out = _WorkersAIResponse(_clean_json_text(text) if wants_json else str(text), result.get("usage") or {})
+    except ValueError as e:
+        WORKERS_AI["fail"] += 1
+        note_gemini_error(f"Workers AI 응답 처리 {e}")
+        return None
+    WORKERS_AI["ok"] += 1
+    return out
+
+
+def _last_resort(url, payload, res):
+    """Gemini 쪽이 모두 실패했을 때: generateContent면 Workers AI를 시도하고, 안 되면 원래 실패 응답."""
+    if ":generateContent" in url:
+        wa = _post_workers_ai(payload)
+        if wa is not None:
+            return wa
+    return res
+
+
 class _QuotaExhaustedResponse:
     """하루 한도를 다 쓴 뒤엔 실제로 보내지 않고 이 가짜 429를 돌려준다(호출하는 쪽은 그대로 실패 처리)."""
     status_code = 429
@@ -58,10 +197,11 @@ class _QuotaExhaustedResponse:
 
 def gemini_daily_exhausted():
     """원래 모델과 쓸 수 있는 대체 모델이 모두 하루 한도를 다 썼으면 True.
-    collect_news.py 뉴스 분석은 이걸 보고 남은 묶음을 보내지 않고 '분석 대기'로 남긴다."""
+    collect_news.py 뉴스 분석은 이걸 보고 남은 묶음을 보내지 않고 '분석 대기'로 남긴다.
+    Workers AI를 아직 쓸 수 있으면 False - 남은 묶음은 Workers AI가 받는다(횟수 상한까지)."""
     if GEMINI_PRIMARY_MODEL not in GEMINI_OVERLOAD["daily_exhausted"]:
         return False
-    return not _gemini_fallback_models()
+    return not _gemini_fallback_models() and not workers_ai_available()
 
 
 def _gemini_fallback_models():
@@ -156,7 +296,7 @@ def _try_fallbacks(url, payload, timeout, start_sticky=True):
 def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
     """Gemini 호출 하나를 감싸서, 서버 과부하(503)나 타임아웃처럼 '잠깐 있다 다시 하면
     될' 일시적 오류일 때만 다시 시도한다. 원래 모델(GEMINI_PRIMARY_MODEL)이 503이면
-    대기 후 재시도, 그래도 안 되면 대체 모델로 보낸다(위 설명). 그 외(200 성공, 4xx 등
+    대기 후 재시도, 그래도 안 되면 대체 모델로, 그것도 안 되면 Workers AI로 보낸다(위 설명). 그 외(200 성공, 4xx 등
     영구적 오류)는 그대로 반환해서 기존 처리 로직이 그대로 판단하게 둔다."""
     uses_primary = GEMINI_PRIMARY_MODEL in url
     # 직전에 원래 모델이 과부하였으면 한동안은 바로 대체 모델로 보낸다(503 대기를 매번 반복하지 않게).
@@ -179,13 +319,13 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
             # 하루 한도면 기다려도 소용없으므로 대기 없이 바로 넘긴다.
             if res.status_code == 429 and uses_primary:
                 fb = _try_fallbacks(url, payload, timeout)
-                return fb if fb is not None else res
+                return fb if fb is not None else _last_resort(url, payload, res)
             if res.status_code != 503:
                 return res
             wait = waits[attempt] if attempt < len(waits) else None
             if uses_primary and (wait is None or GEMINI_OVERLOAD["waited"] + wait > GEMINI_503_WAIT_BUDGET):
                 fb = _try_fallbacks(url, payload, timeout)
-                return fb if fb is not None else res
+                return fb if fb is not None else _last_resort(url, payload, res)
             if wait is None:
                 return res
             GEMINI_OVERLOAD["waited"] += wait if uses_primary else 0
@@ -197,5 +337,10 @@ def post_gemini_with_retry(url, payload, timeout=30, retries=1, retry_wait=5):
             if attempt < retries:
                 time.sleep(retry_wait)
                 continue
+            # 타임아웃 등 통신 오류가 끝까지 나면 Workers AI에 한 번 맡겨 본다(11/17 06시: ReadTimeout 5회).
+            if uses_primary and ":generateContent" in url:
+                wa = _post_workers_ai(payload)
+                if wa is not None:
+                    return wa
             raise
     raise last_exc

@@ -96,6 +96,11 @@ jobs:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           SKIP_AI_ANALYSIS: ${{ github.event.inputs.skip_ai }}
+          # Gemini가 모두 실패한 호출만 Workers AI로 넘긴다(src/gemini_client.py). 배포용 토큰에
+          # Workers AI 권한이 없으면 CLOUDFLARE_AI_TOKEN Secret을 따로 만들어 넣는다(없으면 이 토큰을 씀).
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AI_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN }}
         run: |
           python src/collect_news.py
 
@@ -104,6 +109,11 @@ jobs:
         env:
           ASSEMBLY_API_KEY: ${{ secrets.ASSEMBLY_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Gemini가 모두 실패한 호출만 Workers AI로 넘긴다(src/gemini_client.py). 배포용 토큰에
+          # Workers AI 권한이 없으면 CLOUDFLARE_AI_TOKEN Secret을 따로 만들어 넣는다(없으면 이 토큰을 씀).
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AI_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN }}
         run: |
           python src/collect_bills.py
 
@@ -133,6 +143,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DECISIONS_SKIP_WAIT: ${{ github.event.inputs.skip_decisions_wait }}
           DECISIONS_LOOKBACK_DAYS: ${{ github.event.inputs.decisions_lookback_days }}
+          # Gemini가 모두 실패한 호출만 Workers AI로 넘긴다(src/gemini_client.py). 배포용 토큰에
+          # Workers AI 권한이 없으면 CLOUDFLARE_AI_TOKEN Secret을 따로 만들어 넣는다(없으면 이 토큰을 씀).
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_AI_TOKEN: ${{ secrets.CLOUDFLARE_AI_TOKEN }}
         run: |
           python src/collect_decisions.py
 
