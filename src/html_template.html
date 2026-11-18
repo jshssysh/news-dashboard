@@ -2933,9 +2933,8 @@ function renderNewsView(dr, allGroups) {
   const renderSignalItems = () => {
     const signalRows = scoped
       .filter(r => r.sentiment !== '판단 실패')
-      .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
       .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue, (r.companies || []).join(' ')], state.search));
-    const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상');
+    const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상').filter(groupInSelectedCategory);
     const top3 = (state.selectedCategory === '전체' ? rankWithinCategory(signalGroups) : signalGroups).slice(0,3);
     document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
       const reasons = selectionReasons(g);
@@ -3022,10 +3021,16 @@ function renderNewsView(dr, allGroups) {
   renderMainList(scoped, allGroups);
 }
 
+// 분야 칩은 기사가 아니라 이슈(카드) 단위로 거른다. 기사마다 분야가 달라(대기업집단 계열사 변동:
+// 공정거래 29·지배구조 4) 기사 단위로 거르면 한 이슈가 분야마다 따로 카드가 됐다(2026-11-19).
+// 카드 분야는 대표 기사 분야라 칩 건수(catCounts)와도 맞는다.
+function groupInSelectedCategory(g) {
+  return state.selectedCategory === '전체' || g.category === state.selectedCategory;
+}
+
 function renderMainList(scoped, allGroups) {
-  let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
-  filtered = filtered.filter(newsMatchesGlobalFilters);
-  let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
+  const filtered = scoped.filter(newsMatchesGlobalFilters);
+  let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상').filter(groupInSelectedCategory);
   if (state.sort === 'latest') {
     groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
   } else if (state.sort === 'press') {
