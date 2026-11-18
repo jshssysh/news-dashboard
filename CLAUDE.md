@@ -68,6 +68,7 @@
   - ① 화면만 다시 만들기: `html_template.html`·`generate_html.py`를 고친 뒤. 1~2분.
   - `config/news_overrides.csv`(기사 이슈 바꾸기·삭제)는 `collect_news.py`가 돌 때만 반영되므로 ①로는 안 바뀐다.
     손으로 돌리지 않고 다음 정기 실행(06:01/12:01/18:01)을 기다린다.
+  - `config/issue_merge_rules.csv`(기간·제목 패턴으로 화면 카드 합치기·나누기)는 `generate_html.py`가 읽으므로 ①로 바로 반영된다.
   - ② 법령 지금 수집: 법령 쪽 수집기(`collect_law_*.py`, `collect_subordinate_laws.py`,
     `collect_legislative_notices.py`)를 고친 뒤. 법령 벌칙, 공포·시행, 조문·행정규칙, 입법예고를 모두 돈다.
     본문을 새로 받아야 하면 20분 넘게 걸린다.
