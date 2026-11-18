@@ -895,7 +895,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #view-news.active { display: flex; flex-direction: column; }
   #newsFilterSticky, #view-news .layout { display: contents; }
   #view-news > hr.thin { order: 0; }
-  #signalBox { order: 1; }
   #newsFilterSticky .news-filter-row { order: 2; }
   #catChipRow { order: 3; }
   .side-col { order: 4; }
@@ -911,13 +910,24 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
      수집 현황 패널은 2026-11-04에 없앴고 "검색"만 남았다. 옮겨진 뒤에는 원래 부모의
      클래스(news-collapsed)에 의존하던 캐럿 회전 규칙이 안 먹으므로, 제목 요소 자신에게
      직접 붙이는 is-collapsed 클래스로 대신한다. */
-  #mobileSectionToggleRow { order: 2; display: flex; gap: 10px; margin-bottom: 10px; }
-  #mobileSectionToggleRow > * { flex: 1 1 0; min-width: 0; margin: 0 !important; padding: 0; cursor: pointer;
-    display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.95em; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
+  /* 2026-11-18: "현황·주요 내용·검색·급상승" 네 버튼을 한 줄에 둔다(JS newsToggleTargets 참고).
+     펼친 버튼은 색을 넣어 무엇이 열려 있는지 보이게 한다. */
+  #mobileSectionToggleRow { order: 1; display: flex; gap: 6px; margin-bottom: 10px; }
+  #mobileSectionToggleRow > * { flex: 1 1 auto; min-width: 0; margin: 0 !important; padding: 0 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 34px;
+    border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-secondary-bg); color: var(--app-text);
+    font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mobileSectionToggleRow > *:not(.is-collapsed) { border-color: var(--app-primary);
+    background: color-mix(in srgb, var(--app-primary) 16%, var(--app-secondary-bg)); }
   #mobileSectionToggleRow .toggle-caret { display: inline; flex-shrink: 0; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   #mobileSectionToggleRow .current-tag { display: none; }
+  #mobileSectionToggleRow .is-collapsed .toggle-caret,
   #newsFilterToggle.is-collapsed .toggle-caret { transform: rotate(-90deg); }
+  /* 원래 접기 줄은 뉴스 탭에서만 숨긴다(다른 탭엔 이 버튼 줄이 없다). 접힌 상자는 통째로 숨긴다. */
+  #topStatRow:has(~ #view-news.active) .stat-toggle-row { display: none; }
+  #signalBox { order: 2; }
+  #signalBox.collapsed, .trend-panel.collapsed { display: none; }
+  #newsFilterSticky.news-collapsed .news-filter-row { margin-bottom: 0; }
 
   /* 입법 탭: "검색"▶ 토글 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 한 줄에서
      같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"과 "제안일"이
@@ -1387,7 +1397,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-18 12:27 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-18 13:14 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -5381,9 +5391,34 @@ const NARROW_MQ = (() => { try { return window.matchMedia('(max-width: 800px)');
 const isNarrowNow = () => !!(NARROW_MQ && NARROW_MQ.matches);
 const mobileRows = [];
 
-// 뉴스 탭: "검색" 접기 제목. 옆에 있던 "수집 현황"은 패널과 함께 없앴다(2026-11-04).
-mobileRows.push(mobileRow('mobileSectionToggleRow', document.querySelector('.news-filter-row'),
-  [newsFilterToggleEl]));
+// 뉴스 탭: "현황·주요 내용·검색·급상승" 네 접기를 한 줄 버튼으로 모은다(사용자 요청, 2026-11-18 -
+// 예전엔 네 줄로 따로 쌓여 목록이 한참 아래로 밀렸다). "검색" 제목은 진짜 요소를 옮기고, 나머지
+// 셋은 부모가 달라(현황은 탭 공용 상단) 옮기지 않고 원래 접기 버튼을 대신 눌러 주는 버튼을 둔다.
+// 원래 접기 줄·상자 머리는 CSS가 숨기고, 접힌 상자는 통째로 숨긴다.
+const newsToggleTargets = [
+  { label: '현황', el: topStatRow, cls: 'stats-collapsed', click: () => document.getElementById('statToggleBtn').click() },
+  { label: '주요 내용', el: document.getElementById('signalBox'), cls: 'collapsed', click: () => document.getElementById('signalToggleBtn').click() },
+  { label: '급상승', el: document.getElementById('trendPanel'), cls: 'collapsed', click: () => document.getElementById('trendToggle').click() },
+];
+newsToggleTargets.forEach(t => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'mobile-toggle-pill';
+  b.innerHTML = `${t.label}<span class="toggle-caret">▼</span>`;
+  b.addEventListener('click', t.click);
+  t.btn = b;
+  const sync = () => b.classList.toggle('is-collapsed', t.el.classList.contains(t.cls));
+  sync();
+  new MutationObserver(sync).observe(t.el, { attributes: true, attributeFilter: ['class'] });
+});
+const newsToggleRow = mobileRow('mobileSectionToggleRow', document.querySelector('.news-filter-row'),
+  [newsFilterToggleEl], () => {
+    const row = newsToggleRow.row;
+    row.insertBefore(newsToggleTargets[1].btn, row.firstChild);
+    row.insertBefore(newsToggleTargets[0].btn, row.firstChild);
+    row.appendChild(newsToggleTargets[2].btn);
+  });
+mobileRows.push(newsToggleRow);
 
 // 입법 탭: "검색"▶ 하나로 단계·기간 셀렉트·☆ 즐겨찾기·검색창까지 한 줄로 합쳐서 같이
 // 접었다 펼친다. "소관위"는 이 줄에 넣지 않고 원래 필터-섹션에 그대로 둔다.
