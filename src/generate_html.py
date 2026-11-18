@@ -138,6 +138,8 @@ def load_data():
     cutoff = datetime.now(KST).replace(tzinfo=None) - timedelta(days=RECENT_DAYS_WINDOW)
     df = df[df['dt'] >= cutoff]
 
+    df = apply_issue_merge_rules(df)
+
     issue_max = df.groupby('대표이슈')['중요도'].transform('max')
     exempt = (df['분야'] == '인사') | (df['논조'] == '판단 실패') | df['대표이슈'].isna()
     df = df[exempt | (issue_max >= DISPLAY_MIN_ISSUE_SCORE)]
@@ -147,6 +149,51 @@ def load_data():
     names = load_issue_display_names()
     if names:
         df['대표이슈'] = df['대표이슈'].map(lambda t: names.get(t, t) if isinstance(t, str) else t)
+    return df
+
+
+def load_issue_merge_rules():
+    """config/issue_merge_rules.csv: 수집일이 [시작일, 끝일]이고 제목이 패턴(정규식)에 맞는 기사를
+    (또는 대표이슈가 이슈패턴에 맞는) 기사를 '합칠이슈'로 보여 준다. 두 패턴을 다 적으면 둘 다 맞아야 하고, 하나는 비워도 된다. 같은 발표를 회사마다 따로 쓴 기사(동반성장지수 등)가 회사별 카드로
+    쪼개질 때 링크를 하나씩 적지 않고 한 줄로 모으려고 둔다. 데이터는 그대로 두고 화면에만 반영한다."""
+    path = paths.ISSUE_MERGE_RULES
+    if not os.path.exists(path):
+        return []
+    try:
+        rdf = pd.read_csv(path, dtype=str, keep_default_na=False, encoding='utf-8-sig')
+    except Exception as e:
+        print(f"[이슈 합치기 규칙 읽기 예외 - 건너뜀] {e}")
+        return []
+    rules = []
+    for _, r in rdf.iterrows():
+        try:
+            start = pd.to_datetime(r['시작일'])
+            end = pd.to_datetime(r['끝일']) + timedelta(days=1)
+            tpat = re.compile(r['제목패턴']) if r.get('제목패턴') else None
+            ipat = re.compile(r['이슈패턴']) if r.get('이슈패턴') else None
+        except Exception as e:
+            print(f"[이슈 합치기 규칙 오류 - 이 줄 건너뜀] {r.get('합칠이슈')}: {e}")
+            continue
+        if r['합칠이슈'] and (tpat or ipat):
+            rules.append((start, end, tpat, ipat, r['합칠이슈']))
+    return rules
+
+
+def apply_issue_merge_rules(df):
+    rules = load_issue_merge_rules()
+    if not rules or df.empty:
+        return df
+    df = df.copy()
+    exempt = df['분야'].isin(['인사'])
+    for start, end, tpat, ipat, target in rules:
+        match = pd.Series(True, index=df.index)
+        if tpat is not None:
+            match &= df['제목'].fillna('').str.contains(tpat)
+        if ipat is not None:
+            match &= df['대표이슈'].fillna('').str.contains(ipat)
+        hit = (~exempt) & (df['dt'] >= start) & (df['dt'] < end) & match
+        if hit.any():
+            df.loc[hit, '대표이슈'] = target
     return df
 
 

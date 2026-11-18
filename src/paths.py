@@ -26,6 +26,7 @@ BILL_KEYWORDS = _p("config", "bill_keywords.yaml")
 BILL_VETOED = _p("config", "bill_vetoed.csv")
 COMPANY_ALIASES = _p("config", "company_aliases.csv")
 NEWS_OVERRIDES = _p("config", "news_overrides.csv")
+ISSUE_MERGE_RULES = _p("config", "issue_merge_rules.csv")  # 기간·제목 패턴으로 화면 이슈 합치기(generate_html.load_issue_merge_rules)
 NEWS_MANUAL_ANALYSIS = _p("config", "news_manual_analysis.csv")  # 분석 실패 기사 수동 판정(collect_news.load_manual_analysis)
 PERSONNEL = _p("config", "personnel.csv")
 
