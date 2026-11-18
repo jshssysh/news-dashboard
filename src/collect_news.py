@@ -1441,6 +1441,12 @@ ISSUE_AUTO_MERGE_SKIP_WAITED = 300    # 이번 실행에서 503으로 이만큼(
 ISSUE_AUTO_MERGE_APPLY_DAYS = 7       # 합친 이름으로 바꾸는 기존 기사 범위(수집일 기준)
 ISSUE_AUTO_MERGE_LOG_PATH = paths.ISSUE_AUTO_MERGES
 ISSUE_AUTO_MERGE_LOG_DAYS = 30
+# 판정 캐시: 같은 판정 기준(아래 버전)으로 최근 며칠 안에 "다른 사건"이라 답한 쌍은, 양쪽 기사 수가
+# 크게 늘지 않았으면 다시 묻지 않는다(11/17~18 실행 4번에서 89번 물은 '다른 사건' 중 고유 쌍은 42개였다).
+# 비워 둔 자리는 다음으로 비슷한 쌍이 채운다. 판정 프롬프트를 바꾸면 버전을 올려 옛 판정을 버린다.
+ISSUE_AUTO_MERGE_JUDGE_VERSION = "2026-11-18 사건기준"
+ISSUE_AUTO_MERGE_RECHECK_DAYS = 3
+ISSUE_AUTO_MERGE_RECHECK_GROWTH = (5, 0.5)   # 한쪽이라도 max(5건, 50%) 넘게 늘면 다시 묻는다
 ISSUE_MERGES = {}  # 이번 실행에 합친 {없앤 이슈: 남긴 이슈} - save_and_merge_data가 기존 행에도 반영
 
 
@@ -1486,6 +1492,39 @@ JSON 배열로만 답할 것: [{{"id": 1, "same": true}}]
         return set()
 
 
+def _load_rejected_pairs():
+    """{(이슈1, 이슈2) 정렬: {이슈: 그때 기사 수}} - 같은 판정 기준으로 최근에 '다른 사건'이라 답한 쌍."""
+    if not os.path.exists(ISSUE_AUTO_MERGE_LOG_PATH):
+        return {}
+    try:
+        d = pd.read_csv(ISSUE_AUTO_MERGE_LOG_PATH, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception as e:
+        print(f"[이슈 자동 합치기 - 판정 기록 읽기 예외, 캐시 없이 진행] {e}")
+        return {}
+    if "판정기준" not in d.columns:
+        return {}
+    cutoff = (datetime.now(KST) - timedelta(days=ISSUE_AUTO_MERGE_RECHECK_DAYS)).strftime("%Y-%m-%d %H:%M")
+    d = d[(d["판정기준"] == ISSUE_AUTO_MERGE_JUDGE_VERSION) & (d["Gemini 판정"] == "다른 사건")
+          & (d["실행일시"] >= cutoff)].sort_values("실행일시")
+    out = {}
+    for _, r in d.iterrows():  # 뒤(최근) 판정이 앞을 덮는다
+        try:
+            na, nb = int(float(r["A기사수"] or 0)), int(float(r["B기사수"] or 0))
+        except ValueError:
+            continue
+        out[tuple(sorted((r["이슈A"], r["이슈B"])))] = {r["이슈A"]: na, r["이슈B"]: nb}
+    return out
+
+
+def _grew_since(prev, a, b, counts):
+    add, ratio = ISSUE_AUTO_MERGE_RECHECK_GROWTH
+    for x in (a, b):
+        before, now = prev.get(x, 0), counts.get(x, 0)
+        if now - before > max(add, before * ratio):
+            return True
+    return False
+
+
 def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
     """같은 사건으로 확인된 이슈 쌍을 합칠 계획 {없앨 이슈: 남길 이슈}과 기록 행을 돌려준다.
     protected: 사람이 정정(config/news_overrides.csv)에 쓴 이슈 이름. 정정은 실행마다 다시 적용되므로
@@ -1501,7 +1540,8 @@ def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
     sim = C @ C.T
     iu = np.triu_indices(len(names), 1)
     order = np.argsort(-sim[iu])
-    pairs, seen = [], set()
+    rejected = _load_rejected_pairs()
+    pairs, seen, reused = [], set(), 0
     for k in order:
         i, j = int(iu[0][k]), int(iu[1][k])
         s = float(sim[i, j])
@@ -1512,10 +1552,16 @@ def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
             continue
         if not titles_by_issue.get(a) or not titles_by_issue.get(b):
             continue
+        prev = rejected.get(tuple(sorted((a, b))))
+        if prev is not None and not _grew_since(prev, a, b, counts):
+            reused += 1
+            continue
         seen.add((a, b))
         pairs.append({"id": len(pairs) + 1, "a": a, "b": b, "sim": round(s, 3),
                       "a_titles": titles_by_issue[a][:ISSUE_AUTO_MERGE_TITLES],
                       "b_titles": titles_by_issue[b][:ISSUE_AUTO_MERGE_TITLES]})
+    if reused:
+        print(f"[이슈 자동 합치기] 최근 '다른 사건' 판정 재사용 {reused}쌍(다시 안 물음), 새로 물을 쌍 {len(pairs)}개")
     if not pairs:
         return {}, []
     same = set()
@@ -1547,7 +1593,7 @@ def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
                 merged = f"합침 → {keep}"
         log.append((now, p["a"], p["b"], p["sim"], counts.get(p["a"], 0), counts.get(p["b"], 0),
                     "같은 사건" if verdict else "다른 사건", merged,
-                    " / ".join(p["a_titles"][:2]), " / ".join(p["b_titles"][:2])))
+                    " / ".join(p["a_titles"][:2]), " / ".join(p["b_titles"][:2]), ISSUE_AUTO_MERGE_JUDGE_VERSION))
     plan = {x: find(x) for x in parent}
     return plan, log
 
@@ -1555,7 +1601,7 @@ def plan_issue_merges(names, cents, titles_by_issue, counts, protected):
 def _save_issue_auto_merge_log(log):
     try:
         new = pd.DataFrame(log, columns=["실행일시", "이슈A", "이슈B", "중심 유사도", "A기사수", "B기사수",
-                                         "Gemini 판정", "결과", "A제목 예시", "B제목 예시"])
+                                         "Gemini 판정", "결과", "A제목 예시", "B제목 예시", "판정기준"])
         if os.path.exists(ISSUE_AUTO_MERGE_LOG_PATH):
             new = pd.concat([pd.read_csv(ISSUE_AUTO_MERGE_LOG_PATH, encoding="utf-8-sig"), new], ignore_index=True)
         cutoff = (datetime.now(KST) - timedelta(days=ISSUE_AUTO_MERGE_LOG_DAYS)).strftime("%Y-%m-%d")
