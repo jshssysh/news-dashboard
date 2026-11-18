@@ -63,7 +63,7 @@ button:active { transform: translateY(1px); }
 .db-left { flex: 0.8 1 0; display: flex; }
 .db-right { flex: 2.2 1 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
 .db-tabs-row { display: flex; gap: 4px; }
-.db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 4px; font-size: 0.64em; white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15; border: 1px solid var(--app-border); border-radius: 10px; min-height: 32px; }
+.db-tabs-row button { flex: 1 1 0; min-width: 0; padding: 2px 4px; font-size: 0.72em; white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15; border: 1px solid var(--app-border); border-radius: 10px; min-height: 32px; }
 .db-tabs-row button:hover:not(.active) { border-color: var(--app-border-strong); background: rgba(128,128,128,0.08); }
 .db-tabs-row button.active { background: var(--app-primary); color: #fff; border-color: var(--app-primary); box-shadow: 0 2px 8px var(--primary-glow); }
 .db-date-row { display: flex; gap: 4px; align-items: center; }
@@ -203,7 +203,8 @@ a.badge-skipped:hover { text-decoration: underline; }
   .news-filter-row h5 .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
   .news-filter-row h5 .current-tag { display: inline; }
 }
-.era-tag { font-size: 0.68em; font-weight: 600; opacity: 0.55; margin-left: 4px; }
+/* 기간 표시·도움말·경고 표시가 8~9px까지 작아져 읽기 어려웠다(2026-11-18) - 부모 글씨에 비례하되 11px 밑으로는 안 내려가게 한다. */
+.era-tag { font-size: max(0.68em, 11px); font-weight: 600; opacity: 0.6; margin-left: 4px; }
 /* 스크롤하다가 이 블록이 화면 위쪽에 붙는(sticky) 순간, 그 안에 있는 페이지네이션
    버튼을 누르면 크로미움이 스크롤 리플로우와 클릭에 의한 내용 교체를 같은
    프레임에 겹쳐 처리하면서 버튼이 위아래로 잠깐 흔들리는 것처럼 보이는 현상이
@@ -212,6 +213,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .bill-filter-sticky { position: sticky; top: 0; z-index: 3; background: var(--app-bg); padding-top: 2px; will-change: transform; }
 .news-filter-row select, #billStageSelect, #billPeriodSelect { width: 100px; flex: 0 0 auto; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 7px; padding: 7px 6px; font-size: 0.85em; transition: border-color .15s var(--ease); }
 .news-filter-row select.sel-sentiment { width: 110px; }
+/* 시간 칸은 "-24시(전일 9시)"처럼 글자가 길어 100px이면 "-24시(전일"에서 잘렸다 */
+.news-filter-row #hoursBackSelect { width: auto; min-width: 100px; max-width: 150px; }
 .news-filter-row select:hover, .news-filter-row input[type=text]:hover,
 #billStageSelect:hover, #billPeriodSelect:hover { border-color: var(--app-border-strong); }
 .news-filter-row select:focus, .news-filter-row input[type=text]:focus,
@@ -250,7 +253,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 /* "담기 미리보기"(뉴스 탭 사이드바 + 입법 탭) - 제목 줄에 접기 캐럿과
    "내보내기"를 같이 두고, 목록은 항목마다 제목 + 오른쪽 끝 ✕ (2026-09-14 -
    따로 있던 "장바구니" 탭을 없애고 이 미리보기들로 통합). */
-.cart-preview-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.cart-preview-panel .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; margin-bottom: 12px; flex-wrap: wrap; }
+/* 칸이 좁으면 제목이 "담기 미리보 / 기"로 꺾였다 - 제목은 한 줄로 두고 버튼이 다음 줄로 내려가게 한다 */
+.cart-preview-panel .cart-preview-toggle { white-space: nowrap; }
 .cart-preview-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0 !important; }
 .cart-preview-toggle .toggle-caret { display: inline; opacity: 0.5; font-size: 0.7em; transition: transform .15s var(--ease); }
 .cart-preview-panel.collapsed .toggle-caret { transform: rotate(-90deg); }
@@ -277,7 +282,7 @@ a.badge-skipped:hover { text-decoration: underline; }
 /* 기준 도움말 "?" - 마우스를 대면 기준이 뜨고(title), 누르면 옆에 작은 상자로 띄운다(휴대폰은
    마우스가 없어서). 문구는 스크립트의 HELP_TEXT에 모아 둔다. */
 .help-tip { display: inline-flex; align-items: center; justify-content: center; width: 1.25em; height: 1.25em; margin-left: 5px;
-  border-radius: 50%; border: 1px solid currentColor; font-size: 0.72em; font-weight: 700; font-style: normal; opacity: 0.55;
+  border-radius: 50%; border: 1px solid currentColor; font-size: max(0.72em, 11px); font-weight: 700; font-style: normal; opacity: 0.55;
   cursor: help; vertical-align: 1px; line-height: 1; flex-shrink: 0; }
 .help-tip:hover, .help-tip.open { opacity: 0.95; }
 .badge-fail[data-help-key], .importance-tag[data-help-key] { cursor: help; }
@@ -467,6 +472,21 @@ a.badge-skipped:hover { text-decoration: underline; }
   #catChipRow button { flex-shrink: 0; white-space: nowrap; }
 }
 #catChipRow button { padding: 5px 10px; font-size: 0.8em; }
+/* 스크롤해서 검색 영역이 화면 위에 붙으면(is-stuck, 아래 스크립트) 분야 칩을 한 줄 가로 밀기로 바꾸고
+   여백을 줄인다. 위에 붙은 영역이 세로로 140px 넘게 차지해 좁은 창에서 기사 볼 칸이 줄었다(2026-11-18).
+   모바일은 원래 고정하지 않아 해당 없음. */
+@media (min-width: 801px) {
+  #newsFilterSticky.is-stuck .news-filter-row { margin-bottom: 8px; }
+  /* 스크롤바는 다크 화면에서 흰 막대로 튀어 숨기고, 오른쪽 끝을 흐리게 해 옆으로 더 있다는 걸 보인다 */
+  #newsFilterSticky.is-stuck #catChipRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 0;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+  #newsFilterSticky.is-stuck #catChipRow::-webkit-scrollbar { display: none; }
+  #newsFilterSticky.is-stuck #catChipRow button { flex-shrink: 0; padding: 4px 9px; }
+  #newsFilterSticky.is-stuck hr.thin { margin: 6px 0; }
+  #newsFilterSticky.is-stuck .result-caption { margin-bottom: 6px; }
+  #newsFilterSticky.is-stuck .pagination-row { margin-bottom: 4px; }
+}
 
 .bill-result-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .bill-result-row .result-caption { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
@@ -533,9 +553,9 @@ a.badge-skipped:hover { text-decoration: underline; }
 .sidebar-panel .panel-title .current-tag { display: inline; }
 /* 클러스터링이 비정상으로 커져서 그 이슈의 오늘 기사를 저장하지 않고 건너뛴 카테고리 표시.
    마우스를 올리면(title) 어떤 이슈에 몇 건이 몰렸는지 짧게 보인다. */
-.cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
+.cat-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: max(0.78em, 11px); cursor: help; vertical-align: middle; }
 /* 법안 제안자 옆 - 22대 안에서도 동명이인이라 정당/지역구를 못 정한 경우(cat-warn과 같은 스타일) */
-.proposer-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: 0.78em; cursor: help; vertical-align: middle; }
+.proposer-warn { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; margin-left: 3px; border-radius: 50%; background: #e0a500; color: #1a1a1a; font-weight: 800; font-size: max(0.78em, 11px); cursor: help; vertical-align: middle; }
 
 .pagination-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 10px; flex-wrap: nowrap; }
 .pg-top select { flex-shrink: 0; background: var(--app-secondary-bg); color: var(--app-text); border: 1px solid var(--app-border); border-radius: 6px; padding: 4px 3px; font-size: 0.78em; }
@@ -729,6 +749,11 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
 .view { display: none; }
 .view.active { display: block; }
 
+/* ── 중간 폭(801~1100px, 노트북 화면 반 나누기 등) ── 탭 칸이 좁아 '심·판결'이 '심·판'으로 잘렸다.
+   로고(Daily Brief)를 숨겨 그 자리를 탭에 준다(2026-11-18). */
+@media (max-width: 1100px) {
+  .db-left { display: none; }
+}
 /* ── 모바일(<=800px) ── 기본 규칙보다 뒤에 있어야 덮어쓸 수 있어 스타일시트 끝에 둔다 ── */
 @media (max-width: 800px) {
   .layout { flex-direction: column; }
@@ -743,7 +768,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   .tile-collect, .tile-law { flex: 1 1 0; min-width: 0; }
   .db-left { display: none; }              /* 로고는 좁은 화면에서 공간만 차지 */
   .db-tile { padding: 10px 12px; }
-  .db-tabs-row button { font-size: 0.68em; padding: 2px 3px; min-height: 34px; }
+  .db-tabs-row button { font-size: 0.78em; padding: 2px 3px; min-height: 34px; }
   .db-date-row button, .date-pill { font-size: 0.78em; padding: 3px 10px; }
   .stat-card { padding: 10px 12px; }
   .stat-card .value { font-size: 1.35em; white-space: nowrap; }
@@ -760,6 +785,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   /* 모바일은 세로가 짧아서 필터를 고정하면 기사 카드 첫 장을 통째로 덮어버린다
      (실제로 그렇게 보였음). 좁은 화면에서는 고정하지 않고 같이 스크롤되게 둔다. */
   .bill-filter-sticky { position: static; }
+  /* 담은 항목이 없으면 담기 미리보기를 숨긴다 - 모바일에선 기사 목록 위에 있어 빈 상자가 목록을 밀어냈다 */
+  .cart-preview-panel.is-empty { display: none; }
 
   /* 칩/카드 여백을 한 번 더 줄여 한 화면에 더 담는다 */
   #catChipRow button, #billCommitteeChipRow button { padding: 4px 9px; font-size: 0.76em; }
@@ -1013,6 +1040,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
       <div id="signalItems"></div>
     </div>
 
+    <div id="newsFilterStickySentinel" aria-hidden="true"></div>
     <div class="bill-filter-sticky" id="newsFilterSticky">
       <div class="news-filter-row">
         <!-- 모바일에서 이 제목이 접기 버튼이 된다(데스크톱에서는 그냥 제목) -->
@@ -1514,6 +1542,8 @@ function renderCartPreview() {
         <button type="button" class="cart-remove-btn" data-id="${it.id.replace(/"/g,'&quot;')}" title="삭제">✕</button>
       </div>`).join('')
     : "<div class='cart-empty-note'>담은 항목이 없습니다.</div>";
+  // 비어 있으면 표시 - 모바일에서는 목록 위로 올라와 있어 빈 상자가 기사를 아래로 밀었다(CSS .is-empty)
+  document.querySelectorAll('.cart-preview-panel').forEach(p => p.classList.toggle('is-empty', !cart.length));
   lists.forEach(listEl => {
     listEl.innerHTML = html;
     listEl.querySelectorAll('.cart-remove-btn').forEach(btn => {
@@ -5405,6 +5435,17 @@ if (NARROW_MQ) {
   apply();
   try { if (window.ResizeObserver) new ResizeObserver(apply).observe(el); } catch(e) {}
   window.addEventListener('resize', apply);
+})();
+
+// 검색 영역이 화면 위에 붙었는지(is-stuck) - 바로 앞의 빈 표시 요소가 화면 위로 사라지면 붙은 것이다.
+// 영역 자체 높이를 보면 줄어든 높이 때문에 붙음/떨어짐이 번갈아 바뀌어 화면이 떨 수 있어 앞 요소로 판단한다.
+(function watchFilterStuck() {
+  const sentinel = document.getElementById('newsFilterStickySentinel');
+  const el = document.getElementById('newsFilterSticky');
+  if (!sentinel || !el || !window.IntersectionObserver) return;
+  new IntersectionObserver(([e]) => {
+    el.classList.toggle('is-stuck', !e.isIntersecting && e.boundingClientRect.top < 0);
+  }).observe(sentinel);
 })();
 
 // ── 데이터 로딩 ──────────────────────────────────────────────────────────
