@@ -1,9 +1,3 @@
 name = "news-dashboard-contract-checker"
 main = "src/index.js"
 compatibility_date = "2026-09-14"
-
-# Cloudflare Workers AI - Gemini 대신 이걸 쓴다(별도 API 키/Secret 불필요,
-# Cloudflare 계정에 딸린 서비스라 이 binding만 있으면 바로 쓸 수 있다).
-# src/index.js 상단 주석에 Gemini에서 갈아탄 이유가 적혀 있다.
-[ai]
-binding = "AI"
