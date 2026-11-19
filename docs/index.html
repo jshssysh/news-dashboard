@@ -228,19 +228,6 @@ a.badge-skipped:hover { text-decoration: underline; }
 .custom-range-inputs input[type=date]:hover { border-color: var(--app-border-strong); }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
-/* 법령 탭 하단 "계약서 문구 검토(AI)" - Cloudflare Worker(worker/)를 통해
-   Gemini로 저촉 소지 조문을 판단한다(2026-09-14). */
-#contractCheckerBox { padding-top: 6px; }
-#contractClauseInput { width: 100%; box-sizing: border-box; background: var(--app-secondary-bg); color: var(--app-text);
-  border: 1px solid var(--app-border); border-radius: 8px; padding: 10px 12px; font-size: 0.9em;
-  font-family: inherit; resize: vertical; margin: 8px 0; }
-#contractClauseInput:focus { outline: none; border-color: var(--app-primary); }
-.contract-check-btn { background: var(--app-primary); color: #fff; border: none; border-radius: 7px;
-  padding: 8px 18px; font-size: 0.88em; font-weight: 700; cursor: pointer; }
-.contract-check-btn:hover { opacity: 0.9; }
-#contractCheckResult { margin-top: 12px; }
-#contractCheckResult .article-card { margin-bottom: 8px; }
-
 /* 장바구니 - 뉴스/입법 항목마다 붙는 "담기" 버튼으로 하나씩 바로 담고 빼서,
    모아둔 걸 분야별 보고서 표로 보여준다(2026-09-14, 화면에서 보고 캡처/복사해
    쓰는 용도 - 체크박스+일괄 담기 대신 항목별 즉시 토글 버튼으로 바꿨다). */
@@ -1382,13 +1369,6 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     </div>
     <div id="penaltyListArea"></div>
 
-    <hr class="thin">
-    <div class="bill-filter-sticky" id="contractCheckerBox">
-      <h5>계약서 문구 검토 (AI)</h5>
-      <textarea id="contractClauseInput" rows="5" placeholder="검토할 계약서 문구를 붙여넣으세요 (최대 8000자)"></textarea>
-      <button type="button" id="contractCheckBtn" class="contract-check-btn">검토</button>
-      <div id="contractCheckResult"></div>
-    </div>
   </div>
 
 
@@ -1397,7 +1377,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-19 07:58 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-19 09:59 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -2933,9 +2913,8 @@ function renderNewsView(dr, allGroups) {
   const renderSignalItems = () => {
     const signalRows = scoped
       .filter(r => r.sentiment !== '판단 실패')
-      .filter(r => state.selectedCategory === '전체' || r.category === state.selectedCategory)
       .filter(r => !state.search || matchesSearchTokens([r.title, r.summary, r.issue, (r.companies || []).join(' ')], state.search));
-    const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상');
+    const signalGroups = buildIssueGroups(signalRows).filter(g => g.mainPress !== '미상').filter(groupInSelectedCategory);
     const top3 = (state.selectedCategory === '전체' ? rankWithinCategory(signalGroups) : signalGroups).slice(0,3);
     document.getElementById('signalItems').innerHTML = top3.length ? top3.map((g,i) => {
       const reasons = selectionReasons(g);
@@ -3022,10 +3001,16 @@ function renderNewsView(dr, allGroups) {
   renderMainList(scoped, allGroups);
 }
 
+// 분야 칩은 기사가 아니라 이슈(카드) 단위로 거른다. 기사마다 분야가 달라(대기업집단 계열사 변동:
+// 공정거래 29·지배구조 4) 기사 단위로 거르면 한 이슈가 분야마다 따로 카드가 됐다(2026-11-19).
+// 카드 분야는 대표 기사 분야라 칩 건수(catCounts)와도 맞는다.
+function groupInSelectedCategory(g) {
+  return state.selectedCategory === '전체' || g.category === state.selectedCategory;
+}
+
 function renderMainList(scoped, allGroups) {
-  let filtered = state.selectedCategory === '전체' ? scoped : scoped.filter(r => r.category === state.selectedCategory);
-  filtered = filtered.filter(newsMatchesGlobalFilters);
-  let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상');
+  const filtered = scoped.filter(newsMatchesGlobalFilters);
+  let groups = buildIssueGroups(filtered).filter(g => g.mainPress !== '미상').filter(groupInSelectedCategory);
   if (state.sort === 'latest') {
     groups.sort((a,b) => new Date(b.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime() - new Date(a.rows.reduce((m,r)=> (r.ts && r.ts>m)?r.ts:m, "")).getTime());
   } else if (state.sort === 'press') {
@@ -5017,47 +5002,8 @@ function ensureNotices() {
   return noticesPromise;
 }
 
-// ── 계약서 문구 검토 (Cloudflare Worker + Gemini, worker/ 참고) ──────────
-// GitHub Pages는 정적 사이트라 이 호출만은 별도로 배포한 Worker가 대신
-// 받는다. 배포 후 실제 워커 주소로 아래 값을 바꾼다.
+// 보조 Worker(worker/) 주소 - 담기 항목의 원문 제목을 대신 가져오는 /titles에 쓴다.
 const CONTRACT_CHECKER_URL = 'https://news-dashboard-contract-checker.jshssysh.workers.dev';
-
-function contractRiskCardHtml(m) {
-  return `<div class="article-card">
-    <div class="card-head">
-      <span class="card-tags"><span class="chip-category">${m.law || ''}</span><span class="chip-alert">위험도 ${m.risk || '?'}</span></span>
-      <span class="article-title">${m.article || ''}</span>
-    </div>
-    <div class="summary-box-blue">${m.reason || ''}</div>
-  </div>`;
-}
-
-document.getElementById('contractCheckBtn').addEventListener('click', async () => {
-  const text = document.getElementById('contractClauseInput').value.trim();
-  const resultEl = document.getElementById('contractCheckResult');
-  if (!text) {
-    resultEl.innerHTML = "<div class='info-box'>검토할 문구를 입력해주세요.</div>";
-    return;
-  }
-  resultEl.innerHTML = "<div class='info-box'>검토 중…</div>";
-  try {
-    const res = await fetch(CONTRACT_CHECKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      resultEl.innerHTML = `<div class='info-box'>${data.error}</div>`;
-      return;
-    }
-    resultEl.innerHTML = (data.matches && data.matches.length)
-      ? data.matches.map(contractRiskCardHtml).join('')
-      : "<div class='info-box'>저촉 소지가 있는 조문을 찾지 못했습니다.</div>";
-  } catch (e) {
-    resultEl.innerHTML = "<div class='info-box'>검토 요청에 실패했습니다. 잠시 후 다시 시도해주세요.</div>";
-  }
-});
 
 function renderAll() {
   renderTabsAndDate();
