@@ -160,12 +160,22 @@ NAVER_PRESS_CODES = {
 # (사용자가 정리한 감시 분류표 기준 - config/keywords.yaml 상단 주석 참고)
 CATEGORY_LIST = [
     "공정거래", "내부거래", "지배구조", "상생", "하도급", "상법",
-    "시민단체", "노동", "ESG", "기타", "인사",
-    "삼성그룹", "삼성물산", "공정위인사",
+    "시민단체", "노동", "ESG", "기타", "인사", "공정위인사",
 ]
 
-# "인사" 카테고리에서만 인사 발령/부고를 다루는 8개 기관(삼성 제외 - 삼성 인사는
-# 삼성그룹 카테고리로 별도 추적됨). Gemini 분류 프롬프트에서 relevance_score 게이트를
+# 예전 특정 기업 전용 분류(2026-11-19 삭제). 누적 CSV에 남은 이 분류 기사는 다음 수집 때 지운다.
+# 그 기업 기사도 위 일반 분류에 해당하면 다른 기업 기사처럼 그 분류로 수집된다.
+# "그룹동향"·"삼성/이슈"는 이 분류의 옛 이름이다.
+REMOVED_CATEGORIES = {"삼성그룹", "삼성물산", "그룹동향", "삼성/이슈"}
+
+
+def drop_removed_categories(df, col):
+    """REMOVED_CATEGORIES로 분류된 행을 뺀다(열이 없으면 그대로)."""
+    if col not in df.columns:
+        return df
+    return df[~df[col].isin(REMOVED_CATEGORIES)]
+
+# "인사" 카테고리에서만 인사 발령/부고를 다루는 8개 기관. Gemini 분류 프롬프트에서 relevance_score 게이트를
 # 우회시킬 대상을 명시하는 데 쓴다.
 PERSONNEL_NEWS_ORGS = [
     "공정거래위원회", "국토교통부", "환경부", "고용노동부", "중소벤처기업부",
@@ -309,14 +319,6 @@ def cluster_similar_titles(norm_titles_by_category, threshold=TITLE_SIMILARITY_T
                 leader = nt
             mapping[nt] = leader
     return mapping
-
-def verify_and_adjust_category(category, title, description):
-    text_content = (title + " " + description).replace(" ", "")
-    if "삼성물산" in text_content: return "삼성물산"
-    if category == "삼성그룹":
-        if any(kw in text_content for kw in ["삼성", "웰스토리", "삼우종합건축", "레이크사이드"]): return "삼성그룹"
-        else: return "공정거래"
-    return category
 
 PERSONNEL_PATH = paths.PERSONNEL
 
@@ -492,8 +494,6 @@ SCORING_RULES = """2. relevance_score: 공정거래·기업지배구조 감시 �
    6점과 5점 사이에서 애매하면, 기사 주제가 공정거래·지배구조·상생과 직접 관련되면 6점,
    위 5점 이하 유형에 가까우면 5점으로 줄 것. 4점 이하는 저장조차 되지 않으므로, 관련
    가능성이 조금이라도 있는 기사는 4점 이하가 아니라 5점으로 줄 것.
-   단, category가 삼성그룹/삼성물산인 기사는 내부 추적용이라 이 홍보성 규칙을 적용하지
-   말고 그 기업 동향으로서의 중요도로 평가할 것.
 """
 
 
@@ -539,7 +539,7 @@ def analyze_batch_with_gemini(batch_items):
    후보: {", ".join(CATEGORY_LIST)}
    original_category는 검색 키워드로 임시 배정된 힌트일 뿐이므로, 실제 기사 내용과 맞지 않으면 반드시 올바른 값으로 교정할 것.
    "인사"는 다음 8개 기관({", ".join(PERSONNEL_NEWS_ORGS)})의 임원급 이상 인사 발령 또는
-   부고(별세) 안내 기사에만 쓸 것 - 삼성 관련 인사·부고는 "인사"가 아니라 삼성그룹/삼성물산으로 분류.
+   부고(별세) 안내 기사에만 쓸 것.
 7. category가 "인사"로 판정된 기사는 위 2~5번 규칙 대신 다음을 그대로 따를 것(인사 동정은
    업황과 무관해 위 규칙으로 평가할 대상이 아님):
    - relevance_score: 항상 5 (대시보드에 노출은 되지만, 각종 "중요도순" 정렬·"오늘 주요
@@ -739,6 +739,7 @@ def save_rejected_news(rejected):
         new_df = pd.DataFrame(rejected, columns=["수집일자", "분야", "제목", "설명", "관련도", "기사링크", "발행일시"])
         if os.path.exists(REJECTED_NEWS_PATH):
             new_df = pd.concat([pd.read_csv(REJECTED_NEWS_PATH, encoding="utf-8-sig"), new_df], ignore_index=True)
+        new_df = drop_removed_categories(new_df, "분야")
         new_df = new_df.drop_duplicates(subset=["기사링크"], keep="last")
         cutoff = (datetime.now(KST) - timedelta(days=REJECTED_NEWS_RETENTION_DAYS)).strftime("%Y-%m-%d")
         new_df = new_df[new_df["수집일자"].astype(str) >= cutoff]
@@ -2158,7 +2159,7 @@ def save_cluster_warnings(warnings, today_str):
     new_wdf = pd.DataFrame(rows, columns=["날짜", "카테고리", "이슈명", "건수", "사유"])
     if os.path.exists(CLUSTER_WARNINGS_PATH) and os.path.getsize(CLUSTER_WARNINGS_PATH) > 0:
         try:
-            old_wdf = pd.read_csv(CLUSTER_WARNINGS_PATH)
+            old_wdf = drop_removed_categories(pd.read_csv(CLUSTER_WARNINGS_PATH), "카테고리")
             combined = pd.concat([old_wdf, new_wdf], ignore_index=True)
         except Exception:
             combined = new_wdf
@@ -2192,7 +2193,7 @@ def save_and_merge_data(new_rows, file_name=paths.NEWS_LIST, embedded_links=None
     if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
         try:
             old_df = pd.read_csv(file_name)
-            old_df["분야"] = old_df["분야"].replace({"그룹동향": "삼성그룹", "삼성/이슈": "삼성그룹"})
+            old_df = drop_removed_categories(old_df, "분야")
             if "중요도" not in old_df.columns:
                 old_df["중요도"] = 5  # 구버전 데이터: 중요도 정보 없음 → 중간값으로 채움
             if "발행일시" not in old_df.columns:
@@ -2413,7 +2414,7 @@ def main():
                 pub_date = ""
 
             article_data = {
-                "idx": idx, "category": verify_and_adjust_category(category, title, desc),
+                "idx": idx, "category": category,
                 "title": title, "norm_t": norm_t, "description": desc, "link": link,
                 "known_press": extract_press_from_link(link), "today_str": today_str,
                 "pub_date": pub_date

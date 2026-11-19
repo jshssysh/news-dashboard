@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "src"))  # 코드 폴더
 import collect_news as main  # noqa: E402  뉴스 수집기
 from scoring_variants import VARIANTS  # noqa: E402
 
-HIDDEN = {"삼성그룹", "삼성물산", "공정위인사"}
+HIDDEN = {"삼성그룹", "삼성물산", "공정위인사"}  # 삼성그룹·삼성물산: 옛 정답 라벨에 남은 지운 분류
 SHOW_MIN = 6  # generate_html.DISPLAY_MIN_ISSUE_SCORE와 같은 기준(여기선 기사 단위)
 GROUP_THRESHOLDS = [0.70, 0.75, 0.80, 0.85, 0.88, 0.90, 0.92, 0.95]
 RESULTS_DIR = os.path.join(HERE, "results")

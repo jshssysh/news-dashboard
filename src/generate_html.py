@@ -31,7 +31,9 @@ KST = timezone(timedelta(hours=9))
 # 중요 키워드 반복/과징금 금액 추출은 화면(html_template.html)에서 자바스크립트로
 # 처리하므로 여기선 쓰지 않는다. 예전에 파이썬 쪽에도 같은 로직이 있었지만 호출되지
 # 않는 죽은 코드였어서 제거함.
-HIDDEN_CATEGORIES = ["삼성그룹", "삼성물산", "공정위인사"]
+# 삼성그룹·삼성물산은 2026-11-19에 지운 분류. 다음 뉴스 수집이 누적 CSV에서 지우기 전에
+# 화면만 다시 만들어도 칩으로 나오지 않게 여기서도 뺀다(정리된 뒤 지워도 됨).
+HIDDEN_CATEGORIES = ["공정위인사", "삼성그룹", "삼성물산"]
 
 # 이슈 안 기사들의 최고 관련도가 이 점수 미만이면 화면에 안 보인다(데이터는 그대로 저장).
 # 정답 데이터(eval/labels_20261014.csv, 200건) 기준: 5점 기준은 화면 기사의 51%가 무관
@@ -101,8 +103,8 @@ PROMO_ONE_COMPANY = re.compile(r"^\s*[^,…\[\]'\"‘“]{1,20},")
 
 
 def promo_cap(title, category):
-    """홍보성 기사면 화면 점수 상한, 아니면 None. 삼성그룹·삼성물산은 내부 추적용이라 빼고, 인사도 뺀다."""
-    if category in ("삼성그룹", "삼성물산", "인사"):
+    """홍보성 기사면 화면 점수 상한, 아니면 None. 인사는 뺀다."""
+    if category == "인사":
         return None
     t = str(title or "")
     if PROMO_KEEP.search(t) or (PROMO_COUNT.search(t) and not PROMO_ONE_COMPANY.match(t)):
