@@ -1,26 +1,12 @@
 """
 법제처 국가법령정보 Open API에서 공정위 소관 법령(org=1130000) 전체 + 상법의
 "벌칙/과징금/과태료/양벌규정" 조문과, 그 산정기준을 정하는 별표(시행령 별표 중
-과징금·벌점 관련)를 뽑아 law_penalty_list.csv로 저장한다. 아울러 계약서 문구
-검토(Cloudflare Worker) 기능이 참고할, 하도급·유통·가맹·대리점·약관·상법
-계열 법령의 조문 전체(벌칙류로 안 좁힌 것)를 contract_law_corpus.csv로도
-저장한다.
+과징금·벌점 관련)를 뽑아 law_penalty_list.csv로 저장한다.
 
-사용자가 감시하는 법령의 "지금 형량/과징금이 얼마인지"를 한눈에 보려는 목적이라,
+화면에서 보여 주는 법령의 "지금 형량/과징금이 얼마인지"를 한눈에 보려는 목적이라,
 전체 조문을 다 가져오는 대신 조문제목이 벌칙류 키워드를 담고 있는 조문만 골라낸다
 (법령 초안 관례상 벌칙 조항은 거의 항상 "벌칙"/"과징금"/"과태료"/"양벌규정"으로
 조문제목이 붙는다 - 실제로 하도급법 제29조~제31조로 확인함).
-
-다만 "계약서 문구가 어느 조문에 저촉되는지" 판단하려면 벌칙 조문만으론
-부족하다(실측 2026-09-14: "추가금액을 협력사가 전액 부담" 문구가 명백히
-하도급법의 부당특약 금지에 걸리는데도, 벌칙류로 좁힌 목록에는 "부당한 특약의
-금지" 같은 금지·의무 조항 자체가 아예 없어서 AI가 "저촉 조문 없음"으로 오판했다).
-그래서 계약서 검토와 실제로 관련 있는 법령(CONTRACT_RELEVANT_LAW_ABBRS)에
-한해서는 벌칙류 필터 없이 조문 전체를 별도 코퍼스로 함께 수집한다 - 범위를
-이렇게 좁힌 이유는, 공정위 소관 법령 전체(34개)의 모든 조문을 다 넣으면
-코퍼스가 너무 커져 AI 프롬프트에 다 못 넣기 때문(계약서 검토에 실제로
-쓰이는 하도급·유통·가맹·대리점·약관·상법 계열만으로도 대부분의 B2B 계약
-조항을 커버한다).
 
 사용 API (www.law.go.kr/DRF, LAW_GO_KR_OC 필요 - collect_decisions.py와 동일):
 - lawSearch.do?org=1130000: 공정거래위원회 소관 법령 전체(법률/시행령/시행규칙 등)를
@@ -58,39 +44,14 @@ LAW_API_OC = os.environ.get("LAW_GO_KR_OC", "").strip() or "test"
 KST = timezone(timedelta(hours=9))
 
 LAW_PENALTY_LIST_PATH = paths.LAW_PENALTY_LIST
-CONTRACT_LAW_CORPUS_PATH = paths.CONTRACT_LAW_CORPUS
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 
 FTC_ORG_CODE = "1130000"
-# org 코드로 안 잡히는(공정위 소관이 아닌) 법령 중, 사용자가 추가로 감시하고
-# 싶다고 밝힌 법령 - 이름으로 정확히 일치하는 것만 검색해서 추가한다.
+# org 코드로 안 잡히는(공정위 소관이 아닌) 법령 중 함께 보여 줄 법령 - 이름으로 정확히 일치하는 것만 검색해서 추가한다.
 EXTRA_LAW_NAMES = ["상법"]
 
 # 조문제목에 이 단어가 들어있으면 "벌칙류 조문"으로 취급한다.
 PENALTY_TITLE_KEYWORDS = ["벌칙", "과징금", "과태료", "양벌규정"]
-
-# 계약서 문구 검토용 전체 조문 코퍼스에 포함할 법령 - B2B 계약(하도급/유통/
-# 가맹/대리점)과 약관 일반을 커버한다. law["abbr"]와 정확히 일치해야 하므로
-# fetch_ftc_laws()가 실제로 돌려주는 약칭 표기를 그대로 맞춘다.
-# 상법은 뺐다 - 실측(2026-09-14) 결과 상법 조문만 1980건 중 1287건(65%)을
-# 차지하는데, 회사법·보험·해상운송 등 계약서 검토와 무관한 내용이 대부분이라
-# 코퍼스만 부풀리고 AI 프롬프트에 넣을 실효 내용은 오히려 희석시켰다.
-CONTRACT_RELEVANT_LAW_ABBRS = {
-    "하도급법", "하도급법 시행령",
-    "대규모유통업법", "대규모유통업법 시행령",
-    "대리점법", "대리점법 시행령",
-    "가맹사업법", "가맹사업법 시행령",
-    "공정거래법", "공정거래법 시행령",
-    "약관법", "약관법 시행령",
-}
-
-# 계약서 검토 코퍼스에서 제외할, 순전히 행정적/절차적인 조문 제목(내용이
-# "~하여서는 안 된다"류 실체 규정이 아니라 계약 조항과 대조할 의미가 없다).
-ADMIN_TITLE_EXCLUDE_KEYWORDS = [
-    "목적", "정의", "시행일", "다른 법률과의 관계", "권한의 위임", "권한의 재위임",
-    "규제의 재검토", "고유식별정보의 처리", "벌칙 적용에서 공무원 의제",
-    "과태료의 부과기준", "과징금의 부과기준", "수수료",
-]
 
 # 벌칙류 조문 중 실제 처벌 수위를 명시하는 문구를 뽑는다. 금액 표기가
 # "2천만원"/"3억원"/"1억 5천만원"처럼 한글 단위가 섞여 있어 완전한 숫자 정규화는
@@ -204,9 +165,7 @@ def find_referenced_byls(article_text, byl_by_number):
 
 
 def fetch_law_body(mst):
-    """법령 전문을 받아 (벌칙류 조문 목록, 전체 조문 목록, 별표번호->별표텍스트
-    사전)을 돌려준다. 두 조문 목록을 한 번의 API 호출로 같이 만들어서, 계약서
-    검토 코퍼스(전체 조문)까지 필요해도 같은 법령을 두 번 안 받는다."""
+    """법령 전문을 받아 벌칙류 조문 목록을 돌려준다(각 조문에 관련 별표를 붙임)."""
     params = {"OC": LAW_API_OC, "target": "law", "MST": mst, "type": "XML"}
     res = get_law_api_with_retry(f"{LAW_API_BASE}/lawService.do", params)
     root = ET.fromstring(res.content)
@@ -223,7 +182,6 @@ def fetch_law_body(mst):
         byl_by_number[key] = {"제목": title, "본문": text}
 
     penalty_articles = []
-    all_articles = []
     for unit in root.findall(".//조문단위"):
         title = _t(unit, "조문제목")
         num = _t(unit, "조문번호")
@@ -239,9 +197,7 @@ def fetch_law_body(mst):
         }
         if any(kw in title for kw in PENALTY_TITLE_KEYWORDS):
             penalty_articles.append(article)
-        if text and not any(kw in title for kw in ADMIN_TITLE_EXCLUDE_KEYWORDS):
-            all_articles.append(article)
-    return penalty_articles, all_articles
+    return penalty_articles
 
 
 def classify_kind(title):
@@ -255,9 +211,7 @@ def classify_kind(title):
 
 
 def fetch_all_law_bodies(laws):
-    """laws 각각의 (벌칙 조문, 전체 조문)을 한 번씩만 받아 {법령약칭: (...)}
-    캐시로 돌려준다 - build_rows와 build_contract_corpus_rows가 이 캐시를
-    나눠 쓰므로 겹치는 법령(하도급법 등)을 두 번 조회하지 않는다."""
+    """laws 각각의 벌칙 조문을 한 번씩만 받아 {법령약칭: [조문...]}으로 돌려준다."""
     bodies = {}
     for i, law in enumerate(laws):
         if not law["mst"]:
@@ -275,7 +229,7 @@ def fetch_all_law_bodies(laws):
 def build_rows(laws, bodies):
     rows = []
     for law in laws:
-        penalty_articles, _ = bodies.get(law["abbr"], ([], []))
+        penalty_articles = bodies.get(law["abbr"], [])
         for art in penalty_articles:
             imprisonment = extract_matches(IMPRISONMENT_PATTERN, art["본문"])
             fine = extract_matches(FINE_PATTERN, art["본문"])
@@ -297,25 +251,6 @@ def build_rows(laws, bodies):
                 "과징금": surcharge,
                 "산정기준별표": byl_titles,
                 "산정기준상세": byl_text,
-            })
-    return rows
-
-
-def build_contract_corpus_rows(laws, bodies):
-    """계약서 검토용 전체 조문 코퍼스 - CONTRACT_RELEVANT_LAW_ABBRS에 든
-    법령만, 벌칙류로 안 좁히고 조문 전체(행정적 조문 제외)를 담는다."""
-    rows = []
-    for law in laws:
-        if law["abbr"] not in CONTRACT_RELEVANT_LAW_ABBRS:
-            continue
-        _, all_articles = bodies.get(law["abbr"], ([], []))
-        for art in all_articles:
-            rows.append({
-                "법령명": law["name"],
-                "법령약칭": law["abbr"],
-                "조문": art["조문라벨"],
-                "개정일": art["조문시행일자"],
-                "조문내용": art["본문"],
             })
     return rows
 
@@ -360,15 +295,6 @@ def main():
         df.sort_values("개정일", ascending=False, inplace=True)
         df.to_csv(LAW_PENALTY_LIST_PATH, index=False, encoding="utf-8-sig")
         print(f"[법령 벌칙/과징금 수집 완료] {len(rows)}건 ({df['법령명'].nunique()}개 법령) -> {LAW_PENALTY_LIST_PATH}")
-
-    corpus_rows = build_contract_corpus_rows(laws, bodies)
-    if not corpus_rows:
-        print("[경고] 계약서 검토 코퍼스를 하나도 못 만들었습니다 - contract_law_corpus.csv를 덮어쓰지 않습니다.")
-        return
-    corpus_df = pd.DataFrame(corpus_rows)
-    corpus_df.sort_values(["법령약칭", "조문"], inplace=True)
-    corpus_df.to_csv(CONTRACT_LAW_CORPUS_PATH, index=False, encoding="utf-8-sig")
-    print(f"[계약서 검토 코퍼스 수집 완료] {len(corpus_rows)}건 ({corpus_df['법령약칭'].nunique()}개 법령) -> {CONTRACT_LAW_CORPUS_PATH}")
 
 
 if __name__ == "__main__":

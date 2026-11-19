@@ -57,9 +57,6 @@ LAW_TEXTS_JSON_PATH = os.path.join(OUT_DIR, "law_texts.json")
 # 신구조문 대비는 법령마다 수 KB라 목록과 따로 두고, 화면이 처음 펼칠 때만 받는다.
 SUBORDINATE_LAW_DIFFS_JSON_PATH = os.path.join(OUT_DIR, "subordinate_law_diffs.json")
 LEGISLATIVE_NOTICES_JSON_PATH = os.path.join(OUT_DIR, "legislative_notices.json")
-# 화면 어느 탭에도 안 쓰인다 - 계약서 문구 검토 Worker(worker/)가 GitHub Pages에서
-# 이 파일 하나만 fetch해서 AI 프롬프트의 후보 법령 코퍼스로 쓴다.
-CONTRACT_LAW_CORPUS_JSON_PATH = os.path.join(OUT_DIR, "contract_law_corpus.json")
 TEMPLATE_PATH = paths.HTML_TEMPLATE
 
 # 법안 상세링크는 의안ID만 갈아 끼운 같은 주소라, 데이터에 담지 않고 화면에서 만든다.
@@ -522,28 +519,6 @@ def load_legislative_notices():
     ]
 
 
-def load_contract_law_corpus():
-    """collect_law_penalties.py가 만든 contract_law_corpus.csv(하도급·유통·
-    가맹·대리점·약관 계열 법령의 조문 전체, 벌칙류로 안 좁힌 것)를 읽는다.
-    화면 어느 탭에도 안 쓰이고, 계약서 문구 검토 Cloudflare Worker가 이
-    JSON만 fetch해서 AI 프롬프트의 후보 법령으로 쓴다."""
-    path = paths.CONTRACT_LAW_CORPUS
-    if not os.path.exists(path) or os.path.getsize(path) == 0:
-        return []
-    try:
-        cdf = pd.read_csv(path, dtype=str, keep_default_na=False)
-    except Exception:
-        return []
-    return [
-        {
-            "lawAbbr": nz(row.get("법령약칭"), ""),
-            "article": nz(row.get("조문"), ""),
-            "text": nz(row.get("조문내용"), ""),
-        }
-        for _, row in cdf.iterrows()
-    ]
-
-
 def load_bills():
     path = paths.BILL_LIST
     if not os.path.exists(path):
@@ -999,7 +974,6 @@ def build():
     subordinate_law_diffs = {r["mst"]: subordinate_law_diffs[r["mst"]]
                              for r in subordinate_laws if r["mst"] in subordinate_law_diffs}
     effective_matched = attach_effective_dates(bills, subordinate_laws)
-    contract_law_corpus = load_contract_law_corpus()
     law_meta, law_texts = load_law_texts()
 
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
@@ -1032,7 +1006,6 @@ def build():
         f.write(diffs_text)
     subordinate_law_diffs_bytes = len(diffs_text.encode("utf-8"))
     legislative_notices_bytes = dump_json(LEGISLATIVE_NOTICES_JSON_PATH, legislative_notices)
-    contract_corpus_bytes = dump_json(CONTRACT_LAW_CORPUS_JSON_PATH, contract_law_corpus)
     law_meta_text = json.dumps(law_meta, ensure_ascii=False, separators=(",", ":"))
     with open(LAW_META_JSON_PATH, "w", encoding="utf-8") as f:
         f.write(law_meta_text)
@@ -1052,7 +1025,6 @@ def build():
         f"  {SUBORDINATE_LAWS_JSON_PATH:<20} {subordinate_laws_bytes/1024:8.0f}KB (법령 공포·시행 {len(subordinate_laws)}건, 공포 법안 시행일 연결 {effective_matched}건)\n"
         f"  {SUBORDINATE_LAW_DIFFS_JSON_PATH:<20} {subordinate_law_diffs_bytes/1024:8.0f}KB (신구조문 대비 {len(subordinate_law_diffs)}건)\n"
         f"  {LEGISLATIVE_NOTICES_JSON_PATH:<20} {legislative_notices_bytes/1024:8.0f}KB (입법예고 {len(legislative_notices)}건)\n"
-        f"  {CONTRACT_LAW_CORPUS_JSON_PATH:<20} {contract_corpus_bytes/1024:8.0f}KB (계약서 검토 코퍼스 {len(contract_law_corpus)}건)\n"
         f"  {LAW_META_JSON_PATH:<20} {len(law_meta_text.encode('utf-8'))/1024:8.0f}KB (행정규칙 {len(law_meta['rules'])}개)\n"
         f"  {LAW_TEXTS_JSON_PATH:<20} {len(law_texts_text.encode('utf-8'))/1024:8.0f}KB (조문 검색 문서 {len(law_texts)}개)"
     )

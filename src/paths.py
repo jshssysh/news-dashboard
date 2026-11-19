@@ -57,7 +57,6 @@ DECISION_LIST = _p("data", "decisions", "decision_list.csv")
 
 # 법령 (collect_law_*.py, collect_subordinate_laws.py, collect_legislative_notices.py)
 LAW_PENALTY_LIST = _p("data", "law", "law_penalty_list.csv")
-CONTRACT_LAW_CORPUS = _p("data", "law", "contract_law_corpus.csv")
 SUBORDINATE_LAW_LIST = _p("data", "law", "subordinate_law_list.csv")
 SUBORDINATE_LAW_DIFFS = _p("data", "law", "subordinate_law_diffs.json")
 LAW_TEXTS = _p("data", "law", "law_texts.json")

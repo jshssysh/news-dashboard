@@ -54,9 +54,7 @@ BILL_KEYWORDS_PATH = paths.BILL_KEYWORDS
 DECISION_LIST_PATH = paths.DECISION_LIST
 LAW_API_BASE = "https://www.law.go.kr/DRF"
 # "상세링크"에 OC를 직접 박으면 그 값이 그대로 decision_list.csv/docs/decisions.json에
-# 실려서 공개 저장소에 실제 인증키가 노출된다(2026-10-01 보안 리뷰로 발견·확인 -
-# 실제 발급키가 484건 전부에 노출돼 있었음, "test" 데모키가 아니었음). 이제
-# OC 없이 "target/id"만 저장하고, Worker의 GET /link가 자신의 시크릿으로 실제
+# 실리므로, OC 없이 "target/id"만 저장하고, Worker의 GET /link가 자신의 시크릿으로 실제
 # 링크를 만들어 리디렉션한다(worker/src/index.js의 handleLink 참고).
 WORKER_LINK_BASE = "https://news-dashboard-contract-checker.jshssysh.workers.dev/link"
 

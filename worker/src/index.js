@@ -3,9 +3,8 @@
  * 두 가지만 여기서 한다.
  * - POST /titles: 담기(카트) 항목의 기사 원문 제목을 대신 가져와준다(2026-09-30).
  * - GET  /link: 법제처 API 링크에 필요한 OC 인증키를 커밋되는 데이터에 노출하지
- *   않기 위한 리디렉션 라우트(2026-10-01).
- * 예전에 있던 계약서 문구 AI 검토(POST /)는 2026-11-19에 뺐다(입력 문구를 외부 AI로
- * 보내는 기능이라). 자세한 설명은 각 핸들러 함수 위 주석 참고.
+ *   않기 위한 리디렉션 라우트.
+ * 자세한 설명은 각 핸들러 함수 위 주석 참고.
  */
 
 const ALLOWED_ORIGIN = "https://jshssysh.github.io";
@@ -218,11 +217,7 @@ function extractTitle(html) {
 
 /**
  * 법제처 국가법령정보 Open API(www.law.go.kr/DRF)의 의결서/판례/행정규칙 상세는
- * OC 인증키가 있어야 조회되는데, 그동안 collect_decisions.py/collect_law_penalties.py가
- * 이 링크를 "OC=실제키" 형태로 통째로 CSV에 저장해왔다 - 그게 그대로
- * docs/decisions.json 등 공개 GitHub Pages에 실려 나가 실제 발급받은 키가
- * 공개 저장소에 노출된 사고가 있었다(코드 리뷰로 발견, 2026-10-01 - decision_list.csv
- * 484건 전부, "test" 데모키가 아니라 실제 키였음). OC는 이제 이 Worker의 시크릿
+ * OC 인증키가 있어야 조회된다. 키를 커밋되는 데이터에 넣지 않도록, OC는 이 Worker의 시크릿
  * (wrangler secret / GitHub Actions secrets의 LAW_GO_KR_OC, deploy-worker.yml 참고)
  * 으로만 보관하고, 커밋되는 데이터에는 "/link?target=...&id=..." 형태로만 남겨
  * 이 라우트가 실제 OC 붙은 주소로 리디렉션하게 한다.

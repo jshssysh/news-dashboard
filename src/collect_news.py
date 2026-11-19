@@ -425,12 +425,6 @@ def update_personnel_csv(detected):
         updated.to_csv(f, index=False)
     print(f"[공정위 인사 자동 감지] {len(new_rows)}건 personnel.csv에 추가 (확인상태=자동감지, 검토 필요)")
 
-def force_merge_by_keywords(title, original_group_title):
-    t_lower = title.replace(" ", "")
-    if "RX사업추진실" in t_lower or ("대표이사직속" in t_lower and "로봇" in t_lower):
-        return "삼성전자 RX사업추진실 신설"
-    return original_group_title
-
 def log_gemini_usage(res_json, label):
     """비용 확인용: 호출마다 입력/출력/thinking 토큰 수를 GitHub Actions 로그에 남긴다."""
     usage = res_json.get("usageMetadata", {})
@@ -749,7 +743,7 @@ def save_rejected_news(rejected):
         print(f"[탈락 기사 기록 예외 - 건너뜀] {e}")
 
 
-# 저장한 기사의 네이버 설명(검색어 근처 2~3줄 발췌). .md·보고서에 요약보다 긴 내용을 넣으려고
+# 저장한 기사의 네이버 설명(검색어 근처 2~3줄 발췌). .md 내보내기 등에서 요약보다 긴 내용을 보여 주려고
 # 따로 둔다(2026-11-12). news_list.csv에 칸을 더하면 약 41MB → 73MB로 커져 GitHub 50MB 경고를
 # 넘으므로(위 FALLBACK_SUMMARY_CHARS 주석) 기사링크로 잇는 작은 파일에 최근 며칠치만 남긴다.
 # Gemini 입력에 이미 쓰는 값을 적기만 하므로 Gemini 사용량은 늘지 않는다.
@@ -2466,7 +2460,7 @@ def main():
     if SKIP_AI_ANALYSIS:
         print(f"[개발 모드] SKIP_AI_ANALYSIS=true → Gemini 호출 없이 {len(all_articles)}건을 원본 그대로 저장합니다.")
         for item in all_articles:
-            group_title = force_merge_by_keywords(item["title"], normalize_title(item["title"]))
+            group_title = normalize_title(item["title"])
             rows.append([
                 item["today_str"], item["category"], group_title, item["title"],
                 press_display_name(item["known_press"], item["link"]), "AI 분석 생략(개발 모드)", "미분석", 0, item["link"], item["pub_date"], ""
@@ -2516,7 +2510,6 @@ def main():
                     original_item = api_items_by_idx.get(r_idx)
                     if not original_item:
                         continue
-                    g_title = force_merge_by_keywords(original_item["title"], g_title)
                     final_category = category or original_item["category"]
                     analyzed_results[original_item["norm_t"]] = (score, g_title, summary, sentiment, final_category)
                     if original_item["title"] in COMPANIES_BY_TITLE:
@@ -2583,7 +2576,7 @@ def main():
                         "관련도": m_score, "기사링크": item["link"], "발행일시": item["pub_date"],
                     })
                     continue
-                group_title = force_merge_by_keywords(item["title"], m_issue or normalize_title(item["title"]))
+                group_title = m_issue or normalize_title(item["title"])
                 rows.append([
                     item["today_str"], category, group_title, item["title"],
                     press_display_name(item["known_press"], item["link"]),
@@ -2601,12 +2594,11 @@ def main():
                         "관련도": score, "기사링크": item["link"], "발행일시": item["pub_date"],
                     })
                     continue
-                group_title = force_merge_by_keywords(item["title"], group_title)
                 category = category or item["category"]
                 if sentiment == "판단 실패" and (not summary or summary in FAILED_SUMMARY_PLACEHOLDERS):
                     summary = naver_description_summary(item["description"], item["title"])
             else:
-                group_title, sentiment, score = force_merge_by_keywords(item["title"], normalize_title(item["title"])), "판단 실패", 0
+                group_title, sentiment, score = normalize_title(item["title"]), "판단 실패", 0
                 summary = naver_description_summary(item["description"], item["title"])
                 category = item["category"]
 
@@ -2643,7 +2635,7 @@ def main():
         if issue_by_link:
             for r in rows:
                 if r[8] in issue_by_link:
-                    r[2] = force_merge_by_keywords(r[3], issue_by_link[r[8]])
+                    r[2] = issue_by_link[r[8]]
             embedded_links = set(issue_by_link)
 
     # 다시 분석했더니 관련도가 낮은 기사는 rows에 없어(탈락 기록으로 감) 예전 실패 행이 그대로 남는다 -
