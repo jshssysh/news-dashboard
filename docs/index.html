@@ -229,8 +229,8 @@ a.badge-skipped:hover { text-decoration: underline; }
 .custom-range-inputs input[type=date]:focus { outline: none; border-color: var(--app-primary); }
 
 /* 장바구니 - 뉴스/입법 항목마다 붙는 "담기" 버튼으로 하나씩 바로 담고 빼서,
-   모아둔 걸 분야별 보고서 표로 보여준다(2026-09-14, 화면에서 보고 캡처/복사해
-   쓰는 용도 - 체크박스+일괄 담기 대신 항목별 즉시 토글 버튼으로 바꿨다). */
+   모아둔 걸 분야별 표로 보여준다(2026-09-14, 체크박스+일괄 담기 대신 항목별
+   즉시 토글 버튼으로 바꿨다). */
 .cart-inline-btn { flex-shrink: 0; background: none; border: 1px solid var(--app-border); border-radius: 6px;
   color: var(--app-text); padding: 3px 8px; font-size: 0.78em; font-weight: 700; line-height: 1.35; cursor: pointer; white-space: nowrap; }
 .cart-inline-btn:hover { border-color: var(--app-primary); color: var(--app-primary); }
@@ -917,9 +917,8 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
   #newsFilterSticky.news-collapsed .news-filter-row { margin-bottom: 0; }
 
   /* 입법 탭: "검색"▶ 토글 하나로 제안일 범위·☆ 즐겨찾기·검색창까지 한 줄에서
-     같이 접었다 펼친다(사용자 요청, 2026-09-14 - 기존엔 "검색"과 "제안일"이
-     서로 다른 두 줄이었다). "소관위"는 사용자가 지정한 순서에 없었으므로 이
-     줄에서 빼고 원래 있던 자리(바로 아래 filter-section)에 그대로 둔다. */
+     같이 접었다 펼친다(2026-09-14 - 기존엔 "검색"과 "제안일"이
+     서로 다른 두 줄이었다). "소관위"는 이 줄에서 빼고 원래 있던 자리(바로 아래 filter-section)에 그대로 둔다. */
   #mobileBillSearchRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   #mobileBillSearchRow > * { margin: 0 !important; padding: 0; }
   #mobileBillSearchRow #billSearchToggle { flex: 0 0 auto; display: flex; align-items: center; gap: 4px;
@@ -1377,7 +1376,7 @@ details.member-contact-line[open] .toggle-caret { transform: rotate(180deg); }
     <div class="info-box">해당 날짜에 수집된 기사 데이터가 없습니다.</div>
   </div>
 
-  <div class="generated-note">생성 시각: 2026-11-19 09:59 (GitHub Actions에서 자동 생성됨)</div>
+  <div class="generated-note">생성 시각: 2026-11-19 12:26 (GitHub Actions에서 자동 생성됨)</div>
 </div>
 
 <!-- 장바구니 "내보내기" 모달 - 팝업 창(window.open) 대신 같은 페이지 안에
@@ -1483,9 +1482,9 @@ function toggleStarredBill(id) {
   return s;
 }
 
-// ── 장바구니(뉴스/입법 담아서 보고서용 표로 모아보기) ──────────────────────
+// ── 장바구니(뉴스/입법 담아서 표로 모아보기) ──────────────────────
 const CART_KEY = 'reportCart';
-// 화면에는 이 순서대로 보여준다(사용자가 요청한 보도 요약표 형식과 동일) -
+// 화면에는 이 순서대로 보여준다 -
 // 목록에 없는 카테고리(뉴스 분야가 늘어나는 경우 등)는 "기타" 바로 앞에 끼운다.
 const CART_CATEGORY_ORDER = ['공정거래', '내부거래', '지배구조', '상생', '하도급', '상법', '시민단체', '노동', 'ESG', '법안', '기타', '인사'];
 
@@ -1575,8 +1574,7 @@ function clearCart() {
 document.querySelectorAll('.cart-clear-btn').forEach(btn => btn.addEventListener('click', clearCart));
 
 // 법안을 장바구니/내보내기에 담을 때 쓰는 표시 문구 - "법안명(제안일/대표
-// 발의자 의원/정당 첫 글자)" 형식(사용자가 지정한 엑셀 표 작성 기준,
-// 2026-09-14 - 예: "조세특례제한법 일부개정법률안(9.14/최은석 의원/국)").
+// 발의자 의원/정당 첫 글자)" 형식(2026-09-14 - 예: "조세특례제한법 일부개정법률안(9.14/최은석 의원/국)").
 // b.proposer는 이미 "이름의원(정당, 선수, 지역구) 등 N인" 형태로 와 있어서
 // 첫 괄호 안 첫 항목(정당)만 뽑아 첫 글자만 쓴다.
 function billExportTitle(b) {
@@ -1616,7 +1614,7 @@ document.getElementById('trendToggle').addEventListener('click', () => {
   writeFlag(TREND_COLLAPSE_KEY, document.getElementById('trendPanel').classList.toggle('collapsed'));
 });
 
-// "2026/09/14" -> "'26.9.14" (사용자가 보여준 보고용 표 형식과 동일).
+// "2026/09/14" -> "'26.9.14".
 function formatExportDate(dateStr) {
   if (!dateStr) return '';
   const parts = dateStr.split('/').map(Number);
@@ -1626,11 +1624,9 @@ function formatExportDate(dateStr) {
 }
 
 // 장바구니 "내보내기" - 화면의 항목별 표(한 행 = 한 항목)와 달리, 여기는
-// 분야별로 여러 건을 한 칸에 모아 엑셀에 그대로 붙여넣기 좋은 보고서 형태로
-// 보여준다(사용자 요청, 2026-09-14). 처음엔 별도 팝업 창(window.open)으로
-// 띄웠는데, Claude Code 앱 안의 브라우저 패널처럼 팝업 자체를 막는 환경에서는
-// 실제 클릭인데도 항상 차단당한다는 걸 실측으로 확인했다 - 그래서 새 창 대신
-// 같은 페이지 안에 뜨는 모달로 바꿔서 팝업 차단과 무관하게 항상 동작하게 했다.
+// 분야별로 여러 건을 한 칸에 모아 엑셀에 그대로 붙여넣기 좋은 표 형태로
+// 보여준다(2026-09-14). 팝업을 막는 브라우저에서도 동작하도록 새 창 대신
+// 같은 페이지 안에 뜨는 모달로 띄운다.
 function buildCartExportTableHtml() {
   const cart = getCart();
   const byCategory = {};
@@ -1643,7 +1639,7 @@ function buildCartExportTableHtml() {
     if (!orderedCats.includes(c)) orderedCats.splice(Math.max(orderedCats.length - 1, 0), 0, c);
   });
 
-  // 엑셀 기준(사용자 지정, 2026-09-14): 맑은 고딕 11pt. pt 단위를 그대로 써야
+  // 엑셀 서식: 맑은 고딕 11pt. pt 단위를 그대로 써야
   // 엑셀에 붙여넣었을 때 글자 크기 11이 맞게 들어간다. 날짜 행(1행)은 테두리
   // 없이, "정책/법개정 관련 보도 등"부터 아래로만 테두리를 준다. 분야명·제목
   // 줄은 굵게 하지 않는다(날짜만 굵게). 같은 분야 기사가 여러 건이면 A열
@@ -1664,7 +1660,7 @@ function buildCartExportTableHtml() {
       const idAttr = String(it.id||'').replace(/"/g,'&quot;');
       const linkCell = `<td style="${borderedStyle}"><a href="${it.link}" target="_blank" data-cart-id="${idAttr}" style="color:#1565c0;text-decoration:none;">${it.title}</a></td>`;
       if (idx === 0) {
-        // 병합된 분야 칸은 가로 왼쪽 정렬 + 세로 가운데 정렬(사용자 지정) -
+        // 병합된 분야 칸은 가로 왼쪽 정렬 + 세로 가운데 정렬 -
         // 세로는 위에서 이미 깔린 vertical-align:top을 여기서 middle로 덮는다.
         itemRowsHtml.push(`<tr><td rowspan="${items.length}" style="${borderedStyle}text-align:left;vertical-align:middle;white-space:nowrap;">${cat}</td>${linkCell}</tr>`);
       } else {
@@ -3179,7 +3175,7 @@ function committeeCardLabel(name) {
 }
 
 // 정무위/법사위/산자중기위/기후노동위/재경위를 앞에 고정하고, 그 뒤는
-// 산업·기업 활동과 연관도가 높은 순으로 상임위를 배치한다 (사용자 지정 순서).
+// 산업·기업 활동과 연관도가 높은 순으로 상임위를 배치한다.
 const COMMITTEE_PRIORITY = [
   "정무위원회", "법제사법위원회", "산업통상자원중소벤처기업위원회",
   "기후에너지환경노동위원회", "재정경제기획위원회",
