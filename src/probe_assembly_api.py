@@ -4,8 +4,7 @@
 
 collect_bills.py가 쓰는 계류의안 API(nwbqublzajtcqpdae)는 본회의를 통과한 법안을
 안 주므로, 입법 탭 단계 줄의 본회의 옆에 "공포" 칩을 붙이려면 공포일·공포번호를
-주는 다른 서비스가 필요하다. 회사 PC에서는 open.assembly.go.kr이 막혀 있어서
-(2026-10-27) 서비스 ID와 필드 이름을 확인하지 못했다 - 그래서 GitHub Actions에서
+주는 다른 서비스가 필요하다. 서비스 ID와 필드 이름을 확인하려고(2026-10-27) GitHub Actions에서
 probe-assembly-api.yml로 이 스크립트를 수동 실행해 로그로 확인한다.
 데이터를 저장하거나 커밋하지 않는다.
 

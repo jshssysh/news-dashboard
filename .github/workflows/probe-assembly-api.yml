@@ -1,8 +1,7 @@
 name: "[점검] 국회 API 응답 확인"
 
 # 국회 열린국회정보 API 응답 구조 확인용 (probe_assembly_api.py 참고).
-# 회사 PC에서는 open.assembly.go.kr이 막혀 있어 Actions에서 수동으로 한 번 돌려
-# 로그만 본다. 아무것도 저장·커밋하지 않는다.
+# Actions에서 수동으로 한 번 돌려 로그만 본다. 아무것도 저장·커밋하지 않는다.
 on:
   workflow_dispatch:
     inputs:

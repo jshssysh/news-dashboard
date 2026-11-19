@@ -64,7 +64,7 @@ def save_gemini_usage(script, articles, today_str):
 
 
 # 임베딩(기사 내용을 숫자 벡터로 바꾼 것) - 이슈명 단어 겹침 대신 내용 유사도로 같은 사건을
-# 묶기 위한 준비. 쓸 수 있는 모델 이름이 계정·시기마다 달라서(공식 문서는 회사망에서 막힘)
+# 묶기 위한 준비. 쓸 수 있는 모델 이름이 계정·시기마다 달라서
 # 실행할 때 목록을 조회해 고른다. 앞에 있을수록 우선.
 EMBED_MODEL_PREFERENCE = ["gemini-embedding-2", "gemini-embedding-001", "text-embedding-004"]
 EMBED_DIMENSIONS = 256   # 저장 공간을 줄이려고 줄인 차원(모델이 지원하지 않으면 무시됨)
@@ -2002,9 +2002,8 @@ def archive_expiring_news(expiring_df):
         json.dump(months, f)
 
 
-# 사람이 확인한 기사별 정정(이슈명 변경·삭제). 회사 PC에서는 보안 정책상 40KB 넘는
-# 업로드가 막혀 news_list.csv·아카이브를 직접 고쳐 올릴 수 없으므로, 정정 내역만 이 작은
-# 파일에 적어 두고 GitHub Actions가 매 실행마다 반영한다. 한 번 반영돼도 지우지 않는다 -
+# 사람이 확인한 기사별 정정(이슈명 변경·삭제). news_list.csv·아카이브는 수집 봇이 계속 고쳐 쓰므로
+# 직접 고치지 않고, 정정 내역만 이 작은 파일에 적어 두고 GitHub Actions가 매 실행마다 반영한다. 한 번 반영돼도 지우지 않는다 -
 # 지운 기사가 네이버 24시간 창에서 다시 수집되거나, 정정한 기사가 다시 분석돼도 계속 적용된다.
 #   기사링크: 대상 기사 / 조치: "이슈변경" 또는 "삭제" / 새이슈: 이슈변경일 때 바꿀 이슈명
 NEWS_OVERRIDES_PATH = paths.NEWS_OVERRIDES

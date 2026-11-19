@@ -17,8 +17,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip().replace('"', '').r
 # 이번 실행의 Gemini 호출 수. 뉴스·법안·심결·의원뉴스가 같은 무료 키를 나눠 쓰므로,
 # 실제 사용량을 gemini_usage.csv에 남겨 한도에 얼마나 가까운지 본다(save_gemini_usage).
 GEMINI_USAGE = {"calls": 0, "rate_limited": 0, "errors": 0}
-# 오류가 어떤 것이었는지 gemini_usage.csv "오류 예시" 칸에 남긴다. Actions 로그는 회사 PC에서
-# 로그인이 안 돼 못 보므로, 11/05 12:01부터 호출 대부분이 실패했을 때 원인을 알 수 없었다.
+# 오류가 어떤 것이었는지 gemini_usage.csv "오류 예시" 칸에 남긴다. Actions 로그 없이도
+# 원인을 보려는 것이다(11/05 12:01부터 호출 대부분이 실패했을 때 원인을 알 수 없었다).
 GEMINI_ERROR_SAMPLES = {}  # {"503 ...본문 앞부분": 횟수}
 
 
