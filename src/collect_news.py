@@ -730,7 +730,7 @@ REJECTED_NEWS_RETENTION_DAYS = 14
 
 def save_rejected_news(rejected):
     try:
-        new_df = pd.DataFrame(rejected, columns=["수집일자", "분야", "제목", "설명", "관련도", "기사링크", "발행일시"])
+        new_df = pd.DataFrame(rejected, columns=["수집일자", "분야", "제목", "설명", "관련도", "기사링크", "발행일시", "검색어"])
         if os.path.exists(REJECTED_NEWS_PATH):
             new_df = pd.concat([pd.read_csv(REJECTED_NEWS_PATH, encoding="utf-8-sig"), new_df], ignore_index=True)
         new_df = drop_removed_categories(new_df, "분야")
@@ -741,6 +741,51 @@ def save_rejected_news(rejected):
         print(f"[탈락 기사 기록] 이번 실행 {len(rejected)}건, 보관 {len(new_df)}건")
     except Exception as e:
         print(f"[탈락 기사 기록 예외 - 건너뜀] {e}")
+
+
+# 검색어별 성과 기록(2026-11-24). 어떤 검색어가 관련 없는 기사를 많이 끌어와 Gemini 한도를 쓰는지
+# 보려고 둔다. 실행마다 검색어 한 줄: 새로 분석한 기사 수와 그중 저장·6점 이상·탈락·분석 실패 건수.
+# 한 기사가 여러 검색어에 걸리면 먼저 돈 검색어(keywords.yaml 순서)에만 센다. 정리할 때는
+# "새로 분석"이 많고 "6점 이상"이 거의 없는 검색어부터 본다.
+KEYWORD_STATS_PATH = paths.KEYWORD_STATS
+KEYWORD_STATS_RETENTION_DAYS = 30
+
+
+def save_keyword_stats(all_articles, rows, rejected, kw_seen, today_str):
+    try:
+        by_link = {a["link"]: a.get("keyword", "") for a in all_articles if not a.get("retry") and not a.get("manual")}
+        stat = {}
+
+        def bump(kw, col, n=1):
+            if kw:
+                stat.setdefault(kw, {"이미 분석": 0, "새로 분석": 0, "저장": 0, "6점 이상": 0, "탈락": 0, "분석 실패": 0})[col] += n
+
+        for kw, n in kw_seen.items():
+            bump(kw, "이미 분석", n)
+        for kw in by_link.values():
+            bump(kw, "새로 분석")
+        for r in rows:
+            kw = by_link.get(r[8])
+            if r[6] == "판단 실패":
+                bump(kw, "분석 실패")
+            else:
+                bump(kw, "저장")
+                if r[7] >= 6:
+                    bump(kw, "6점 이상")
+        for r in rejected:
+            bump(by_link.get(r["기사링크"]), "탈락")
+        new = pd.DataFrame([{"수집일자": today_str, "검색어": kw, "키워드 분야": KEYWORDS.get(kw, ""), **v}
+                            for kw, v in stat.items()])
+        if new.empty:
+            return
+        if os.path.exists(KEYWORD_STATS_PATH):
+            new = pd.concat([pd.read_csv(KEYWORD_STATS_PATH, encoding="utf-8-sig"), new], ignore_index=True)
+        new = new.drop_duplicates(subset=["수집일자", "검색어"], keep="last")
+        cutoff = (datetime.now(KST) - timedelta(days=KEYWORD_STATS_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        new[new["수집일자"].astype(str) >= cutoff].to_csv(KEYWORD_STATS_PATH, index=False, encoding="utf-8-sig")
+        print(f"[검색어별 기록] 검색어 {len(stat)}개")
+    except Exception as e:
+        print(f"[검색어별 기록 예외 - 건너뜀] {e}")
 
 
 # 저장한 기사의 네이버 설명(검색어 근처 2~3줄 발췌). .md 내보내기 등에서 요약보다 긴 내용을 보여 주려고
@@ -2383,6 +2428,7 @@ def main():
     # 어차피 분석을 안 하므로 이 최적화도 끈다.
     analyzed_links = set() if SKIP_AI_ANALYSIS else load_analyzed_links()
     skipped_already_analyzed = 0
+    kw_seen = {}  # 검색어별 '이미 분석돼 건너뜀' 건수(save_keyword_stats)
 
     for keyword, category in KEYWORDS.items():
         articles = get_naver_news_24h(keyword)
@@ -2394,6 +2440,7 @@ def main():
             # 기존 분석 결과가 그대로 남아 있으므로(저장 시 병합됨) 여기서 빠져도 유실되지 않는다
             if link in analyzed_links:
                 skipped_already_analyzed += 1
+                kw_seen[keyword] = kw_seen.get(keyword, 0) + 1
                 continue
 
             title = clean_text(item["title"])
@@ -2407,7 +2454,7 @@ def main():
                 pub_date = ""
 
             article_data = {
-                "idx": idx, "category": category,
+                "idx": idx, "category": category, "keyword": keyword,
                 "title": title, "norm_t": norm_t, "description": desc, "link": link,
                 "known_press": extract_press_from_link(link), "today_str": today_str,
                 "pub_date": pub_date
@@ -2574,6 +2621,7 @@ def main():
                         "수집일자": item["today_str"], "분야": category,
                         "제목": item["title"], "설명": item["description"][:ANALYZE_DESCRIPTION_CHARS],
                         "관련도": m_score, "기사링크": item["link"], "발행일시": item["pub_date"],
+                        "검색어": item.get("keyword", ""),
                     })
                     continue
                 group_title = m_issue or normalize_title(item["title"])
@@ -2592,6 +2640,7 @@ def main():
                         "수집일자": item["today_str"], "분야": category or item["category"],
                         "제목": item["title"], "설명": item["description"][:ANALYZE_DESCRIPTION_CHARS],
                         "관련도": score, "기사링크": item["link"], "발행일시": item["pub_date"],
+                        "검색어": item.get("keyword", ""),
                     })
                     continue
                 category = category or item["category"]
@@ -2656,6 +2705,7 @@ def main():
     if not SKIP_AI_ANALYSIS:
         update_issue_display_names()
         save_rejected_news(rejected)
+        save_keyword_stats(all_articles, rows, rejected, kw_seen, today_str)
         save_news_descriptions(rows, {a["link"]: a["description"] for a in all_articles})
         save_gemini_usage("collect_news.py(뉴스)", len(rows), today_str)
 

@@ -37,6 +37,7 @@ DATA_DIR = _p("data")
 NEWS_LIST = _p("data", "news", "news_list.csv")
 NEWS_DESCRIPTIONS = _p("data", "news", "news_descriptions.csv")
 REJECTED_NEWS = _p("data", "news", "rejected_news.csv")
+KEYWORD_STATS = _p("data", "news", "keyword_stats.csv")  # 검색어별 수집·저장·탈락 건수(collect_news.save_keyword_stats)
 CLUSTER_WARNINGS = _p("data", "news", "cluster_warnings.csv")
 EMBED_ATTACH_LOG = _p("data", "news", "embed_attach_log.csv")
 ISSUE_MERGE_CANDIDATES = _p("data", "news", "issue_merge_candidates.csv")  # 이슈끼리 합칠 후보(중심 유사도) 기록
