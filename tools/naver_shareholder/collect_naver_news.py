@@ -93,9 +93,21 @@ SIMILARITY = 0.85
 EXISTING_FILE = "261125_주요인사_주주보호_자본시장_워딩_정리.xlsx"
 EXISTING_SHEET = "워딩 정리"
 
+# 제목에 이 단어가 있으면 '제목에 인물=Y' (본인 발언 기사일 가능성이 높아 먼저 검토)
+TITLE_WORDS = {
+    "대통령": ["李", "이재명", "이 대통령"],
+    "금융위원장": ["이억원", "금융위원장"],
+    "금감원장": ["이찬진", "금감원장", "금융감독원장"],
+    "김민석 대표": ["김민석"],
+    "김현정 의원": ["김현정"],
+    "오기형 의원": ["오기형"],
+    "김남근 의원": ["김남근"],
+}
+
 COLUMNS = ["No", "날짜", "발언자", "검색어", "제목", "요약(description)", "언론사 도메인", "원문링크",
-           "네이버링크", "이슈", "영향 항목(추정)", "영향도(추정)", "동일보도_건수", "기존반영", "검토"]
-COL_WIDTHS = [6, 11, 12, 24, 50, 70, 18, 40, 40, 22, 30, 10, 10, 8, 20]
+           "네이버링크", "이슈", "영향 항목(추정)", "영향도(추정)", "동일보도_건수", "기존반영",
+           "제목에 인물", "검토"]
+COL_WIDTHS = [6, 11, 12, 24, 50, 70, 18, 40, 40, 22, 30, 10, 10, 8, 10, 20]
 
 
 class AuthError(Exception):
@@ -203,28 +215,47 @@ def _error_code(r):
         return ""
 
 
-def fetch_query(session, url, headers, query, start_dt, stats):
-    """한 검색어를 최신순으로 받는다. 시작일 이전 기사가 나오면 멈춘다."""
-    items, errors, calls_before = [], [], stats["calls"]
-    start = 1
+def _fetch_pages(session, url, headers, query, sort, start_dt, stats, errors):
+    """최대 10페이지를 받는다. 최신순이면 시작일 이전 기사가 나올 때 멈춘다.
+    돌려주는 capped는 1,000건 한도를 다 쓰고도 시작일에 못 닿았다는 뜻(최신순일 때만 의미 있음)."""
+    items, start = [], 1
     while start + DISPLAY - 1 <= MAX_START:
         data, err = call_api(session, url, headers,
-                             {"query": query, "display": DISPLAY, "start": start, "sort": "date"}, stats)
+                             {"query": query, "display": DISPLAY, "start": start, "sort": sort}, stats)
         if err:
-            errors.append(f"start={start}: {err}")
-            break
+            errors.append(f"{sort} start={start}: {err}")
+            return items, False
         page = data.get("items", [])
         items.extend(page)
         if len(page) < DISPLAY:
-            break
-        try:
-            oldest = parsedate_to_datetime(page[-1]["pubDate"])
-        except (TypeError, ValueError, KeyError):
-            oldest = None
-        if oldest and oldest < start_dt:
-            break
+            return items, False
+        if sort == "date":
+            try:
+                oldest = parsedate_to_datetime(page[-1]["pubDate"])
+            except (TypeError, ValueError, KeyError):
+                oldest = None
+            if oldest and oldest < start_dt:
+                return items, False
         start += DISPLAY
-    return items, errors, stats["calls"] - calls_before
+    return items, True
+
+
+def fetch_query(session, url, headers, query, start_dt, stats):
+    """한 검색어를 최신순으로 받고, 1,000건 한도에 걸려 시작일까지 못 닿으면
+    관련도순으로 1,000건을 더 받아 빠진 옛 기사를 채운다. 검색어 안의 같은 기사는 하나로."""
+    errors, calls_before = [], stats["calls"]
+    items, capped = _fetch_pages(session, url, headers, query, "date", start_dt, stats, errors)
+    n_sim = 0
+    if capped:
+        seen = {norm_url(it.get("originallink") or it.get("link")) for it in items}
+        sim, _ = _fetch_pages(session, url, headers, query, "sim", start_dt, stats, errors)
+        for it in sim:
+            k = norm_url(it.get("originallink") or it.get("link"))
+            if k not in seen:
+                seen.add(k)
+                items.append(it)
+                n_sim += 1
+    return items, errors, stats["calls"] - calls_before, capped, n_sim
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +300,8 @@ def process_items(raw, person, query, start_dt, end_dt, log):
             "pub": pub, "날짜": pub.strftime("%Y.%m.%d"), "발언자": speaker, "검색어": [query],
             "제목": title, "요약(description)": desc, "언론사 도메인": domain_of(orig or link),
             "원문링크": orig, "네이버링크": link, "이슈": ", ".join(issues),
-            "영향 항목(추정)": item, "영향도(추정)": impact, "동일보도_건수": 1, "기존반영": "", "검토": "",
+            "영향 항목(추정)": item, "영향도(추정)": impact, "동일보도_건수": 1, "기존반영": "",
+            "제목에 인물": "Y" if any(w in title for w in TITLE_WORDS[speaker]) else "", "검토": "",
         })
     log["통과"] = len(out)
     return out
@@ -387,12 +419,13 @@ def save_excel(path, rows, query_logs, summary):
                 c.font = Font(name=FONT, color="0563C1", underline="single")
     style_header(ws, COL_WIDTHS)
 
-    log_cols = ["검색어", "발언자", "호출 수", "받은 건수", "기간 제외", "인물 제외", "관련성 제외", "통과", "오류"]
+    log_cols = ["검색어", "발언자", "호출 수", "받은 건수", "한도 걸림", "관련도순 보충",
+                "기간 제외", "인물 제외", "관련성 제외", "통과", "오류"]
     ws2 = wb.create_sheet("수집로그")
     ws2.append(log_cols)
     for lg in query_logs:
         ws2.append([lg.get(k, "") if k != "오류" else " / ".join(lg["오류"]) for k in log_cols])
-    style_header(ws2, [26, 12, 8, 10, 10, 10, 11, 8, 50])
+    style_header(ws2, [26, 12, 8, 10, 9, 12, 10, 10, 11, 8, 50])
     ws2.append([])
     for k, v in summary.items():
         ws2.append([k, v])
@@ -458,7 +491,9 @@ def main():
         for i, (_, q) in enumerate(queries, start=1):
             print(f"{i:3d}. {q}")
         print(f"\n검색어 {len(queries)}개, 예상 최대 호출 수 {max_calls}회 "
-              f"(검색어당 최대 {MAX_START // DISPLAY}페이지, 재시도 제외)")
+              f"(검색어당 최신순 최대 {MAX_START // DISPLAY}페이지, 재시도 제외)")
+        print(f"1,000건 한도에 걸린 검색어는 관련도순 {MAX_START // DISPLAY}페이지를 더 받으므로 "
+              f"최악의 경우 {max_calls * 2}회")
         print(f"기간: {args.start} ~ {args.end} (KST)")
         return
 
@@ -472,12 +507,14 @@ def main():
     session = requests.Session()
     try:
         for i, (person, q) in enumerate(queries, start=1):
-            raw, errors, calls = fetch_query(session, url, headers, q, start_dt, stats)
+            raw, errors, calls, capped, n_sim = fetch_query(session, url, headers, q, start_dt, stats)
             log = {"검색어": q, "발언자": person[0], "호출 수": calls, "받은 건수": len(raw),
+                   "한도 걸림": "Y" if capped else "", "관련도순 보충": n_sim if capped else "",
                    "기간 제외": 0, "인물 제외": 0, "관련성 제외": 0, "통과": 0, "오류": errors}
             rows.extend(process_items(raw, person, q, start_dt, end_dt, log))
             query_logs.append(log)
             print(f"[{i}/{len(queries)}] {q}: 받음 {len(raw)}, 통과 {log['통과']}"
+                  + (f" (한도 걸림, 관련도순 보충 {n_sim})" if capped else "")
                   + (f", 오류 {len(errors)}" if errors else ""))
     except AuthError as e:
         sys.exit(f"[오류] 인증 실패({e}). NAVER_CLIENT_ID/SECRET 값과 개발자센터의 "
@@ -496,12 +533,17 @@ def main():
         n_exist = 0
         summary["기존 파일 대조"] = "파일 없음(대조 안 함)"
 
-    rows.sort(key=lambda r: (r["pub"].date(), PERSON_ORDER[r["발언자"]], IMPACT_ORDER[r["영향도(추정)"]]))
+    # 제목에 인물이 나오는 기사(Y)를 앞에 모으고, 그 안에서 날짜 → 발언자 → 영향도 순
+    rows.sort(key=lambda r: (r["제목에 인물"] != "Y", r["pub"].date(),
+                             PERSON_ORDER[r["발언자"]], IMPACT_ORDER[r["영향도(추정)"]]))
     by_impact = {k: sum(r["영향도(추정)"] == k for r in rows) for k in IMPACT_ORDER}
     summary["최종 후보 수"] = len(rows)
     for k, v in by_impact.items():
         summary[f"영향도 {k}"] = v
     summary["기존반영 Y"] = n_exist
+    n_title = sum(r["제목에 인물"] == "Y" for r in rows)
+    summary["제목에 인물 Y"] = n_title
+    summary["한도 걸린 검색어 수"] = sum(1 for lg in query_logs if lg["한도 걸림"])
     summary["오류 난 검색어 수"] = sum(1 for lg in query_logs if lg["오류"])
 
     out_dir = Path(args.out_dir)
@@ -513,7 +555,10 @@ def main():
     print(f"총 호출 수: {stats['calls']}")
     print(f"최종 후보 수: {len(rows)} (링크 중복 {summary['1차 중복 제거(링크)']}건, "
           f"제목 유사 {summary['2차 중복 제거(제목 유사)']}건 묶음)")
+    print(f"제목에 인물(Y): {n_title} (먼저 검토할 기사, 표 앞쪽에 정렬)")
     print("영향도별: " + ", ".join(f"{k} {v}" for k, v in by_impact.items()))
+    if summary["한도 걸린 검색어 수"]:
+        print(f"1,000건 한도 걸린 검색어: {summary['한도 걸린 검색어 수']}개 (관련도순으로 보충)")
     print(f"기존반영(Y): {n_exist}" + ("" if existing else " (기존 파일 없음, 대조 안 함)"))
     if summary["오류 난 검색어 수"]:
         print(f"오류 난 검색어: {summary['오류 난 검색어 수']}개 (수집로그 시트 참고)")
