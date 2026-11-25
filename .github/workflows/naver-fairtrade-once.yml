@@ -1,0 +1,73 @@
+# [임시] 주요 인사 공정거래 발언 기사 후보 수집 (tools/naver_shareholder, topics/fair_trade.yaml)
+# GitHub 웹 Actions 탭에서 "Run workflow" 버튼으로만 실행한다(자동 실행 없음).
+# 결과 엑셀은 커밋하지 않고 Artifact(naver-candidates-fairtrade, 7일 보관)로만 올린다.
+name: "주요 인사 발언 - 공정거래관련"
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "시작일 YYYY-MM-DD"
+        default: "2026-01-01"
+        required: true
+      end:
+        description: "종료일 YYYY-MM-DD (비우면 오늘)"
+        required: false
+      limit_queries:
+        description: "시험용 검색어 개수 (비우면 전체 60개)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: naver-fairtrade
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: tools/naver_shareholder
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 환경 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 필수 라이브러리 설치
+        run: pip install -r requirements.txt
+
+      - name: 기사 후보 수집
+        env:
+          NAVER_API_MODE: developers
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          IN_START: ${{ inputs.start }}
+          IN_END: ${{ inputs.end }}
+          IN_LIMIT: ${{ inputs.limit_queries }}
+        run: |
+          set -o pipefail
+          ARGS=(--topic fair_trade --start "$IN_START" --out-dir out)
+          if [ -n "$IN_END" ]; then ARGS+=(--end "$IN_END"); fi
+          if [ -n "$IN_LIMIT" ]; then ARGS+=(--limit-queries "$IN_LIMIT"); fi
+          python collect_naver_news.py "${ARGS[@]}" | tee run.log
+          {
+            echo '### 수집 요약'
+            echo '```'
+            sed -n '/===== 요약 =====/,$p' run.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 결과 파일 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: naver-candidates-fairtrade
+          path: tools/naver_shareholder/out/*.xlsx
+          retention-days: 7
+          if-no-files-found: error

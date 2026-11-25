@@ -3,26 +3,25 @@
 네이버 뉴스 검색 API로 인물 × 이슈 키워드를 검색해 발언 기사 **후보 목록** 엑셀을 만든다.
 인물·키워드·태깅 규칙은 주제별 설정 파일 `topics/<주제>.yaml`에 있다.
 
-| 주제(`--topic`) | 인물 | 검색어 | 결과 파일 |
-|---|---|---|---|
-| `capital_market`(기본) 주주보호·자본시장 | 대통령·금융위원장·금감원장 등 7인 | 7 × 26 = 182개 | `naver_후보_YYMMDD.xlsx` |
-| `fair_trade` 공정거래 | 대통령·공정위원장(주병기) | 2 × 30 = 60개 | `naver_후보_공정거래_YYMMDD.xlsx` |
+| 주제(`--topic`) | Actions 워크플로 | 인물 | 검색어 | 결과(Artifact / 파일) |
+|---|---|---|---|---|
+| `capital_market`(기본) | 주요 인사 발언 - 주주관련 (`naver-shareholder-once.yml`) | 대통령·금융위원장·금감원장 등 7인 | 7 × 26 = 182개 | `naver-candidates` / `naver_후보_YYMMDD.xlsx` |
+| `fair_trade` | 주요 인사 발언 - 공정거래관련 (`naver-fairtrade-once.yml`) | 대통령·공정위원장(주병기) | 2 × 30 = 60개 | `naver-candidates-fairtrade` / `naver_후보_공정거래_YYMMDD.xlsx` |
 
-새 주제는 yaml 파일을 하나 더 만들고 워크플로 `topic` 선택지에 이름을 더하면 된다.
+새 주제는 yaml 파일을 하나 더 만들고 워크플로 파일을 복사해 `--topic`·이름·Artifact 이름만 바꾸면 된다.
 대시보드 수집(`src/`)과 관계없는 일회성 도구이며, 결과 파일은 저장소에 커밋하지 않는다.
-다 쓰면 이 폴더와 `.github/workflows/naver-shareholder-once.yml`을 지우면 된다.
+다 쓰면 이 폴더와 `.github/workflows/naver-shareholder-once.yml`·`naver-fairtrade-once.yml`을 지우면 된다.
 
 ## 1. GitHub Actions에서 돌리기 (권장)
 
 키는 저장소 Secrets의 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`(정기 뉴스 수집과 같은 키)을 쓴다.
 
-1. 저장소 **Actions** 탭 → 왼쪽 **"[임시] 주요 인사 발언 기사 후보 수집"** → **Run workflow**
+1. 저장소 **Actions** 탭 → 왼쪽 **"주요 인사 발언 - 주주관련"** 또는 **"주요 인사 발언 - 공정거래관련"** → **Run workflow**
 2. 입력
-   - `topic`: 주제(fair_trade / capital_market)
    - `start`: 시작일(기본 2026-01-01)
    - `end`: 종료일, 비우면 오늘(KST)
    - `limit_queries`: 시험할 때만 숫자(예: 3), 전체는 비워 둠
-3. 끝나면 실행 화면 아래 **Artifacts**의 `naver-candidates-<주제>`를 내려받는다(7일 보관).
+3. 끝나면 실행 화면 아래 **Artifacts**의 zip(위 표)을 내려받는다(7일 보관).
    요약은 실행 화면의 Summary에 나온다.
 
 정기 수집(06:01/12:01/18:01)과 같은 키·일일 한도를 쓰므로 그 시간대는 피한다.
