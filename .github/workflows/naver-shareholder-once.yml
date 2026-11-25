@@ -1,11 +1,17 @@
-# [임시] 주요 인사 주주보호·자본시장 발언 기사 후보 수집 (tools/naver_shareholder)
+# [임시] 주요 인사 발언 기사 후보 수집 (tools/naver_shareholder, 주제 설정은 topics/*.yaml)
 # GitHub 웹 Actions 탭에서 "Run workflow" 버튼으로만 실행한다(자동 실행 없음).
-# 결과 엑셀은 커밋하지 않고 Artifact(naver-candidates, 7일 보관)로만 올린다.
-name: "[임시] 주주보호 발언 기사 후보 수집"
+# 결과 엑셀은 커밋하지 않고 Artifact(naver-candidates-<주제>, 7일 보관)로만 올린다.
+name: "[임시] 주요 인사 발언 기사 후보 수집"
 
 on:
   workflow_dispatch:
     inputs:
+      topic:
+        description: "주제 (capital_market=주주보호·자본시장, fair_trade=공정거래)"
+        type: choice
+        options: [fair_trade, capital_market]
+        default: fair_trade
+        required: true
       start:
         description: "시작일 YYYY-MM-DD"
         default: "2026-01-01"
@@ -14,7 +20,7 @@ on:
         description: "종료일 YYYY-MM-DD (비우면 오늘)"
         required: false
       limit_queries:
-        description: "시험용 검색어 개수 (비우면 전체 182개)"
+        description: "시험용 검색어 개수 (비우면 전체: 공정거래 60개, 자본시장 182개)"
         required: false
 
 permissions:
@@ -48,12 +54,13 @@ jobs:
           NAVER_API_MODE: developers
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          IN_TOPIC: ${{ inputs.topic }}
           IN_START: ${{ inputs.start }}
           IN_END: ${{ inputs.end }}
           IN_LIMIT: ${{ inputs.limit_queries }}
         run: |
           set -o pipefail
-          ARGS=(--start "$IN_START" --out-dir out)
+          ARGS=(--topic "$IN_TOPIC" --start "$IN_START" --out-dir out)
           if [ -n "$IN_END" ]; then ARGS+=(--end "$IN_END"); fi
           if [ -n "$IN_LIMIT" ]; then ARGS+=(--limit-queries "$IN_LIMIT"); fi
           python collect_naver_news.py "${ARGS[@]}" | tee run.log
@@ -67,7 +74,7 @@ jobs:
       - name: 결과 파일 올리기
         uses: actions/upload-artifact@v4
         with:
-          name: naver-candidates
+          name: naver-candidates-${{ inputs.topic }}
           path: tools/naver_shareholder/out/*.xlsx
           retention-days: 7
           if-no-files-found: error

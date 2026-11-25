@@ -1,4 +1,4 @@
-"""주요 인사 '주주보호·자본시장' 발언 기사 후보 수집 (네이버 뉴스 검색 API).
+"""주요 인사 발언 기사 후보 수집 (네이버 뉴스 검색 API). 주제별 설정은 topics/<주제>.yaml.
 
 임시 도구다. 대시보드 수집(src/)과 관계없고, 결과는 저장소에 커밋하지 않는다.
 - 수집: 인물 검색명 × 이슈 키워드 조합으로 최신순 검색, 시작일 이전 기사가 나오면 그 검색어는 멈춤
@@ -9,8 +9,11 @@
 API 키는 환경변수(또는 .env)의 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET에서만 읽는다.
 키 값은 어디에도 출력하지 않는다.
 
+주제(--topic): capital_market(주주보호·자본시장, 기본), fair_trade(공정거래)
+
 사용 예:
   python collect_naver_news.py --start 2026-01-01 --end 2026-11-25
+  python collect_naver_news.py --topic fair_trade --dry-run
   python collect_naver_news.py --dry-run
   python collect_naver_news.py --limit-queries 3
   python collect_naver_news.py --compare-only naver_후보_261125.xlsx --existing 261125_주요인사_주주보호_자본시장_워딩_정리.xlsx
@@ -29,6 +32,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+import yaml
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
@@ -40,46 +44,42 @@ except ImportError:  # Actions에서는 환경변수로 바로 받으므로 없�
 KST = timezone(timedelta(hours=9))
 
 # ---------------------------------------------------------------------------
-# 수집 조건 (지시서 4장)
+# 수집 조건: topics/<주제>.yaml에서 읽는다 (아래 이름들은 load_topic()이 채운다)
 # ---------------------------------------------------------------------------
-# (발언자 표기, 검색명, 동명이인 필터 단어 - 하나 이상 있어야 통과)
-PERSONS = [
-    ("대통령", "이재명 대통령", ["대통령", "李"]),
-    ("금융위원장", "이억원", ["금융위"]),
-    ("금감원장", "이찬진", ["금감원", "금융감독원"]),
-    ("김민석 대표", "김민석", ["대표", "총리", "민주당"]),
-    ("김현정 의원", "김현정 의원", ["의원", "민주당"]),
-    ("오기형 의원", "오기형", ["의원", "특위"]),
-    ("김남근 의원", "김남근", ["의원", "특위"]),
-]
-PERSON_ORDER = {p[0]: i for i, p in enumerate(PERSONS)}
+TOPIC_DIR = Path(__file__).with_name("topics")
+DEFAULT_TOPIC = "capital_market"
+TOPIC = {}
+PERSONS = []          # (발언자 표기, 검색명, 동명이인 필터 단어 - 하나 이상 있어야 통과)
+PERSON_ORDER = {}
+ISSUE_KEYWORDS = []
+TAG_RULES = []        # (영향 항목, 영향도, 키워드) - 위에 있을수록 우선
+TITLE_WORDS = {}      # 발언자별: 제목에 이 단어가 있으면 '제목에 인물=Y'
+EXISTING_FILE = ""
 
-ISSUE_KEYWORDS = [
-    "의무공개매수", "중복상장", "쪼개기 상장", "자사주 소각", "주가누르기", "주가 누르기", "상속세 주가",
-    "적대적 M&A", "상장폐지", "상장유지", "IR 의무화", "합병가액", "베어허그", "5%룰", "스튜어드십",
-    "주주환원", "주가조작", "불공정거래", "저PBR", "일반주주", "소액주주", "주주보호", "주주충실의무",
-    "상법 개정", "코리아 디스카운트", "자본시장",
-]
 
-# 자동 태깅 규칙 (지시서 6장, 위에 있을수록 우선)
-TAG_RULES = [
-    ("주가누르기 방지법(상증세법)", "상", ["주가누르기", "주가 누르기", "상속세", "상증세", "증여세"]),
-    ("의무공개매수제", "상", ["의무공개매수", "안분비례"]),
-    ("중복상장 원칙금지", "상", ["중복상장", "쪼개기 상장", "물적분할", "자회사 상장"]),
-    ("합병가액 공정화", "상", ["합병가액", "합병비율", "공정가액", "외부평가"]),
-    ("적대적 M&A 활성화(방어장치 전수조사)", "상", ["적대적 M&A", "경영권 방어", "포이즌필"]),
-    ("상장유지 요건-대주주 지분율", "상", ["상장유지", "유통주식", "대주주 지분율"]),
-    ("자사주 소각 의무화(3차 상법)", "중", ["자사주", "3차 상법"]),
-    ("저PBR 기업 명단 공표", "중", ["저PBR", "PBR 하위", "명단 공표"]),
-    ("한국형 베어허그", "중", ["베어허그"]),
-    ("5%룰·스튜어드십 코드", "중", ["5%룰", "스튜어드십"]),
-    ("공시심사·불공정거래 단속 강화", "중",
-     ["주가조작", "불공정거래", "시세조종", "패가망신", "중수청", "특사경", "증권신고서"]),
-    ("주주환원 확대 압박", "하", ["주주환원", "배당"]),
-    ("IR 의무화·영문공시", "하", ["IR", "기업설명회", "영문공시"]),
-    ("상장폐지 요건 강화(코스닥 중심)", "하", ["상장폐지", "동전주", "코스닥 퇴출"]),
-    ("소수주주 주주제안권", "하", ["주주제안"]),
-]
+def topic_names():
+    return sorted(p.stem for p in TOPIC_DIR.glob("*.yaml"))
+
+
+def load_topic(name):
+    """주제 설정 파일을 읽어 모듈 전역(PERSONS 등)을 바꾼다. 다른 스크립트가 import해 써도 된다."""
+    global TOPIC, PERSONS, PERSON_ORDER, ISSUE_KEYWORDS, TAG_RULES, TITLE_WORDS, EXISTING_FILE
+    path = TOPIC_DIR / f"{name}.yaml"
+    if not path.exists():
+        sys.exit(f"[오류] 주제 '{name}' 설정이 없습니다. 고를 수 있는 주제: {', '.join(topic_names())}")
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+    TOPIC = cfg
+    PERSONS = [(p["speaker"], p["query"], list(p["filter"])) for p in cfg["persons"]]
+    PERSON_ORDER = {p[0]: i for i, p in enumerate(PERSONS)}
+    TITLE_WORDS = {p["speaker"]: list(p.get("title") or []) for p in cfg["persons"]}
+    ISSUE_KEYWORDS = [str(k) for k in cfg["issue_keywords"]]
+    TAG_RULES = [(r["item"], r["impact"], [str(k) for k in r["keywords"]]) for r in cfg["tag_rules"]]
+    EXISTING_FILE = cfg.get("existing_file") or ""
+    return cfg
+
+
+load_topic(DEFAULT_TOPIC)
+
 IMPACT_ORDER = {"상": 0, "중": 1, "하": 2, "-": 3}
 
 API_URLS = {
@@ -90,19 +90,7 @@ MAX_START = 1000          # start + display - 1 <= 1000
 CALL_INTERVAL = 0.15      # 호출 간격(초)
 MAX_RETRY = 3
 SIMILARITY = 0.85
-EXISTING_FILE = "261125_주요인사_주주보호_자본시장_워딩_정리.xlsx"
 EXISTING_SHEET = "워딩 정리"
-
-# 제목에 이 단어가 있으면 '제목에 인물=Y' (본인 발언 기사일 가능성이 높아 먼저 검토)
-TITLE_WORDS = {
-    "대통령": ["李", "이재명", "이 대통령"],
-    "금융위원장": ["이억원", "금융위원장"],
-    "금감원장": ["이찬진", "금감원장", "금융감독원장"],
-    "김민석 대표": ["김민석"],
-    "김현정 의원": ["김현정"],
-    "오기형 의원": ["오기형"],
-    "김남근 의원": ["김남근"],
-}
 
 COLUMNS = ["No", "날짜", "발언자", "검색어", "제목", "요약(description)", "언론사 도메인", "원문링크",
            "네이버링크", "이슈", "영향 항목(추정)", "영향도(추정)", "동일보도_건수", "기존반영",
@@ -368,6 +356,8 @@ def find_existing(arg):
         if not p.exists():
             sys.exit(f"[오류] 기존 파일을 찾을 수 없습니다: {p}")
         return p
+    if not EXISTING_FILE:
+        return None
     for d in (Path.cwd(), Path(__file__).parent):
         if (d / EXISTING_FILE).exists():
             return d / EXISTING_FILE
@@ -465,7 +455,9 @@ def compare_only(cand_path, existing_arg):
 
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="네이버 뉴스 API로 주요 인사 주주보호·자본시장 발언 기사 후보 수집")
+    ap = argparse.ArgumentParser(description="네이버 뉴스 API로 주요 인사 발언 기사 후보 수집")
+    ap.add_argument("--topic", default=DEFAULT_TOPIC, choices=topic_names(),
+                    help=f"주제 설정(topics/<주제>.yaml, 기본 {DEFAULT_TOPIC})")
     today = datetime.now(KST).strftime("%Y-%m-%d")
     ap.add_argument("--start", default="2026-01-01", help="시작일 YYYY-MM-DD (KST, 기본 2026-01-01)")
     ap.add_argument("--end", default=today, help="종료일 YYYY-MM-DD (KST, 그날 포함, 기본 오늘)")
@@ -475,6 +467,7 @@ def main():
     ap.add_argument("--out-dir", default=".", help="결과 파일을 둘 폴더")
     ap.add_argument("--compare-only", metavar="후보파일", help="받은 후보 파일에 기존반영만 채움(API 호출 없음)")
     args = ap.parse_args()
+    load_topic(args.topic)
 
     if args.compare_only:
         compare_only(args.compare_only, args.existing)
@@ -488,6 +481,7 @@ def main():
     max_calls = len(queries) * (MAX_START // DISPLAY)
 
     if args.dry_run:
+        print(f"주제: {TOPIC['name']} ({args.topic}) - 인물 {len(PERSONS)}명 × 키워드 {len(ISSUE_KEYWORDS)}개")
         for i, (_, q) in enumerate(queries, start=1):
             print(f"{i:3d}. {q}")
         print(f"\n검색어 {len(queries)}개, 예상 최대 호출 수 {max_calls}회 "
@@ -500,6 +494,7 @@ def main():
     mode, headers = load_keys()
     url = API_URLS[mode]
     run_at = datetime.now(KST)
+    print(f"주제: {TOPIC['name']} ({args.topic})")
     print(f"수집 시작: 검색어 {len(queries)}개, 기간 {args.start} ~ {args.end}, 모드 {mode}")
 
     stats = {"calls": 0}
@@ -520,7 +515,7 @@ def main():
         sys.exit(f"[오류] 인증 실패({e}). NAVER_CLIENT_ID/SECRET 값과 개발자센터의 "
                  "'검색' API 사용 설정을 확인하세요. (호출 {0}회에서 중단)".format(stats["calls"]))
 
-    summary = {"실행 일시": run_at.strftime("%Y-%m-%d %H:%M KST"),
+    summary = {"주제": f"{TOPIC['name']} ({args.topic})", "실행 일시": run_at.strftime("%Y-%m-%d %H:%M KST"),
                "기간": f"{args.start} ~ {args.end}", "검색어 수": len(queries),
                "총 호출 수": stats["calls"], "필터 통과(중복 제거 전)": len(rows)}
     rows = dedup(rows, summary)
@@ -548,7 +543,8 @@ def main():
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"naver_후보_{run_at.strftime('%y%m%d')}.xlsx"
+    tag_part = f"{TOPIC['file_tag']}_" if TOPIC.get("file_tag") else ""
+    out = out_dir / f"naver_후보_{tag_part}{run_at.strftime('%y%m%d')}.xlsx"
     save_excel(out, rows, query_logs, summary)
 
     print("\n===== 요약 =====")

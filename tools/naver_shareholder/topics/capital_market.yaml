@@ -1,0 +1,66 @@
+# 주제: 주주보호·자본시장 (주요 인사 발언 기사 후보 수집)
+# 검색어 = 인물 검색명 × 이슈 키워드. 태깅 규칙은 위에 있을수록 우선.
+
+name: 주주보호·자본시장
+file_tag: ""          # 결과 파일 이름에 붙는 말(비우면 naver_후보_YYMMDD.xlsx)
+existing_file: 261125_주요인사_주주보호_자본시장_워딩_정리.xlsx
+
+persons:
+  # speaker: 발언자 표기 / query: 검색명 / filter: 동명이인 거르는 단어(하나 이상 있어야 통과)
+  # title: 제목에 있으면 '제목에 인물=Y'
+  - {speaker: 대통령, query: 이재명 대통령, filter: [대통령, 李], title: [李, 이재명, 이 대통령]}
+  - {speaker: 금융위원장, query: 이억원, filter: [금융위], title: [이억원, 금융위원장]}
+  - {speaker: 금감원장, query: 이찬진, filter: [금감원, 금융감독원], title: [이찬진, 금감원장, 금융감독원장]}
+  - {speaker: 김민석 대표, query: 김민석, filter: [대표, 총리, 민주당], title: [김민석]}
+  - {speaker: 김현정 의원, query: 김현정 의원, filter: [의원, 민주당], title: [김현정]}
+  - {speaker: 오기형 의원, query: 오기형, filter: [의원, 특위], title: [오기형]}
+  - {speaker: 김남근 의원, query: 김남근, filter: [의원, 특위], title: [김남근]}
+
+issue_keywords:
+  - 의무공개매수
+  - 중복상장
+  - 쪼개기 상장
+  - 자사주 소각
+  - 주가누르기
+  - 주가 누르기
+  - 상속세 주가
+  - 적대적 M&A
+  - 상장폐지
+  - 상장유지
+  - IR 의무화
+  - 합병가액
+  - 베어허그
+  - 5%룰
+  - 스튜어드십
+  - 주주환원
+  - 주가조작
+  - 불공정거래
+  - 저PBR
+  - 일반주주
+  - 소액주주
+  - 주주보호
+  - 주주충실의무
+  - 상법 개정
+  - 코리아 디스카운트
+  - 자본시장
+
+tag_rules:
+  - {item: 주가누르기 방지법(상증세법), impact: 상, keywords: [주가누르기, 주가 누르기, 상속세, 상증세, 증여세]}
+  - {item: 의무공개매수제, impact: 상, keywords: [의무공개매수, 안분비례]}
+  - {item: 중복상장 원칙금지, impact: 상, keywords: [중복상장, 쪼개기 상장, 물적분할, 자회사 상장]}
+  - {item: 합병가액 공정화, impact: 상, keywords: [합병가액, 합병비율, 공정가액, 외부평가]}
+  - {item: 적대적 M&A 활성화(방어장치 전수조사), impact: 상, keywords: [적대적 M&A, 경영권 방어, 포이즌필]}
+  - {item: 상장유지 요건-대주주 지분율, impact: 상, keywords: [상장유지, 유통주식, 대주주 지분율]}
+  - {item: 자사주 소각 의무화(3차 상법), impact: 중, keywords: [자사주, 3차 상법]}
+  - {item: 저PBR 기업 명단 공표, impact: 중, keywords: [저PBR, PBR 하위, 명단 공표]}
+  - {item: 한국형 베어허그, impact: 중, keywords: [베어허그]}
+  - {item: 5%룰·스튜어드십 코드, impact: 중, keywords: [5%룰, 스튜어드십]}
+  - {item: 공시심사·불공정거래 단속 강화, impact: 중,
+     keywords: [주가조작, 불공정거래, 시세조종, 패가망신, 중수청, 특사경, 증권신고서]}
+  - {item: 주주환원 확대 압박, impact: 하, keywords: [주주환원, 배당]}
+  - {item: IR 의무화·영문공시, impact: 하, keywords: [IR, 기업설명회, 영문공시]}
+  - {item: 상장폐지 요건 강화(코스닥 중심), impact: 하, keywords: [상장폐지, 동전주, 코스닥 퇴출]}
+  - {item: 소수주주 주주제안권, impact: 하, keywords: [주주제안]}
+
+# 관련 법안 대조(엑셀 만들 때)에 쓰는 법률명 정규식
+laws: ["^자본시장과", "^상법", "^상속세 및 증여세법"]
