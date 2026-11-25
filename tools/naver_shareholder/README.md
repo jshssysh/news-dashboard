@@ -6,7 +6,7 @@
 | 주제(`--topic`) | Actions 워크플로 | 인물 | 검색어 | 결과(Artifact / 파일) |
 |---|---|---|---|---|
 | `capital_market`(기본) | 주요 인사 발언 - 주주관련 (`naver-shareholder-once.yml`) | 대통령·금융위원장·금감원장 등 7인 | 7 × 26 = 182개 | `naver-candidates` / `naver_후보_YYMMDD.xlsx` |
-| `fair_trade` | 주요 인사 발언 - 공정거래관련 (`naver-fairtrade-once.yml`) | 대통령·공정위원장(주병기) | 2 × 30 = 60개 | `naver-candidates-fairtrade` / `naver_후보_공정거래_YYMMDD.xlsx` |
+| `fair_trade` | 주요 인사 발언 - 공정거래관련 (`naver-fairtrade-once.yml`) | 대통령·공정위원장(주병기) | 2 × 30 + 대통령 강한 표현 8 = 68개 | `naver-candidates-fairtrade` / `naver_후보_공정거래_YYMMDD.xlsx` |
 
 새 주제는 yaml 파일을 하나 더 만들고 워크플로 파일을 복사해 `--topic`·이름·Artifact 이름만 바꾸면 된다.
 대시보드 수집(`src/`)과 관계없는 일회성 도구이며, 결과 파일은 저장소에 커밋하지 않는다.
@@ -80,3 +80,6 @@ python collect_naver_news.py --start 2026-01-01 --end 2026-11-25
 - `이슈`: 제목·요약에 나온 이슈 키워드 목록. `영향 항목(추정)`·`영향도(추정)`: 태깅 규칙 중 가장 위 1개
 - 오류: 429·5xx는 1·2·4초 간격으로 3회 재시도, 400은 그 검색어를 건너뛰고 기록, 401·403은 즉시 중단
 - 기사 본문은 받지 않는다(API 필드와 링크만 저장)
+- `강한 표현`·`강한 표현 문장`: 주제 설정의 `strong_words`(패가망신·암적·중대범죄 등)가 제목·요약에 있으면
+  그 말과, 그 말이 든 따옴표 문장을 적는다(공정거래 주제만). 요약 속 인용은 예전 발언을 다시 인용한 경우가 많아
+  기사 날짜가 발언 날짜가 아닐 수 있다

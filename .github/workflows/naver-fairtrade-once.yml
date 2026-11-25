@@ -14,7 +14,7 @@ on:
         description: "종료일 YYYY-MM-DD (비우면 오늘)"
         required: false
       limit_queries:
-        description: "시험용 검색어 개수 (비우면 전체 60개)"
+        description: "시험용 검색어 개수 (비우면 전체 68개)"
         required: false
 
 permissions:

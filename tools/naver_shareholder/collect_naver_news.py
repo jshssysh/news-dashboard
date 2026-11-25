@@ -52,6 +52,8 @@ TOPIC = {}
 PERSONS = []          # (발언자 표기, 검색명, 동명이인 필터 단어 - 하나 이상 있어야 통과)
 PERSON_ORDER = {}
 ISSUE_KEYWORDS = []
+STRONG_WORDS = []     # 강한 표현(제목·요약에서 찾아 열로 적음)
+EXTRA_KEYWORDS = {}   # 발언자별로 더 붙이는 검색 키워드
 TAG_RULES = []        # (영향 항목, 영향도, 키워드) - 위에 있을수록 우선
 TITLE_WORDS = {}      # 발언자별: 제목에 이 단어가 있으면 '제목에 인물=Y'
 EXISTING_FILE = ""
@@ -63,7 +65,7 @@ def topic_names():
 
 def load_topic(name):
     """주제 설정 파일을 읽어 모듈 전역(PERSONS 등)을 바꾼다. 다른 스크립트가 import해 써도 된다."""
-    global TOPIC, PERSONS, PERSON_ORDER, ISSUE_KEYWORDS, TAG_RULES, TITLE_WORDS, EXISTING_FILE
+    global TOPIC, PERSONS, PERSON_ORDER, ISSUE_KEYWORDS, TAG_RULES, TITLE_WORDS, EXISTING_FILE, STRONG_WORDS, EXTRA_KEYWORDS
     path = TOPIC_DIR / f"{name}.yaml"
     if not path.exists():
         sys.exit(f"[오류] 주제 '{name}' 설정이 없습니다. 고를 수 있는 주제: {', '.join(topic_names())}")
@@ -73,6 +75,8 @@ def load_topic(name):
     PERSON_ORDER = {p[0]: i for i, p in enumerate(PERSONS)}
     TITLE_WORDS = {p["speaker"]: list(p.get("title") or []) for p in cfg["persons"]}
     ISSUE_KEYWORDS = [str(k) for k in cfg["issue_keywords"]]
+    EXTRA_KEYWORDS = {p["speaker"]: [str(k) for k in (p.get("extra") or [])] for p in cfg["persons"]}
+    STRONG_WORDS = [str(k) for k in (cfg.get("strong_words") or [])]
     TAG_RULES = [(r["item"], r["impact"], [str(k) for k in r["keywords"]]) for r in cfg["tag_rules"]]
     EXISTING_FILE = cfg.get("existing_file") or ""
     return cfg
@@ -94,8 +98,8 @@ EXISTING_SHEET = "워딩 정리"
 
 COLUMNS = ["No", "날짜", "발언자", "검색어", "제목", "요약(description)", "언론사 도메인", "원문링크",
            "네이버링크", "이슈", "영향 항목(추정)", "영향도(추정)", "동일보도_건수", "기존반영",
-           "제목에 인물", "검토"]
-COL_WIDTHS = [6, 11, 12, 24, 50, 70, 18, 40, 40, 22, 30, 10, 10, 8, 10, 20]
+           "제목에 인물", "강한 표현", "강한 표현 문장", "검토"]
+COL_WIDTHS = [6, 11, 12, 24, 50, 70, 18, 40, 40, 22, 30, 10, 10, 8, 10, 16, 50, 20]
 
 
 class AuthError(Exception):
@@ -250,7 +254,29 @@ def fetch_query(session, url, headers, query, start_dt, stats):
 # 처리
 # ---------------------------------------------------------------------------
 def build_queries():
-    return [(p, f"{p[1]} {kw}") for p in PERSONS for kw in ISSUE_KEYWORDS]
+    return [(p, f"{p[1]} {kw}") for p in PERSONS for kw in ISSUE_KEYWORDS + EXTRA_KEYWORDS.get(p[0], [])]
+
+
+QUOTE_RE = re.compile(r"[\"“”]([^\"“”]{2,120})[\"“”]|[‘'’]([^‘'’]{2,120})[‘'’]")
+
+
+def strong_hits(title, desc):
+    """강한 표현 목록과, 그 표현이 든 따옴표 문장(없으면 앞뒤 30자)을 돌려준다."""
+    text = f"{title} {desc}"
+    words = [w for w in STRONG_WORDS if has_kw(text, w)]
+    if not words:
+        return "", ""
+    sents = []
+    for m in QUOTE_RE.finditer(text):
+        q = (m.group(1) or m.group(2)).strip()
+        if any(has_kw(q, w) for w in words) and q not in sents:
+            sents.append(q)
+    if not sents:
+        for w in words:
+            j = text.find(w)
+            if j >= 0:
+                sents.append("…" + text[max(0, j - 30): j + len(w) + 30].strip() + "…")
+    return ", ".join(words), "\n".join(sents)
 
 
 def tag(text):
@@ -277,11 +303,12 @@ def process_items(raw, person, query, start_dt, end_dt, log):
         if not any(w in text for w in filter_words):
             log["인물 제외"] += 1
             continue
-        issues = [k for k in ISSUE_KEYWORDS if has_kw(text, k)]
+        issues = [k for k in ISSUE_KEYWORDS + EXTRA_KEYWORDS.get(speaker, []) if has_kw(text, k)]
         if not issues:
             log["관련성 제외"] += 1
             continue
         item, impact = tag(text)
+        strong = strong_hits(title, desc)
         orig = (it.get("originallink") or "").strip()
         link = (it.get("link") or "").strip()
         out.append({
@@ -289,7 +316,8 @@ def process_items(raw, person, query, start_dt, end_dt, log):
             "제목": title, "요약(description)": desc, "언론사 도메인": domain_of(orig or link),
             "원문링크": orig, "네이버링크": link, "이슈": ", ".join(issues),
             "영향 항목(추정)": item, "영향도(추정)": impact, "동일보도_건수": 1, "기존반영": "",
-            "제목에 인물": "Y" if any(w in title for w in TITLE_WORDS[speaker]) else "", "검토": "",
+            "제목에 인물": "Y" if any(w in title for w in TITLE_WORDS[speaker]) else "",
+            "강한 표현": strong[0], "강한 표현 문장": strong[1], "검토": "",
         })
     log["통과"] = len(out)
     return out
@@ -395,7 +423,7 @@ def save_excel(path, rows, query_logs, summary):
     ws = wb.active
     ws.title = "후보목록"
     ws.append(COLUMNS)
-    wrap_cols = {COLUMNS.index("제목") + 1, COLUMNS.index("요약(description)") + 1}
+    wrap_cols = {COLUMNS.index(k) + 1 for k in ("제목", "요약(description)", "강한 표현 문장")}
     for no, r in enumerate(rows, start=1):
         vals = [no] + [("\n".join(r[k]) if k == "검색어" else r[k]) for k in COLUMNS[1:]]
         ws.append(vals)
